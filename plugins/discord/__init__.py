@@ -55,6 +55,8 @@ class Discord(_PluginBase):
             self._debug_enabled = config.get("debug_enabled")
             self._site_url = config.get("site_url")
             self._select_types = config.get("select_types")
+        
+        logger.info(f"Discord插件初始化完成")
 
     def get_state(self) -> bool:
         return self._enabled
@@ -113,14 +115,10 @@ class Discord(_PluginBase):
                         ]
                     },
                     {
-                        'component': 'VRow',
+                        'component': 'VCol',
                         'content': [
                             {
                                 'component': 'VCol',
-                                'props': {
-                                    'cols': 10,
-                                    'md': 8
-                                },
                                 'content': [
                                     {
                                         'component': 'VTextField',
@@ -133,10 +131,6 @@ class Discord(_PluginBase):
                             },
                             {
                                 'component': 'VCol',
-                                'props': {
-                                    'cols': 10,
-                                    'md': 8
-                                },
                                 'content': [
                                     {
                                         'component': 'VTextField',
@@ -154,10 +148,6 @@ class Discord(_PluginBase):
                         'content': [
                             {
                                 'component': 'VCol',
-                                'props': {
-                                    'cols': 10,
-                                    'md': 5
-                                },
                                 'content': [
                                     {
                                         'component': 'VSelect',
