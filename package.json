@@ -1,0 +1,11 @@
+{
+    "Discord": {
+        "name": "Discord 消息推送",
+        "description": "添加discord消息推送",
+        "version": "1.0",
+        "icon": "discord.png",
+        "color": "#5A65EA",
+        "author": "hankun",
+        "level": 1
+    }
+}
