@@ -18,7 +18,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.14"
+    plugin_version = "0.141"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -275,6 +275,8 @@ class Discord(_PluginBase):
         fields = []
         url = self._site_url
 
+        
+        logger.info(f"开始转换数据：{msg}")
         # 处理站点数据统计事件===================================================
         if(type == self._site_message):
             lines = msg.split('\n')
@@ -304,7 +306,6 @@ class Discord(_PluginBase):
             converted_text = '  '
             # 遍历每行内容
             for line in lines:
-                print(line)
                 # 将每行内容按冒号分割为字段名称和值
                 if '：' not in line:
                     continue
@@ -329,7 +330,6 @@ class Discord(_PluginBase):
             # 遍历每行内容
             for line in lines:
                 # 将每行内容按冒号分割为字段名称和值
-                print(line)
                 if '：' not in line:
                     converted_text = line
                 else: 
@@ -355,7 +355,7 @@ class Discord(_PluginBase):
                     "author": {
                         "name": "Movie Pilot",
                         "url": url if url else "https://github.com/jxxghp/MoviePilot",
-                        "icon_url": "https://cdn5.telegram-cdn.org/file/EKiDxdgUGOAW_YodOwWymqXoHrQKnY9v8YG_Id2unx6mQ2N-k_cdpVGigj7kBm2V78-dmu1w_-4g1rkHS_dUOZzajThES4XPLzUAanPON5KXxQnjVkmb2PJJI0zWMXKFUbhiHOdVS5n014LAgCUQ5OBvwQHNIgDDWznIEfa5-4bJdE2NDM3aN61-5tsT4zqm7caqfe-ERpyR49pLpe4w_W6ZhCPUiVCqDAMQpVqF-JP4ifVL5Z9KfV6X5_B0Pjy-hZlQFPC-RHZ8K-RGu4OhSYyaGs7hijOFzOZfoB-wuX99yttxAZqZ3uwvxD2qBMdltiWREUsg2fqPkRsLwDhkAQ.jpg"
+                        "icon_url": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins-discord/main/icons/logo.jpg"
                     },
                     "title": title,
                     "url": url if url else "https://github.com/jxxghp/MoviePilot",
@@ -408,15 +408,13 @@ class Discord(_PluginBase):
             else:
                 return str(_event)
             
-        event_info = {
-            "type": event.event_type,
-            "data": __to_dict(event.event_data)
-        }
-        logger.info(f"event_info: " + str(event_info))
+        # event_info = {
+        #     "type": event.event_type,
+        #     "data": __to_dict(event.event_data)
+        # }
+        # logger.info(f"event_info: " + str(event_info))
 
         raw_data = __to_dict(event.event_data)
-
-        logger.info(f"ding ding ding")
 
         logger.info(f"raw data: " + str(raw_data))
 
