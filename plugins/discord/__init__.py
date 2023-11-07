@@ -18,7 +18,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.141"
+    plugin_version = "0.142"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -267,110 +267,6 @@ class Discord(_PluginBase):
         'userid': None
     }
     """
-    def convert_data_to_embed(self,data,type):
-        msg = data.get('text')
-        title = data.get('title')
-        img = data.get('image')
-        converted_text = ''
-        fields = []
-        url = self._site_url
-
-        
-        logger.info(f"开始转换数据：{msg}")
-        # 处理站点数据统计事件===================================================
-        if(type == self._site_message):
-            lines = msg.split('\n')
-            converted_text = '  '
-            for i in range(0, len(lines), 4):
-                # 提取站点和上传下载量
-                site = lines[i][1:].strip('】')
-                upload = lines[i + 1].split('：')[1]
-                download = lines[i + 2].split('：')[1]
-                if(site == '汇总'):
-                    converted_text = f'**汇总**\n上传量:`{upload}`\n下载量:`{download}`'
-                    continue
-                # 创建一个字典表示一个field
-                field = {
-                    "name": "**"+site+"**",
-                    "value": f"上传量:`{upload}`\n下载量:`{download}`",
-                    "inline": True
-                }
-                # 将field添加到fields列表中
-                fields.append(field)
-
-        # 处理开始下载事件===================================================
-        elif(type == self._download):
-            lines =  msg.split('\n')
-            if(url != None):
-                url += '/downloading'
-            converted_text = '  '
-            # 遍历每行内容
-            for line in lines:
-                # 将每行内容按冒号分割为字段名称和值
-                if '：' not in line:
-                    continue
-                name, value = line.split('：', 1)
-                
-                # 创建一个字典表示一个 field
-                if(name == '种子'):
-                    continue
-                field = {
-                    "name": name.strip(),
-                    "value": value.strip(),
-                    "inline": True
-                }
-                
-                # 将 field 添加到 fields 列表中
-                fields.append(field)
-    
-        # 处理其他事件===================================================
-        elif(type == self._organize or type == self._subscribe or type == self._media_server or type == self._manual):
-            lines =  msg.split('，')
-            converted_text = '  '
-            # 遍历每行内容
-            for line in lines:
-                # 将每行内容按冒号分割为字段名称和值
-                if '：' not in line:
-                    converted_text = line
-                else: 
-                    name, value = line.split('：', 1)
-                
-                    # 创建一个字典表示一个 field
-                    field = {
-                        "name": name.strip(),
-                        "value": value.strip(),
-                        "inline": True
-                    }
-                    
-                    # 将 field 添加到 fields 列表中
-                    fields.append(field)
-
-        
-        # 构造 Webhook 请求的 JSON 数据
-        if(self._debug_enabled):
-            logger.info(f"尝试构造 Webhook 请求的 JSON 数据:" + str(data))
-        data_json = {
-            "embeds": [
-                {
-                    "author": {
-                        "name": "Movie Pilot",
-                        "url": url if url else "https://github.com/jxxghp/MoviePilot",
-                        "icon_url": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins-discord/main/icons/logo.jpg"
-                    },
-                    "title": title,
-                    "url": url if url else "https://github.com/jxxghp/MoviePilot",
-                    "color": 15258703,
-                    "description": converted_text if converted_text else msg,
-                    "fields": fields,
-                    "image": {
-                        "url": "http://none.png" if img is None else img
-                    }
-                }
-            ]
-            
-        }
-
-        return data_json
     
     @eventmanager.register(EventType)
     def send(self, event):
@@ -407,7 +303,112 @@ class Discord(_PluginBase):
                 return _event
             else:
                 return str(_event)
+        
+        def convert_data_to_embed(data,type):
+            msg = data.get('text')
+            title = data.get('title')
+            img = data.get('image')
+            converted_text = ''
+            fields = []
+            url = self._site_url
+
             
+            logger.info(f"开始转换数据：{msg}")
+            # 处理站点数据统计事件===================================================
+            if(type == self._site_message):
+                lines = msg.split('\n')
+                converted_text = '  '
+                for i in range(0, len(lines), 4):
+                    # 提取站点和上传下载量
+                    site = lines[i][1:].strip('】')
+                    upload = lines[i + 1].split('：')[1]
+                    download = lines[i + 2].split('：')[1]
+                    if(site == '汇总'):
+                        converted_text = f'**汇总**\n上传量:`{upload}`\n下载量:`{download}`'
+                        continue
+                    # 创建一个字典表示一个field
+                    field = {
+                        "name": "**"+site+"**",
+                        "value": f"上传量:`{upload}`\n下载量:`{download}`",
+                        "inline": True
+                    }
+                    # 将field添加到fields列表中
+                    fields.append(field)
+
+            # 处理开始下载事件===================================================
+            elif(type == self._download):
+                lines =  msg.split('\n')
+                if(url != None):
+                    url += '/downloading'
+                converted_text = '  '
+                # 遍历每行内容
+                for line in lines:
+                    # 将每行内容按冒号分割为字段名称和值
+                    if '：' not in line:
+                        continue
+                    name, value = line.split('：', 1)
+                    
+                    # 创建一个字典表示一个 field
+                    if(name == '种子'):
+                        continue
+                    field = {
+                        "name": name.strip(),
+                        "value": value.strip(),
+                        "inline": True
+                    }
+                    
+                    # 将 field 添加到 fields 列表中
+                    fields.append(field)
+        
+            # 处理其他事件===================================================
+            elif(type == self._organize or type == self._subscribe or type == self._media_server or type == self._manual):
+                lines =  msg.split('，')
+                converted_text = '  '
+                # 遍历每行内容
+                for line in lines:
+                    # 将每行内容按冒号分割为字段名称和值
+                    if '：' not in line:
+                        converted_text = line
+                    else: 
+                        name, value = line.split('：', 1)
+                    
+                        # 创建一个字典表示一个 field
+                        field = {
+                            "name": name.strip(),
+                            "value": value.strip(),
+                            "inline": True
+                        }
+                        
+                        # 将 field 添加到 fields 列表中
+                        fields.append(field)
+
+            
+            # 构造 Webhook 请求的 JSON 数据
+            if(self._debug_enabled):
+                logger.info(f"尝试构造 Webhook 请求的 JSON 数据:" + str(data))
+            data_json = {
+                "embeds": [
+                    {
+                        "author": {
+                            "name": "Movie Pilot",
+                            "url": url if url else "https://github.com/jxxghp/MoviePilot",
+                            "icon_url": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins-discord/main/icons/logo.jpg"
+                        },
+                        "title": title,
+                        "url": url if url else "https://github.com/jxxghp/MoviePilot",
+                        "color": 15258703,
+                        "description": converted_text if converted_text else msg,
+                        "fields": fields,
+                        "image": {
+                            "url": "http://none.png" if img is None else img
+                        }
+                    }
+                ]
+                
+            }
+
+            return data_json
+        
         # event_info = {
         #     "type": event.event_type,
         #     "data": __to_dict(event.event_data)
@@ -426,7 +427,7 @@ class Discord(_PluginBase):
             logger.info(f"未选择发送的通知类型，跳过：{target_type}")
             return
         
-        embed = self.convert_data_to_embed(self,raw_data,target_type)
+        embed = self.convert_data_to_embed(raw_data,target_type)
         logger.info(f"embed: " + str(embed))
         ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=embed)
         
