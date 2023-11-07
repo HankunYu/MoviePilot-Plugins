@@ -7,6 +7,7 @@ from app.plugins import _PluginBase
 from app.core.event import eventmanager
 from app.schemas.types import EventType
 from typing import Any, List, Dict, Tuple
+from app.utils.http import RequestUtils
 
 class Discord(_PluginBase):
     # 插件名称
@@ -107,4 +108,59 @@ class Discord(_PluginBase):
         }
 
     def get_page(self) -> List[dict]:
+        pass
+    
+    @eventmanager.register(EventType)
+    def send(self, event):
+        """
+        向第三方Webhook发送请求
+        """
+        if not self._enabled or not self._webhook_url:
+            return
+
+        def __to_dict(_event):
+            """
+            递归将对象转换为字典
+            """
+            if isinstance(_event, dict):
+                for k, v in _event.items():
+                    _event[k] = __to_dict(v)
+                return _event
+            elif isinstance(_event, list):
+                for i in range(len(_event)):
+                    _event[i] = __to_dict(_event[i])
+                return _event
+            elif isinstance(_event, tuple):
+                return tuple(__to_dict(list(_event)))
+            elif isinstance(_event, set):
+                return set(__to_dict(list(_event)))
+            elif hasattr(_event, 'to_dict'):
+                return __to_dict(_event.to_dict())
+            elif hasattr(_event, '__dict__'):
+                return __to_dict(_event.__dict__)
+            elif isinstance(_event, (int, float, str, bool, type(None))):
+                return _event
+            else:
+                return str(_event)
+
+        event_info = {
+            "type": event.event_type,
+            "data": __to_dict(event.event_data)
+        }
+
+        if self._method == 'POST':
+            ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=event_info)
+        else:
+            ret = RequestUtils().get_res(self._webhook_url, params=event_info)
+        if ret:
+            logger.info("发送成功：%s" % self._webhook_url)
+        elif ret is not None:
+            logger.error(f"发送失败，状态码：{ret.status_code}，返回信息：{ret.text} {ret.reason}")
+        else:
+            logger.error("发送失败，未获取到返回信息")
+
+    def stop_service(self):
+        """
+        退出插件
+        """
         pass
