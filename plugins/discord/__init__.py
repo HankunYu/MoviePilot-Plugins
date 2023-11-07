@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.13"
+    plugin_version = "0.131"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -56,7 +56,7 @@ class Discord(_PluginBase):
             self._site_url = config.get("site_url")
             self._select_types = config.get("select_types")
         
-        logger.info(f"Discord插件初始化完成")
+        logger.info(f"Discord插件初始化完成，启用状态：{self._enabled}，debug模式：{self._debug_enabled}，webhook_url：{self._webhook_url}，站点地址：{self._site_url}，选择的通知类型：{self._select_types}")
 
     def get_state(self) -> bool:
         return self._enabled
@@ -398,7 +398,9 @@ class Discord(_PluginBase):
         """
         向discord Webhook发送请求
         """
-        if not self._enabled or not self._webhook_url:
+        if(self._debug_enabled):
+            logger.info(f"收到事件：" + str(event))
+        if not self._enabled or not self._webhook_url or self._select_types is None or len(self._select_types) == 0:
             return
 
         def __to_dict(_event):
