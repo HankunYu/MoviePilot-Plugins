@@ -18,7 +18,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.133"
+    plugin_version = "0.134"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -430,8 +430,10 @@ class Discord(_PluginBase):
             else:
                 return str(_event)
 
-        logger.info(f"ding ding ding")
         raw_data = __to_dict(event.event_data)
+
+        logger.info(f"ding ding ding")
+
         logger.info(f"raw data: " + str(raw_data))
 
         type = raw_data.get('type').get('_value_')
