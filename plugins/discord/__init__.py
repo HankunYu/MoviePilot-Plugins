@@ -18,7 +18,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.134"
+    plugin_version = "0.135"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -397,8 +397,6 @@ class Discord(_PluginBase):
         """
         向discord Webhook发送请求
         """
-        if(self._debug_enabled):
-            logger.info(f"收到事件：" + str(event))
         if not self._enabled or not self._webhook_url or self._select_types is None or len(self._select_types) == 0:
             return
 
@@ -429,6 +427,12 @@ class Discord(_PluginBase):
                 return _event
             else:
                 return str(_event)
+            
+        event_info = {
+            "type": event.event_type,
+            "data": __to_dict(event.event_data)
+        }
+        logger.info(f"event_info: " + str(event_info))
 
         raw_data = __to_dict(event.event_data)
 
@@ -436,14 +440,14 @@ class Discord(_PluginBase):
 
         logger.info(f"raw data: " + str(raw_data))
 
-        type = raw_data.get('type').get('_value_')
-        logger.info(f"event type: " + str(type))
+        target_type = raw_data.get('type').get('_value_')
+        logger.info(f"event type: " + str(target_type))
         
         # 只发送已选择的通知消息
-        if(type not in self._select_types):
+        if(target_type not in self._select_types):
             return
         
-        embed = self.convert_data_to_embed(self,raw_data,type)
+        embed = self.convert_data_to_embed(self,raw_data,target_type)
         ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=embed)
         
         if ret:
