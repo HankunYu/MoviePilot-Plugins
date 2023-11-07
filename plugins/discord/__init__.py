@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.15"
+    plugin_version = "0.151"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -55,6 +55,9 @@ class Discord(_PluginBase):
             self._debug_enabled = config.get("debug_enabled")
             self._site_url = config.get("site_url")
             self._select_types = config.get("select_types")
+
+            if(self._site_url and not self._site_url.startwith("http")):
+                self._site_url = "http://" + self._site_url
         
         logger.info(f"Discord插件初始化完成，启用状态：{self._enabled}，debug模式：{self._debug_enabled}，webhook_url：{self._webhook_url}，站点地址：{self._site_url}，选择的通知类型：{self._select_types}")
 
