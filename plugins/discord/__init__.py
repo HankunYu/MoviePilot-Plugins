@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.151"
+    plugin_version = "1.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -59,7 +59,7 @@ class Discord(_PluginBase):
             if(self._site_url and not self._site_url.startswith("http")):
                 self._site_url = "http://" + self._site_url
         
-        logger.info(f"Discord插件初始化完成，启用状态：{self._enabled}，debug模式：{self._debug_enabled}，webhook_url：{self._webhook_url}，站点地址：{self._site_url}，选择的通知类型：{self._select_types}")
+        logger.info(f"Discord插件初始化完成")
 
     def get_state(self) -> bool:
         return self._enabled
@@ -280,9 +280,6 @@ class Discord(_PluginBase):
         if not self._enabled or not self._webhook_url or self._select_types is None or len(self._select_types) == 0:
             return
 
-        if(self._debug_enabled):
-            logger.info(f"开始发送事件：")
-
         def __to_dict(_event):
             """
             递归将对象转换为字典
@@ -309,7 +306,6 @@ class Discord(_PluginBase):
                 return str(_event)
         
         def convert_data_to_embed(_data,_type):
-            logger.info(f"pong")
             msg = _data.get('text')
             title = _data.get('title')
             img = _data.get('image')
@@ -367,6 +363,10 @@ class Discord(_PluginBase):
             elif(_type == self._organize or type == self._subscribe or type == self._media_server or type == self._manual):
                 lines =  msg.split('，')
                 converted_text = '  '
+                if(_type == self._subscribe):
+                    url += '/subscribe-tv'
+                elif(_type == self._organize):
+                    url += '/history'
                 # 遍历每行内容
                 for line in lines:
                     # 将每行内容按冒号分割为字段名称和值
@@ -409,31 +409,30 @@ class Discord(_PluginBase):
             }
 
             return data_json
-        
-        # event_info = {
-        #     "type": event.event_type,
-        #     "data": __to_dict(event.event_data)
-        # }
-        # logger.info(f"event_info: " + str(event_info))
 
         raw_data = __to_dict(event.event_data)
-
-        logger.info(f"raw data: " + str(raw_data))
-
         target_type = raw_data.get('type').get('_value_')
-        logger.info(f"event type: " + str(target_type))
+
+        if(self._debug_enabled):
+            logger.info(f"event type: " + str(target_type))
+            logger.info(f"raw data: " + str(raw_data))
         
         # 只发送已选择的通知消息
         if(target_type not in self._select_types):
-            logger.info(f"未选择发送的通知类型，跳过：{target_type}")
+            if(self._debug_enabled):
+                logger.info(f"未选择发送的通知类型，跳过：{target_type}")
             return
-        logger.info(f"ping")
+        
+        # 转换数据为embed格式
         embed = convert_data_to_embed(raw_data,target_type)
-        logger.info(f"embed: " + str(embed))
+        if(self._debug_enabled):
+            logger.info(f"embed: " + str(embed))
+
+        # 发送请求 
         ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=embed)
         
         if ret:
-            logger.info("发送成功：%s" % self._webhook_url)
+            logger.info("发送成功")
         elif ret is not None:
             logger.error(f"发送失败，状态码：{ret.status_code}，返回信息：{ret.text} {ret.reason}")
         else:
