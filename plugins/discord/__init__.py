@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.144"
+    plugin_version = "0.145"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -425,7 +425,7 @@ class Discord(_PluginBase):
             logger.info(f"未选择发送的通知类型，跳过：{target_type}")
             return
         logger.info(f"ping")
-        embed = self.convert_data_to_embed(raw_data,target_type)
+        embed = convert_data_to_embed(raw_data,target_type)
         logger.info(f"embed: " + str(embed))
         ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=embed)
         
