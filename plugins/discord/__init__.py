@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.131"
+    plugin_version = "0.132"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -403,6 +403,8 @@ class Discord(_PluginBase):
         if not self._enabled or not self._webhook_url or self._select_types is None or len(self._select_types) == 0:
             return
 
+        if(self._debug_enabled):
+            logger.info(f"开始发送事件：")
         def __to_dict(_event):
             """
             递归将对象转换为字典
@@ -433,10 +435,10 @@ class Discord(_PluginBase):
         #     "data": __to_dict(event.event_data)
         # }
         raw_data = __to_dict(event.event_data)
+        logger.info(f"raw data: " + str(raw_data))
+
         type = raw_data.get('type').get('_value_')
-        if(self._debug_enabled):
-            logger.info(f"raw data: " + str(raw_data))
-            logger.info(f"event type: " + str(type))
+        logger.info(f"event type: " + str(type))
         
         # 只发送已选择的通知消息
         if(type not in self._select_types):
