@@ -18,7 +18,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.136"
+    plugin_version = "0.14"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -269,14 +269,15 @@ class Discord(_PluginBase):
     """
     def convert_data_to_embed(self,data,type):
         msg = data.get('text')
-        title = msg.get('title')
+        title = data.get('title')
+        img = data.get('image')
         converted_text = ''
         fields = []
         url = self._site_url
 
         # 处理站点数据统计事件===================================================
         if(type == self._site_message):
-            lines = msg.get('text').split('\n')
+            lines = msg.split('\n')
             converted_text = '  '
             for i in range(0, len(lines), 4):
                 # 提取站点和上传下载量
@@ -297,7 +298,7 @@ class Discord(_PluginBase):
 
         # 处理开始下载事件===================================================
         elif(type == self._download):
-            lines =  msg.get('text').split('\n')
+            lines =  msg.split('\n')
             if(url != None):
                 url += '/downloading'
             converted_text = '  '
@@ -321,9 +322,9 @@ class Discord(_PluginBase):
                 # 将 field 添加到 fields 列表中
                 fields.append(field)
     
-        # 处理入库事件===================================================
-        elif(type == self._organize):
-            lines =  msg.get('text').split('，')
+        # 处理其他事件===================================================
+        elif(type == self._organize or type == self._subscribe or type == self._media_server or type == self._manual):
+            lines =  msg.split('，')
             converted_text = '  '
             # 遍历每行内容
             for line in lines:
@@ -343,28 +344,7 @@ class Discord(_PluginBase):
                     
                     # 将 field 添加到 fields 列表中
                     fields.append(field)
-        # # 处理 一般事件===================================================
-        else:
-            lines =  msg.get('text').split('，')
-            converted_text = '  '
-            # 遍历每行内容
-            for line in lines:
-                # 将每行内容按冒号分割为字段名称和值
-                print(line)
-                if '：' not in line:
-                    converted_text += line + '\n'
-                else: 
-                    name, value = line.split('：', 1)
-                
-                    # 创建一个字典表示一个 field
-                    field = {
-                        "name": name.strip(),
-                        "value": value.strip(),
-                        "inline": True
-                    }
-                    
-                    # 将 field 添加到 fields 列表中
-                    fields.append(field)
+
         
         # 构造 Webhook 请求的 JSON 数据
         if(self._debug_enabled):
@@ -380,10 +360,10 @@ class Discord(_PluginBase):
                     "title": title,
                     "url": url if url else "https://github.com/jxxghp/MoviePilot",
                     "color": 15258703,
-                    "description": converted_text if converted_text else msg.get('text'),
+                    "description": converted_text if converted_text else msg,
                     "fields": fields,
                     "image": {
-                        "url": "http://none.png" if msg.get('image') is None else msg.get('image')
+                        "url": "http://none.png" if img is None else img
                     }
                 }
             ]
