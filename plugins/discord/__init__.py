@@ -1,4 +1,5 @@
 #import discord
+from enum import Enum
 
 # MoviePilot library
 from app.log import logger
@@ -18,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.143"
+    plugin_version = "0.144"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -283,8 +284,6 @@ class Discord(_PluginBase):
             """
             递归将对象转换为字典
             """
-            
-            logger.info(f"开始转换事件")
             if isinstance(_event, dict):
                 for k, v in _event.items():
                     _event[k] = __to_dict(v)
@@ -306,16 +305,17 @@ class Discord(_PluginBase):
             else:
                 return str(_event)
         
-        def convert_data_to_embed(data,type):
-            msg = data.get('text')
-            title = data.get('title')
-            img = data.get('image')
+        def convert_data_to_embed(_data,_type):
+            logger.info(f"pong")
+            msg = _data.get('text')
+            title = _data.get('title')
+            img = _data.get('image')
             converted_text = ''
             fields = []
             url = self._site_url
 
             # 处理站点数据统计事件===================================================
-            if(type == self._site_message):
+            if(_type == self._site_message):
                 lines = msg.split('\n')
                 converted_text = '  '
                 for i in range(0, len(lines), 4):
@@ -336,7 +336,7 @@ class Discord(_PluginBase):
                     fields.append(field)
 
             # 处理开始下载事件===================================================
-            elif(type == self._download):
+            elif(_type == self._download):
                 lines =  msg.split('\n')
                 if(url != None):
                     url += '/downloading'
@@ -361,7 +361,7 @@ class Discord(_PluginBase):
                     fields.append(field)
         
             # 处理其他事件===================================================
-            elif(type == self._organize or type == self._subscribe or type == self._media_server or type == self._manual):
+            elif(_type == self._organize or type == self._subscribe or type == self._media_server or type == self._manual):
                 lines =  msg.split('，')
                 converted_text = '  '
                 # 遍历每行内容
@@ -424,7 +424,7 @@ class Discord(_PluginBase):
         if(target_type not in self._select_types):
             logger.info(f"未选择发送的通知类型，跳过：{target_type}")
             return
-        
+        logger.info(f"ping")
         embed = self.convert_data_to_embed(raw_data,target_type)
         logger.info(f"embed: " + str(embed))
         ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=embed)
