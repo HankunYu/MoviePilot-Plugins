@@ -18,7 +18,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.142"
+    plugin_version = "0.143"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -268,7 +268,7 @@ class Discord(_PluginBase):
     }
     """
     
-    @eventmanager.register(EventType)
+    @eventmanager.register(EventType.NoticeMessage)
     def send(self, event):
         """
         向discord Webhook发送请求
@@ -283,6 +283,8 @@ class Discord(_PluginBase):
             """
             递归将对象转换为字典
             """
+            
+            logger.info(f"开始转换事件")
             if isinstance(_event, dict):
                 for k, v in _event.items():
                     _event[k] = __to_dict(v)
@@ -312,8 +314,6 @@ class Discord(_PluginBase):
             fields = []
             url = self._site_url
 
-            
-            logger.info(f"开始转换数据：{msg}")
             # 处理站点数据统计事件===================================================
             if(type == self._site_message):
                 lines = msg.split('\n')
@@ -384,8 +384,6 @@ class Discord(_PluginBase):
 
             
             # 构造 Webhook 请求的 JSON 数据
-            if(self._debug_enabled):
-                logger.info(f"尝试构造 Webhook 请求的 JSON 数据:" + str(data))
             data_json = {
                 "embeds": [
                     {
