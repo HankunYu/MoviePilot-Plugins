@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.11"
+    plugin_version = "0.12"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -38,13 +38,14 @@ class Discord(_PluginBase):
     _site_url = None
 
     # 消息类型
-    _download: bool = False
-    _subscribe: bool = False
-    _organize: bool = False
-    _site_message: bool = False
-    _media_server: bool = False
-    _manual: bool = False
-
+    _download: str = "资源下载"
+    _subscribe: str = "订阅"
+    _organize: str = "整理入库"
+    _site_message: str = "站点消息"
+    _media_server: str = "媒体服务器通知"
+    _manual: str = "手动处理通知"
+    _all_types: List[str] = [_download, _subscribe, _organize, _site_message, _media_server, _manual]
+    _select_types: List[str] = []
 
 
     def init_plugin(self, config: dict = None):
@@ -53,6 +54,7 @@ class Discord(_PluginBase):
             self._webhook_url = config.get("webhook_url")
             self._debug_enabled = config.get("debug_enabled")
             self._site_url = config.get("site_url")
+            self._select_types = config.get("select_types")
 
     def get_state(self) -> bool:
         return self._enabled
@@ -63,7 +65,8 @@ class Discord(_PluginBase):
 
     def get_api(self) -> List[Dict[str, Any]]:
         pass
-
+    
+    # 插件配置页面
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
         """
         拼装插件配置页面，需要返回两块数据：1、页面配置；2、数据结构
@@ -115,7 +118,7 @@ class Discord(_PluginBase):
                             {
                                 'component': 'VCol',
                                 'props': {
-                                    'cols': 12,
+                                    'cols': 10,
                                     'md': 8
                                 },
                                 'content': [
@@ -131,7 +134,7 @@ class Discord(_PluginBase):
                             {
                                 'component': 'VCol',
                                 'props': {
-                                    'cols': 12,
+                                    'cols': 10,
                                     'md': 8
                                 },
                                 'content': [
@@ -146,13 +149,38 @@ class Discord(_PluginBase):
                             }
                         ]
                     },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 10,
+                                    'md': 5
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSelect',
+                                        'props': {
+                                            'chips': True,
+                                            'multiple': True,
+                                            'model': 'select_types',
+                                            'label': '选择通知类型',
+                                            'items': self._all_types
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
                 ]
             }
         ], {
             "enabled": False,
             "debug_enabled": False,
             "webhook_url": "",
-            "site_url": ""
+            "site_url": "",
+            "select_types": []
         }
 
     def get_page(self) -> List[dict]:
@@ -280,7 +308,8 @@ class Discord(_PluginBase):
         # 处理开始下载事件===================================================
         elif '开始下载' in title:
             lines =  msg.get('text').split('\n')
-            url += '/downloading'
+            if(url != None):
+                url += '/downloading'
             converted_text = '  '
             # 遍历每行内容
             for line in lines:
@@ -410,15 +439,15 @@ class Discord(_PluginBase):
         #     "data": __to_dict(event.event_data)
         # }
         raw_data = __to_dict(event.event_data)
+        type = raw_data.get('type').get('_value_')
         if(self._debug_enabled):
             logger.info(f"raw data: " + str(raw_data))
-            logger.info(f"event type: " + str(event.event_type))
-        # 只发送已选择的通知消息
-        if(event.event_type != 'notice.message'):
-            return 
-        event_info = self.convert_data_to_embed(self,raw_data)
-
+            logger.info(f"event type: " + str(type))
         
+        # 只发送已选择的通知消息
+        if(type not in self._select_types):
+            return
+        event_info = self.convert_data_to_embed(self,raw_data)
         ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=event_info)
         
         if ret:
