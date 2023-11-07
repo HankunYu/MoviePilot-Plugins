@@ -308,11 +308,12 @@ class Discord(_PluginBase):
         #     "type": event.event_type,
         #     "data": __to_dict(event.event_data)
         # }
-
+        raw_data = __to_dict(event.event_data)
+        if(self._debug_enabled):
+            logger.info(f"尝试发送消息:" + str(raw_data))
         # 只发送通知消息
         if(event.event_type != 'notice.message'):
             return 
-        raw_data = __to_dict(event.event_data)
         event_info = self.convert_data_to_embed(self,raw_data)
 
         if self._method == 'POST':
