@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.12"
+    plugin_version = "0.13"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -115,7 +115,7 @@ class Discord(_PluginBase):
                         ]
                     },
                     {
-                        'component': 'VCol',
+                        'component': 'VRow',
                         'content': [
                             {
                                 'component': 'VCol',
@@ -176,6 +176,7 @@ class Discord(_PluginBase):
     def get_page(self) -> List[dict]:
         pass
     """
+    Example:
     资源下载通知
     {
         'channel': None, 
@@ -267,7 +268,7 @@ class Discord(_PluginBase):
         'userid': None
     }
     """
-    def convert_data_to_embed(self,data):
+    def convert_data_to_embed(self,data,type):
         msg = data.get('text')
         title = msg.get('title')
         converted_text = ''
@@ -275,7 +276,7 @@ class Discord(_PluginBase):
         url = self._site_url
 
         # 处理站点数据统计事件===================================================
-        if(title == '站点数据统计'):
+        if(type == self._site_message):
             lines = msg.get('text').split('\n')
             converted_text = '  '
             for i in range(0, len(lines), 4):
@@ -296,7 +297,7 @@ class Discord(_PluginBase):
                 fields.append(field)
 
         # 处理开始下载事件===================================================
-        elif '开始下载' in title:
+        elif(type == self._download):
             lines =  msg.get('text').split('\n')
             if(url != None):
                 url += '/downloading'
@@ -322,7 +323,7 @@ class Discord(_PluginBase):
                 fields.append(field)
     
         # 处理入库事件===================================================
-        elif '已入库' in title:
+        elif(type == self._organize):
             lines =  msg.get('text').split('，')
             converted_text = '  '
             # 遍历每行内容
@@ -344,27 +345,28 @@ class Discord(_PluginBase):
                     # 将 field 添加到 fields 列表中
                     fields.append(field)
         # # 处理 一般事件===================================================
-        # elif: 'IYUU' in title or :
-        #     lines =  msg.get('text').split('，')
-        #         converted_text = '  '
-        #         # 遍历每行内容
-        #         for line in lines:
-        #             # 将每行内容按冒号分割为字段名称和值
-        #             print(line)
-        #             if '：' not in line:
-        #                 converted_text += line + '\n'
-        #             else: 
-        #                 name, value = line.split('：', 1)
+        else:
+            lines =  msg.get('text').split('，')
+            converted_text = '  '
+            # 遍历每行内容
+            for line in lines:
+                # 将每行内容按冒号分割为字段名称和值
+                print(line)
+                if '：' not in line:
+                    converted_text += line + '\n'
+                else: 
+                    name, value = line.split('：', 1)
+                
+                    # 创建一个字典表示一个 field
+                    field = {
+                        "name": name.strip(),
+                        "value": value.strip(),
+                        "inline": True
+                    }
                     
-        #                 # 创建一个字典表示一个 field
-        #                 field = {
-        #                     "name": name.strip(),
-        #                     "value": value.strip(),
-        #                     "inline": True
-        #                 }
-                        
-        #                 # 将 field 添加到 fields 列表中
-        #                 fields.append(field)
+                    # 将 field 添加到 fields 列表中
+                    fields.append(field)
+        
         # 构造 Webhook 请求的 JSON 数据
         if(self._debug_enabled):
             logger.info(f"尝试构造 Webhook 请求的 JSON 数据:" + str(data))
@@ -373,11 +375,11 @@ class Discord(_PluginBase):
                 {
                     "author": {
                         "name": "Movie Pilot",
-                        "url": url,
+                        "url": url if url else "https://github.com/jxxghp/MoviePilot",
                         "icon_url": "https://cdn5.telegram-cdn.org/file/EKiDxdgUGOAW_YodOwWymqXoHrQKnY9v8YG_Id2unx6mQ2N-k_cdpVGigj7kBm2V78-dmu1w_-4g1rkHS_dUOZzajThES4XPLzUAanPON5KXxQnjVkmb2PJJI0zWMXKFUbhiHOdVS5n014LAgCUQ5OBvwQHNIgDDWznIEfa5-4bJdE2NDM3aN61-5tsT4zqm7caqfe-ERpyR49pLpe4w_W6ZhCPUiVCqDAMQpVqF-JP4ifVL5Z9KfV6X5_B0Pjy-hZlQFPC-RHZ8K-RGu4OhSYyaGs7hijOFzOZfoB-wuX99yttxAZqZ3uwvxD2qBMdltiWREUsg2fqPkRsLwDhkAQ.jpg"
                     },
                     "title": title,
-                    "url": url,
+                    "url": url if url else "https://github.com/jxxghp/MoviePilot",
                     "color": 15258703,
                     "description": converted_text if converted_text else msg.get('text'),
                     "fields": fields,
@@ -437,7 +439,7 @@ class Discord(_PluginBase):
         # 只发送已选择的通知消息
         if(type not in self._select_types):
             return
-        event_info = self.convert_data_to_embed(self,raw_data)
+        event_info = self.convert_data_to_embed(self,raw_data,type)
         ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=event_info)
         
         if ret:
