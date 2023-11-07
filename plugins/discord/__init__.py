@@ -1,5 +1,4 @@
 #import discord
-import requests
 
 # MoviePilot library
 from app.log import logger
@@ -19,7 +18,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.132"
+    plugin_version = "0.133"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -405,6 +404,7 @@ class Discord(_PluginBase):
 
         if(self._debug_enabled):
             logger.info(f"开始发送事件：")
+
         def __to_dict(_event):
             """
             递归将对象转换为字典
@@ -430,10 +430,7 @@ class Discord(_PluginBase):
             else:
                 return str(_event)
 
-        # event_info = {
-        #     "type": event.event_type,
-        #     "data": __to_dict(event.event_data)
-        # }
+        logger.info(f"ding ding ding")
         raw_data = __to_dict(event.event_data)
         logger.info(f"raw data: " + str(raw_data))
 
@@ -443,8 +440,9 @@ class Discord(_PluginBase):
         # 只发送已选择的通知消息
         if(type not in self._select_types):
             return
-        event_info = self.convert_data_to_embed(self,raw_data,type)
-        ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=event_info)
+        
+        embed = self.convert_data_to_embed(self,raw_data,type)
+        ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=embed)
         
         if ret:
             logger.info("发送成功：%s" % self._webhook_url)
