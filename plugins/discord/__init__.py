@@ -37,6 +37,16 @@ class Discord(_PluginBase):
     _debug_enabled = False
     _site_url = None
 
+    # 消息类型
+    _download: bool = False
+    _subscribe: bool = False
+    _organize: bool = False
+    _site_message: bool = False
+    _media_server: bool = False
+    _manual: bool = False
+
+
+
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
@@ -147,9 +157,100 @@ class Discord(_PluginBase):
 
     def get_page(self) -> List[dict]:
         pass
-
+    """
+    资源下载通知
+    {
+        'channel': None, 
+        'type': {
+            '_value_': '资源下载', 
+            '_name_': 'Download', 
+            '__objclass__': "{
+                '_generate_next_value_': <function Enum._generate_next_value_ at 0x7f4950e3cb80>, 
+                '__module__': 'app.schemas.types', 
+                '_new_member_': <built-in method __new__ of type object at 0x7f495180b0c0>, 
+                '_use_args_': False, 
+                '_member_names_': ['Download', 'Organize', 'Subscribe', 'SiteMessage', 'MediaServer', 'Manual'], 
+                '_member_map_': {'Download': <NotificationType.Download: '资源下载'>, 
+                'Organize': <NotificationType.Organize: '整理入库'>, 
+                'Subscribe': <NotificationType.Subscribe: '订阅'>, 
+                'SiteMessage': <NotificationType.SiteMessage: '站点消息'>, 
+                'MediaServer': <NotificationType.MediaServer: '媒体服务器通知'>, 
+                'Manual': <NotificationType.Manual: '手动处理通知'>
+                }, 
+            '_value2member_map_': {
+                '资源下载': <NotificationType.Download: '资源下载'>, 
+                '整理入库': <NotificationType.Organize: '整理入库'>, 
+                '订阅': <NotificationType.Subscribe: '订阅'>, 
+                '站点消息': <NotificationType.SiteMessage: '站点消息'>, 
+                '媒体服务器通知': <NotificationType.MediaServer: '媒体服务器通知'>, 
+                '手动处理通知': <NotificationType.Manual: '手动处理通知'>
+                }, 
+            '_unhashable_values_': [], 
+            '_member_type_': <class 'object'>, 
+            '_value_repr_': None, 
+            '__doc__': None, 
+            'Download': <NotificationType.Download: '资源下载'>, 
+            'Organize': <NotificationType.Organize: '整理入库'>, 
+            'Subscribe': <NotificationType.Subscribe: '订阅'>, 
+            'SiteMessage': <NotificationType.SiteMessage: '站点消息'>, 
+            'MediaServer': <NotificationType.MediaServer: '媒体服务器通知'>, 
+            'Manual': <NotificationType.Manual: '手动处理通知'>, 
+            '__new__': <function Enum.__new__ at 0x7f4950e3ca40>}", 
+            '_sort_order_': 0
+        }, 
+        'title': '猪肝记得煮熟再吃 (2023) S01 E05 开始下载', 
+        'text': '\n站点：Nyaa\n质量： 1080p\n大小：268.7M\n种子：[LoliHouse] 猪肝记得煮熟再吃 / Buta no Liver wa Kanetsu Shiro - 05 [WebRip 1080p HEVC-10bit AAC][简繁内封字幕]\n发布时间：2023-11-05 02:59\n做种数：74', 
+        'image': 'https://image.tmdb.org/t/p/w500/b4fZ0Ez3ngJhbG2cPmVHwOObgVO.jpg', 
+        'userid': None
+    }
+    数据统计通知
+    {
+        'channel': None, 
+        'type': {
+            '_value_': '站点消息', 
+            '_name_': 'SiteMessage', 
+            '__objclass__': "{
+                '_generate_next_value_': <function Enum._generate_next_value_ at 0x7f4950e3cb80>, 
+                '__module__': 'app.schemas.types', 
+                '_new_member_': <built-in method __new__ of type object at 0x7f495180b0c0>, 
+                '_use_args_': False, 
+                '_member_names_': ['Download', 'Organize', 'Subscribe', 'SiteMessage', 'MediaServer', 'Manual'], 
+                '_member_map_': {
+                    'Download': <NotificationType.Download: '资源下载'>, 
+                    'Organize': <NotificationType.Organize: '整理入库'>, 
+                    'Subscribe': <NotificationType.Subscribe: '订阅'>, 
+                    'SiteMessage': <NotificationType.SiteMessage: '站点消息'>, 
+                    'MediaServer': <NotificationType.MediaServer: '媒体服务器通知'>, 
+                    'Manual': <NotificationType.Manual: '手动处理通知'>
+                }, 
+                '_value2member_map_': {
+                    '资源下载': <NotificationType.Download: '资源下载'>, 
+                    '整理入库': <NotificationType.Organize: '整理入库'>, 
+                    '订阅': <NotificationType.Subscribe: '订阅'>, 
+                    '站点消息': <NotificationType.SiteMessage: '站点消息'>, 
+                    '媒体服务器通知': <NotificationType.MediaServer: '媒体服务器通知'>, 
+                    '手动处理通知': <NotificationType.Manual: '手动处理通知'>}, 
+                    '_unhashable_values_': [], 
+                    '_member_type_': <class 'object'>, 
+                    '_value_repr_': None, '__doc__': None, 
+                    'Download': <NotificationType.Download: '资源下载'>, 
+                    'Organize': <NotificationType.Organize: '整理入库'>, 
+                    'Subscribe': <NotificationType.Subscribe: '订阅'>, 
+                    'SiteMessage': <NotificationType.SiteMessage: '站点消息'>, 
+                    'MediaServer': <NotificationType.MediaServer: '媒体服务器通知'>, 
+                    'Manual': <NotificationType.Manual: '手动处理通知'>, 
+                    '__new__': <function Enum.__new__ at 0x7f4950e3ca40>
+                },
+            '_sort_order_': 3
+        }, 
+        'title': '【站点自动签到】', 
+        'text': '全部签到数量: 7 \n本次签到数量: 7 \n下次签到数量: 0 \n【梓喵】签到成功\n【2xFree】签到成功\n【红豆饭】签到成功\n【聆音】签到成功\n【馒头】签到成功\n【我堡】签到成功\n【幼儿园】今日已签到', 
+        'image': None, 
+        'userid': None
+    }
+    """
     def convert_data_to_embed(self,data):
-        msg = data.get('data')
+        msg = data.get('text')
         title = msg.get('title')
         converted_text = ''
         fields = []
@@ -310,16 +411,16 @@ class Discord(_PluginBase):
         # }
         raw_data = __to_dict(event.event_data)
         if(self._debug_enabled):
-            logger.info(f"尝试发送消息:" + str(raw_data))
-        # 只发送通知消息
+            logger.info(f"raw data: " + str(raw_data))
+            logger.info(f"event type: " + str(event.event_type))
+        # 只发送已选择的通知消息
         if(event.event_type != 'notice.message'):
             return 
         event_info = self.convert_data_to_embed(self,raw_data)
 
-        if self._method == 'POST':
-            ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=event_info)
-        else:
-            ret = RequestUtils().get_res(self._webhook_url, params=event_info)
+        
+        ret = RequestUtils(content_type="application/json").post_res(self._webhook_url, json=event_info)
+        
         if ret:
             logger.info("发送成功：%s" % self._webhook_url)
         elif ret is not None:
