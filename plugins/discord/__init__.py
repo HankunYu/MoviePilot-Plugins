@@ -1,4 +1,4 @@
-import discord
+#import discord
 import requests
 
 # MoviePilot library
@@ -14,9 +14,9 @@ class Discord(_PluginBase):
     # 插件描述
     plugin_desc = "Discord 消息推送"
     # 插件图标
-    plugin_icon = "discord.png"
+    plugin_icon = "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins-discord/main/icons/discord.png"
     # 主题色
-    plugin_color = "#5A65EA"
+    plugin_color = "#3B5E8E"
     # 插件版本
     plugin_version = "1.0"
     # 插件作者
