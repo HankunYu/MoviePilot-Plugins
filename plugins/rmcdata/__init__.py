@@ -179,9 +179,7 @@ class RmCdata(_PluginBase):
 
     @eventmanager.register(EventType.TransferComplete)
     def rmcdata(self, event):
-        """
-        向discord Webhook发送请求
-        """
+        
         if not self._enabled:
             return
 
@@ -212,11 +210,11 @@ class RmCdata(_PluginBase):
 
 
         raw_data = __to_dict(event.event_data)
-        # target_type = raw_data.get('type').get('_value_')
+        target_path = raw_data.get("transferinfo").get("target_path")
 
         if(self._debug_enabled):
-            # logger.info(f"event type: " + str(target_type))
             logger.info(f"raw data: " + str(raw_data))
+            logger.info(f"event data: " + str(target_path))
 
         
 
