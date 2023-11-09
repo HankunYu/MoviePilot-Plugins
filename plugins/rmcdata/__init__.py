@@ -217,7 +217,7 @@ class RmCdata(_PluginBase):
         logger.info("get raw data")
         targets = raw_data.get("transferinfo").get("file_list_new")
         logger.info(f'ding ding ding {targets}...')
-        try
+        try:
             file_lists = eval(targets)
         except Exception as e:
             logger.info(f'eval error {e}...')
