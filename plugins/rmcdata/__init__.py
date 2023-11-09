@@ -51,7 +51,7 @@ class RmCdata(_PluginBase):
             self._rm_all = False
         
         if self._enabled:
-            logger.info(f"nfo 文件监控开始")
+            logger.info(f"nfo 文件监控开始, version: {self.plugin_version}")
 
     def get_state(self) -> bool:
         return self._enabled
