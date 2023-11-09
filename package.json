@@ -7,5 +7,14 @@
         "color": "#3B5E8E",
         "author": "hankun",
         "level": 1
+    },
+    "RmCdata": {
+        "name": "Infuse nfo 简介修复",
+        "description": "去除cdata标签以修复infuse简介显示",
+        "version": "0.1",
+        "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins-discord/main/icons/discord.png",
+        "color": "#32699D",
+        "author": "hankun",
+        "level": 1
     }
 }

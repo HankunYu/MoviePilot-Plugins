@@ -1,0 +1,227 @@
+import os
+import sys
+
+# MoviePilot library
+from app.log import logger
+from app.plugins import _PluginBase
+from app.core.event import eventmanager
+from app.schemas.types import EventType
+from typing import Any, List, Dict, Tuple
+
+class Discord(_PluginBase):
+    # 插件名称
+    plugin_name = "Infuse nfo 简介修复"
+    # 插件描述
+    plugin_desc = "去除nfo文件中的cdata标签以修复Infuse简介内容显示"
+    # 插件图标
+    plugin_icon = "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins-discord/main/icons/Infuse.png"
+    # 主题色
+    plugin_color = "#32699D"
+    # 插件版本
+    plugin_version = "0.1"
+    # 插件作者
+    plugin_author = "hankun"
+    # 作者主页
+    author_url = "https://github.com/hankunyu"
+    # 插件配置项ID前缀
+    plugin_config_prefix = "rmcdata_"
+    # 加载顺序
+    plugin_order = 1
+    # 可使用的用户级别
+    auth_level = 1
+
+    # 私有属性
+    _enabled = False
+    _debug_enabled = False
+    _rm_all = False
+    _all_path = ""
+
+
+    def init_plugin(self, config: dict = None):
+        if config:
+            self._enabled = config.get("enabled")
+            self._debug_enabled = config.get("debug_enabled")
+            self._rm_all = config.get("rm_all")
+            self._all_path = config.get("all_path")
+        if self._rm_all:
+            for path in self._all_path.split('\n'):
+                self.process_all_nfo_files(path)
+                logger.info(f"已完成 {path} 下的所有 nfo 文件处理")
+            self._rm_all = False
+        
+        if self._enabled:
+            logger.info(f"nfo 文件监控开始")
+
+    def get_state(self) -> bool:
+        return self._enabled
+    
+    @staticmethod
+    def get_command() -> List[Dict[str, Any]]:
+        pass
+
+    def get_api(self) -> List[Dict[str, Any]]:
+        pass
+    
+    # 插件配置页面
+    def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
+        """
+        拼装插件配置页面，需要返回两块数据：1、页面配置；2、数据结构
+        """
+        return [
+            {
+                'component': 'VForm',
+                'content': [
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'enabled',
+                                            'label': '启用插件',
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'debug_enabled',
+                                            'label': 'debug模式',
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'rm_all',
+                                            'label': '运行一次全媒体库nfo修复',
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VTextarea',
+                                        'props': {
+                                            'model': 'all_path',
+                                            'label': '全媒体库nfo修复目录',
+                                            'rows': 5,
+                                            'placeholder': '每一行一个目录，需配置到媒体文件的上级目录'
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                ]
+            }
+        ], {
+            "enabled": False,
+            "debug_enabled": False,
+            "webhook_url": "",
+            "site_url": "",
+            "select_types": []
+        }
+
+    def get_page(self) -> List[dict]:
+        pass
+
+    def replace_cdata_tags(file_path):
+        with open(file_path, 'r') as file:
+            content = file.read()
+        # 替换 CDATA 标签
+        content = content.replace('<![CDATA[', '').replace(']]>', '')
+        with open(file_path, 'w') as file:
+            file.write(content)
+
+    def process_all_nfo_files(self,directory):
+        logger.info(f'正在处理 {directory} 下的所有 nfo 文件...')
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if file.endswith('.nfo'):
+                    file_path = os.path.join(root, file)
+                    self.replace_cdata_tags(file_path)
+                    logger(f'{file_path} 处理完成')
+
+    @eventmanager.register(EventType.TransferComplete)
+    def rmcdata(self, event):
+        """
+        向discord Webhook发送请求
+        """
+        if not self._enabled:
+            return
+
+        def __to_dict(_event):
+            """
+            递归将对象转换为字典
+            """
+            if isinstance(_event, dict):
+                for k, v in _event.items():
+                    _event[k] = __to_dict(v)
+                return _event
+            elif isinstance(_event, list):
+                for i in range(len(_event)):
+                    _event[i] = __to_dict(_event[i])
+                return _event
+            elif isinstance(_event, tuple):
+                return tuple(__to_dict(list(_event)))
+            elif isinstance(_event, set):
+                return set(__to_dict(list(_event)))
+            elif hasattr(_event, 'to_dict'):
+                return __to_dict(_event.to_dict())
+            elif hasattr(_event, '__dict__'):
+                return __to_dict(_event.__dict__)
+            elif isinstance(_event, (int, float, str, bool, type(None))):
+                return _event
+            else:
+                return str(_event)
+
+
+        raw_data = __to_dict(event.event_data)
+        # target_type = raw_data.get('type').get('_value_')
+
+        if(self._debug_enabled):
+            # logger.info(f"event type: " + str(target_type))
+            logger.info(f"raw data: " + str(raw_data))
+
+        
+
+    def stop_service(self):
+        """
+        退出插件
+        """
+        pass
