@@ -18,7 +18,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "0.4"
+    plugin_version = "0.6"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -215,9 +215,11 @@ class RmCdata(_PluginBase):
 
 
         raw_data = __to_dict(event.event_data)
-        targets = raw_data.get("transferinfo").get("file_list_new")
+        targets = eval.raw_data.get("transferinfo").get("file_list_new")
+        logger.info(f'ding ding ding {targets}...')
         for target in targets:
             target_path = target.get("path")
+            logger.info(f'test {target_path}...')
             file_name, file_ext = os.path.splitext(target_path)
             nfo_file = file_name + ".nfo"
             logger.info(f'正在处理 {nfo_file}...')
