@@ -18,7 +18,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "0.2"
+    plugin_version = "0.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -45,8 +45,9 @@ class RmCdata(_PluginBase):
             self._all_path = config.get("all_path")
         if self._rm_all:
             for path in self._all_path.split('\n'):
-                self.process_all_nfo_files(path)
-                logger.info(f"已完成 {path} 下的所有 nfo 文件处理")
+                if not path: 
+                    return
+                self.process_all_nfo_files(self,path)
             self._rm_all = False
         
         if self._enabled:
@@ -160,13 +161,14 @@ class RmCdata(_PluginBase):
     def get_page(self) -> List[dict]:
         pass
 
-    def replace_cdata_tags(file_path):
+    def replace_cdata_tags(self,file_path):
         with open(file_path, 'r') as file:
             content = file.read()
         # 替换 CDATA 标签
         content = content.replace('<![CDATA[', '').replace(']]>', '')
         with open(file_path, 'w') as file:
             file.write(content)
+            logger.info(f'{file_path} 处理完成')
 
     def process_all_nfo_files(self,directory):
         logger.info(f'正在处理 {directory} 下的所有 nfo 文件...')
@@ -174,8 +176,11 @@ class RmCdata(_PluginBase):
             for file in files:
                 if file.endswith('.nfo'):
                     file_path = os.path.join(root, file)
-                    self.replace_cdata_tags(file_path)
-                    logger(f'{file_path} 处理完成')
+                    self.replace_cdata_tags(self,file_path)
+                    if(self._debug_enabled):
+                        logger(f'{file_path} 处理完成')
+                        
+        logger.info(f'{directory} - 处理完成')
 
     @eventmanager.register(EventType.TransferComplete)
     def rmcdata(self, event):
@@ -210,11 +215,12 @@ class RmCdata(_PluginBase):
 
 
         raw_data = __to_dict(event.event_data)
-        target_path = raw_data.get("transferinfo").get("target_path")
+        target_path = raw_data.get("transferinfo").get("file_list_new")
+        file_name, file_ext = os.path.splitext(target_path)
+        nfo_file = file_name + ".nfo"
+        if os.path.exists(nfo_file):
+            self.replace_cdata_tags(self,nfo_file)
 
-        if(self._debug_enabled):
-            logger.info(f"raw data: " + str(raw_data))
-            logger.info(f"event data: " + str(target_path))
 
         
 
