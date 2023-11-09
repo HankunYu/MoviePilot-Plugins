@@ -18,7 +18,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "0.7"
+    plugin_version = "0.9"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -219,9 +219,10 @@ class RmCdata(_PluginBase):
         targets = raw_data.get("transferinfo").get("file_list_new")
         logger.info(f'ding ding ding {targets}...')
         file_lists = eval(targets)
-        for file in file_lists:
-            logger.info(f'test {file}...')
-            file_name, file_ext = os.path.splitext(file)
+        logger.info(f'targets {file_lists}...')
+        for media in file_lists:
+            logger.info(f'test {media}...')
+            file_name, file_ext = os.path.splitext(media)
             nfo_file = file_name + ".nfo"
             logger.info(f'正在处理 {nfo_file}...')
             if os.path.exists(nfo_file):
