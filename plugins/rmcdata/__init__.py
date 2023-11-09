@@ -17,7 +17,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "0.961"
+    plugin_version = "0.962"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -45,8 +45,8 @@ class RmCdata(_PluginBase):
         if self._rm_all:
             for path in self._all_path.split('\n'):
                 if not path: 
-                    return
-                self.process_all_nfo_files(self,path)
+                    continue
+                self.process_all_nfo_files(path)
             self._rm_all = False
         
         if self._enabled:
