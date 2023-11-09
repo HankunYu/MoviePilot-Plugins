@@ -15,7 +15,7 @@ class Discord(_PluginBase):
     # 插件描述
     plugin_desc = "Discord 消息推送"
     # 插件图标
-    plugin_icon = "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins-discord/main/icons/discord.png"
+    plugin_icon = "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/discord.png"
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
@@ -59,7 +59,7 @@ class Discord(_PluginBase):
             if(self._site_url and not self._site_url.startswith("http")):
                 self._site_url = "http://" + self._site_url
         
-        logger.info(f"Discord插件初始化完成")
+        logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
 
     def get_state(self) -> bool:
         return self._enabled

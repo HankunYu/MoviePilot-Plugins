@@ -1,9 +1,3 @@
-## Discord 消息推送插件
-
-### 使用
-
-添加 https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins-discord/main/ 到 PLUGIN_MARKET
-
 ### 配置
 
 目前只支持webhook的方式，需要在discord服务器中创建一个webhook，然后将webhook的url填入插件配置中。

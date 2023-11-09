@@ -13,7 +13,7 @@ class RmCdata(_PluginBase):
     # 插件描述
     plugin_desc = "去除nfo文件中的cdata标签以修复Infuse简介内容显示"
     # 插件图标
-    plugin_icon = "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins-discord/main/icons/Infuse.png"
+    plugin_icon = "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/Infuse.png"
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
