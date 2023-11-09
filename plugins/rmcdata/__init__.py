@@ -215,12 +215,14 @@ class RmCdata(_PluginBase):
 
 
         raw_data = __to_dict(event.event_data)
-        target_path = raw_data.get("transferinfo").get("file_list_new")
-        file_name, file_ext = os.path.splitext(target_path)
-        nfo_file = file_name + ".nfo"
-        logger.info(f'正在处理 {nfo_file}...')
-        if os.path.exists(nfo_file):
-            self.replace_cdata_tags(self,nfo_file)
+        targets = raw_data.get("transferinfo").get("file_list_new")
+        for target in targets:
+            target_path = target.get("path")
+            file_name, file_ext = os.path.splitext(target_path)
+            nfo_file = file_name + ".nfo"
+            logger.info(f'正在处理 {nfo_file}...')
+            if os.path.exists(nfo_file):
+                self.replace_cdata_tags(self,nfo_file)
 
 
         
