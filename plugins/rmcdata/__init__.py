@@ -17,7 +17,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "0.94"
+    plugin_version = "0.95"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -219,18 +219,19 @@ class RmCdata(_PluginBase):
         logger.info(f'ding ding ding {targets}...')
         logger.info(type(targets))
 
-        try:
-            file_lists = eval(str(targets))
-        except Exception as e:
-            logger.info(f'eval error {e}...')
-        logger.info(f'targets {file_lists}...')
-        for media in file_lists:
+        # try:
+        #     file_lists = eval(str(targets))
+        # except Exception as e:
+        #     logger.error(f'eval error {e}...')
+        for media in targets:
             logger.info(f'test {media}...')
             file_name, file_ext = os.path.splitext(media)
             nfo_file = file_name + ".nfo"
             logger.info(f'正在处理 {nfo_file}...')
             if os.path.exists(nfo_file):
                 self.replace_cdata_tags(self,nfo_file)
+            else:
+                logger.info(f'{nfo_file} 不存在')
 
 
         
