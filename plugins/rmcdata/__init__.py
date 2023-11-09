@@ -17,7 +17,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "0.92"
+    plugin_version = "0.93"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -218,7 +218,7 @@ class RmCdata(_PluginBase):
         targets = raw_data.get("transferinfo").get("file_list_new")
         logger.info(f'ding ding ding {targets}...')
         try:
-            file_lists = eval(targets)
+            file_lists = eval(str(targets))
         except Exception as e:
             logger.info(f'eval error {e}...')
         logger.info(f'targets {file_lists}...')
