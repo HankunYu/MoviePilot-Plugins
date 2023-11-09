@@ -17,7 +17,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "0.95"
+    plugin_version = "0.96"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -160,7 +160,8 @@ class RmCdata(_PluginBase):
     def get_page(self) -> List[dict]:
         pass
 
-    def replace_cdata_tags(self,file_path):
+    def replace_cdata_tags(file_path):
+        logger.info(f'正在处理 {file_path}...')
         with open(file_path, 'r') as file:
             content = file.read()
         # 替换 CDATA 标签
@@ -175,7 +176,7 @@ class RmCdata(_PluginBase):
             for file in files:
                 if file.endswith('.nfo'):
                     file_path = os.path.join(root, file)
-                    self.replace_cdata_tags(self,file_path)
+                    self.replace_cdata_tags(file_path)
                     if(self._debug_enabled):
                         logger(f'{file_path} 处理完成')
                         
@@ -216,22 +217,17 @@ class RmCdata(_PluginBase):
         raw_data = __to_dict(event.event_data)
         logger.info("get raw data")
         targets = raw_data.get("transferinfo").get("file_list_new")
-        logger.info(f'ding ding ding {targets}...')
-        logger.info(type(targets))
+        # logger.info(type(targets))
 
-        # try:
-        #     file_lists = eval(str(targets))
-        # except Exception as e:
-        #     logger.error(f'eval error {e}...')
         for media in targets:
             logger.info(f'test {media}...')
             file_name, file_ext = os.path.splitext(media)
             nfo_file = file_name + ".nfo"
-            logger.info(f'正在处理 {nfo_file}...')
             if os.path.exists(nfo_file):
-                self.replace_cdata_tags(self,nfo_file)
+                logger.info(f'准备处理 {nfo_file}...')
+                self.replace_cdata_tags(nfo_file)
             else:
-                logger.info(f'{nfo_file} 不存在')
+                logger.error(f'{nfo_file} 不存在')
 
 
         
