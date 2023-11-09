@@ -1,5 +1,4 @@
 import os
-import sys
 
 # MoviePilot library
 from app.log import logger
@@ -18,7 +17,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "0.9"
+    plugin_version = "0.91"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -218,7 +217,10 @@ class RmCdata(_PluginBase):
         logger.info("get raw data")
         targets = raw_data.get("transferinfo").get("file_list_new")
         logger.info(f'ding ding ding {targets}...')
-        file_lists = eval(targets)
+        try
+            file_lists = eval(targets)
+        except Exception as e:
+            logger.info(f'eval error {e}...')
         logger.info(f'targets {file_lists}...')
         for media in file_lists:
             logger.info(f'test {media}...')
