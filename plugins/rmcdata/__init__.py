@@ -17,7 +17,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "0.96"
+    plugin_version = "0.961"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -159,7 +159,7 @@ class RmCdata(_PluginBase):
 
     def get_page(self) -> List[dict]:
         pass
-
+    @staticmethod
     def replace_cdata_tags(file_path):
         logger.info(f'正在处理 {file_path}...')
         with open(file_path, 'r') as file:
@@ -215,9 +215,7 @@ class RmCdata(_PluginBase):
 
 
         raw_data = __to_dict(event.event_data)
-        logger.info("get raw data")
         targets = raw_data.get("transferinfo").get("file_list_new")
-        # logger.info(type(targets))
 
         for media in targets:
             logger.info(f'test {media}...')
