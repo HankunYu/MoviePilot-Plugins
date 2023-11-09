@@ -17,7 +17,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "0.963"
+    plugin_version = "1.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -31,7 +31,6 @@ class RmCdata(_PluginBase):
 
     # 私有属性
     _enabled = False
-    _debug_enabled = False
     _rm_all = False
     _all_path = ""
 
@@ -39,7 +38,6 @@ class RmCdata(_PluginBase):
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
-            self._debug_enabled = config.get("debug_enabled")
             self._rm_all = config.get("rm_all")
             self._all_path = config.get("all_path")
         if self._rm_all:
@@ -48,6 +46,12 @@ class RmCdata(_PluginBase):
                     continue
                 self.process_all_nfo_files(path)
             self._rm_all = False
+            self.update_config({
+                    "enabled": self._enabled,
+                    "rm_all": False,
+                    "all_path": self._all_path,
+                })
+
         
         if self._enabled:
             logger.info(f"nfo 文件监控开始, version: {self.plugin_version}")
@@ -92,27 +96,6 @@ class RmCdata(_PluginBase):
                             },
                             {
                                 'component': 'VCol',
-                                'props': {
-                                    'cols': 12,
-                                    'md': 6
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VSwitch',
-                                        'props': {
-                                            'model': 'debug_enabled',
-                                            'label': 'debug模式',
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
                                 'content': [
                                     {
                                         'component': 'VSwitch',
@@ -151,10 +134,8 @@ class RmCdata(_PluginBase):
             }
         ], {
             "enabled": False,
-            "debug_enabled": False,
-            "webhook_url": "",
-            "site_url": "",
-            "select_types": []
+            "rm_all": False,
+            "all_path": "",
         }
 
     def get_page(self) -> List[dict]:
@@ -177,8 +158,7 @@ class RmCdata(_PluginBase):
                 if file.endswith('.nfo'):
                     file_path = os.path.join(root, file)
                     self.replace_cdata_tags(file_path)
-                    if(self._debug_enabled):
-                        logger.info(f'{file_path} 处理完成')
+                    logger.info(f'{file_path} 处理完成')
                         
         logger.info(f'{directory} - 处理完成')
 
