@@ -220,9 +220,8 @@ class RmCdata(_PluginBase):
         logger.info(f'ding ding ding {targets}...')
         file_lists = eval(targets)
         for file in file_lists:
-            file_path = file.get("path")
-            logger.info(f'test {file_path}...')
-            file_name, file_ext = os.path.splitext(file_path)
+            logger.info(f'test {file}...')
+            file_name, file_ext = os.path.splitext(file)
             nfo_file = file_name + ".nfo"
             logger.info(f'正在处理 {nfo_file}...')
             if os.path.exists(nfo_file):
