@@ -8,7 +8,7 @@ from app.core.event import eventmanager
 from app.schemas.types import EventType
 from typing import Any, List, Dict, Tuple
 
-class Discord(_PluginBase):
+class RmCdata(_PluginBase):
     # 插件名称
     plugin_name = "Infuse nfo 简介修复"
     # 插件描述
