@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0"
+    plugin_version = "1.1"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -270,6 +270,15 @@ class Discord(_PluginBase):
         'image': None, 
         'userid': None
     }
+    {
+        'title':'【自动删种任务完成】', 
+        'text': 'Qbittorrent 共暂停24个种子\n[LoliHouse] Watashi no Oshi wa Akuyaku Reijou - 04 [WebRip 1080p HEVC-10bit AAC ASSx2].mkv 
+        来自站点：udp 大小：718.51M\n
+        [SweetSub&LoliHouse] 16bit Sensation - Another Layer - 05 [WebRip 1080p HEVC-10bit AAC ASSx2].mkv 
+        来自站点：udp 大小：680.77M\n
+        [BeanSub&FZSD&LoliHouse] Jujutsu Kaisen - 12 [WebRip 1080p HEVC-10bit AAC ASSx2].mkv 
+        来自站点：udp 大小：496.41M\n
+    }
     """
     
     @eventmanager.register(EventType.NoticeMessage)
@@ -313,28 +322,74 @@ class Discord(_PluginBase):
             fields = []
             url = self._site_url
 
-            # 处理站点数据统计事件===================================================
+            # 处理站点数据统计事件
             if(_type == self._site_message):
-                lines = msg.split('\n')
-                converted_text = '  '
-                for i in range(0, len(lines), 4):
-                    # 提取站点和上传下载量
-                    site = lines[i][1:].strip('】')
-                    upload = lines[i + 1].split('：')[1]
-                    download = lines[i + 2].split('：')[1]
-                    if(site == '汇总'):
-                        converted_text = f'**汇总**\n上传量:`{upload}`\n下载量:`{download}`'
-                        continue
-                    # 创建一个字典表示一个field
-                    field = {
-                        "name": "**"+site+"**",
-                        "value": f"上传量:`{upload}`\n下载量:`{download}`",
-                        "inline": True
-                    }
-                    # 将field添加到fields列表中
-                    fields.append(field)
+                if title == '【站点数据统计】':
+                    lines = msg.split('\n')
+                    converted_text = '  '
+                    for i in range(0, len(lines), 4):
+                        # 提取站点和上传下载量
+                        site = lines[i][1:].strip('】')
+                        upload = lines[i + 1].split('：')[1]
+                        download = lines[i + 2].split('：')[1]
+                        if(site == '汇总'):
+                            converted_text = f'**汇总**\n上传量:`{upload}`\n下载量:`{download}`'
+                            continue
+                        # 创建一个字典表示一个field
+                        field = {
+                            "name": "**"+site+"**",
+                            "value": f"上传量:`{upload}`\n下载量:`{download}`",
+                            "inline": True
+                        }
+                        # 将field添加到fields列表中
+                        fields.append(field)
 
-            # 处理开始下载事件===================================================
+                elif title == '【站点自动登录】':
+                    lines = msg.split('\n')
+                    converted_text = '  '
+                    # 提取总共登陆数据
+                    for i in range(3):
+                        field = {
+                            "name": lines[i].split('：')[0],
+                            "value": lines[i].split('：')[1],
+                            "inline": True
+                        }
+                        fields.append(field)
+                    # 去除前三行
+                    lines = lines[3:]
+                    for line in lines:
+                        field = {
+                        "name": line.split('】')[0],
+                        "value": line.split('】')[1],
+                        "inline": True
+                        }
+                        fields.append(field)
+
+                elif title == "【自动删种任务完成】":
+                    lines = msg.split('\n')
+                    converted_text = '  '
+                    # 提取总共处理种子数
+                    field = {
+                            "name": "**" + lines[0].split(' ')[0] + "**",
+                            "value": lines[0].split(' ')[1],
+                            "inline": True
+                        }
+                    fields.append(field)
+                    # 去除前一行
+                    lines = lines[1:]
+                    for line in lines:
+                        parts = line.split(" ")
+                        # 提取种子名称
+                        name = " ".join(parts[:-2])
+                        size = parts[-1]
+                        field = {
+                        "name": name,
+                        "value": size,
+                        "inline": True
+                        }
+                        fields.append(field)
+
+            # 处理开始下载事件
             elif(_type == self._download):
                 lines =  msg.split('\n')
                 if(url != None):
@@ -359,7 +414,7 @@ class Discord(_PluginBase):
                     # 将 field 添加到 fields 列表中
                     fields.append(field)
         
-            # 处理其他事件===================================================
+            # 处理其他事件
             elif(_type == self._organize or type == self._subscribe or type == self._media_server or type == self._manual):
                 lines =  msg.split('，')
                 converted_text = '  '
