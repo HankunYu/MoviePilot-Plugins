@@ -344,14 +344,14 @@ class Discord(_PluginBase):
                         # 将field添加到fields列表中
                         fields.append(field)
 
-                elif title == '【站点自动登录】':
+                elif title == '【站点自动登录】' or title == '【站点自动签到】':
                     lines = msg.split('\n')
                     converted_text = '  '
                     # 提取总共登陆数据
                     for i in range(3):
                         field = {
-                            "name": lines[i].split('：')[0],
-                            "value": lines[i].split('：')[1],
+                            "name": lines[i].split(':')[0],
+                            "value": lines[i].split(':')[1],
                             "inline": True
                         }
                         fields.append(field)
@@ -367,14 +367,8 @@ class Discord(_PluginBase):
 
                 elif title == "【自动删种任务完成】":
                     lines = msg.split('\n')
-                    converted_text = '  '
                     # 提取总共处理种子数
-                    field = {
-                            "name": "**" + lines[0].split(' ')[0] + "**",
-                            "value": lines[0].split(' ')[1],
-                            "inline": True
-                        }
-                    fields.append(field)
+                    converted_text = '"**" + lines[0].split(' ')[0] + "** " + lines[0].split(' ')[1]'
                     # 去除前一行
                     lines = lines[1:]
                     for line in lines:
