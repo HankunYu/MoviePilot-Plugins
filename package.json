@@ -11,7 +11,7 @@
     "RmCdata": {
         "name": "Infuse nfo 简介修复",
         "description": "去除cdata标签以修复infuse简介显示",
-        "version": "1.01",
+        "version": "1.02",
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/Infuse.png",
         "color": "#32699D",
         "author": "hankun",

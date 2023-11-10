@@ -17,7 +17,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "1.01"
+    plugin_version = "1.02"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -40,12 +40,14 @@ class RmCdata(_PluginBase):
             self._enabled = config.get("enabled")
             self._rm_all = config.get("rm_all")
             self._all_path = config.get("all_path")
+
+        # 暂时移除全媒体库修复功能
         if self._rm_all and not self._is_running:
             self._is_runing = True 
             for path in self._all_path.split('\n'):
                 if not path: 
                     continue
-                self.process_all_nfo_files(path)
+                # self.process_all_nfo_files(path)
             self._rm_all = False
             self._is_runing = False
             self.update_config({
@@ -125,7 +127,8 @@ class RmCdata(_PluginBase):
                                             'model': 'all_path',
                                             'label': '全媒体库nfo修复目录',
                                             'rows': 5,
-                                            'placeholder': '每一行一个目录，需配置到媒体文件的上级目录'
+                                            # 'placeholder': '每一行一个目录，需配置到媒体文件的上级目录'
+                                            'placeholder': '暂时移除全媒体库修复功能，因为媒体库文件过多会阻塞线程'
                                         }
                                     }
                                 ]
