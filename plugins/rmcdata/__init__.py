@@ -17,7 +17,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "1.0"
+    plugin_version = "1.01"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -33,19 +33,21 @@ class RmCdata(_PluginBase):
     _enabled = False
     _rm_all = False
     _all_path = ""
-
+    _is_running = False
 
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
             self._rm_all = config.get("rm_all")
             self._all_path = config.get("all_path")
-        if self._rm_all:
+        if self._rm_all and not self._is_running:
+            self._is_runing = True 
             for path in self._all_path.split('\n'):
                 if not path: 
                     continue
                 self.process_all_nfo_files(path)
             self._rm_all = False
+            self._is_runing = False
             self.update_config({
                     "enabled": self._enabled,
                     "rm_all": False,
