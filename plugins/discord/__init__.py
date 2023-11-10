@@ -324,7 +324,7 @@ class Discord(_PluginBase):
 
             # 处理站点数据统计事件
             if(_type == self._site_message):
-                if title == '【站点数据统计】':
+                if title == '站点数据统计':
                     lines = msg.split('\n')
                     converted_text = '  '
                     for i in range(0, len(lines), 4):
