@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.2"
+    plugin_version = "1.21"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -368,7 +368,7 @@ class Discord(_PluginBase):
                 elif title == "【自动删种任务完成】":
                     lines = msg.split('\n')
                     # 提取总共处理种子数
-                    converted_text = '"**" + lines[0].split(' ')[0] + "** " + lines[0].split(' ')[1]'
+                    converted_text = "**" + lines[0].split(' ')[0] + "** " + lines[0].split(' ')[1]
                     # 去除前一行
                     lines = lines[1:]
                     for line in lines:
