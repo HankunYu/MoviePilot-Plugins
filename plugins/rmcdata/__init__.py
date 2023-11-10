@@ -1,4 +1,5 @@
 import os
+import threading
 
 # MoviePilot library
 from app.log import logger
@@ -17,7 +18,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "1.02"
+    plugin_version = "1.03"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -34,7 +35,7 @@ class RmCdata(_PluginBase):
     _rm_all = False
     _all_path = ""
     _is_running = False
-
+    _threads = []
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
@@ -45,11 +46,12 @@ class RmCdata(_PluginBase):
         if self._rm_all and not self._is_running:
             self._is_runing = True 
             for path in self._all_path.split('\n'):
-                if not path: 
-                    continue
-                # self.process_all_nfo_files(path)
+                if os.path.exists(path): 
+                    thread = threading.Thread(target=self.process_all_nfo_files, args=(path,))
+                    thread.start()
+                    self._threads.append(thread)
+                    # self.process_all_nfo_files(path)
             self._rm_all = False
-            self._is_runing = False
             self.update_config({
                     "enabled": self._enabled,
                     "rm_all": False,
@@ -155,7 +157,7 @@ class RmCdata(_PluginBase):
         with open(file_path, 'w') as file:
             file.write(content)
             logger.info(f'{file_path} 处理完成')
-
+            
     def process_all_nfo_files(self,directory):
         logger.info(f'正在处理 {directory} 下的所有 nfo 文件...')
         for root, dirs, files in os.walk(directory):
@@ -163,9 +165,12 @@ class RmCdata(_PluginBase):
                 if file.endswith('.nfo'):
                     file_path = os.path.join(root, file)
                     self.replace_cdata_tags(file_path)
-                    logger.info(f'{file_path} 处理完成')
                         
         logger.info(f'{directory} - 处理完成')
+        self._threads.pop(0)
+        logger.info(f'正在移除线程... 剩余 {len(self._threads)} 个线程')
+        if len(self._threads) == 0:
+            self._is_runing = False
 
     @eventmanager.register(EventType.TransferComplete)
     def rmcdata(self, event):
