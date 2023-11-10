@@ -18,7 +18,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "1.03"
+    plugin_version = "1.1"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -129,8 +129,7 @@ class RmCdata(_PluginBase):
                                             'model': 'all_path',
                                             'label': '全媒体库nfo修复目录',
                                             'rows': 5,
-                                            # 'placeholder': '每一行一个目录，需配置到媒体文件的上级目录'
-                                            'placeholder': '暂时移除全媒体库修复功能，因为媒体库文件过多会阻塞线程'
+                                            'placeholder': '每一行一个目录，需配置到媒体文件的上级目录'
                                         }
                                     }
                                 ]
@@ -171,6 +170,7 @@ class RmCdata(_PluginBase):
         logger.info(f'正在移除线程... 剩余 {len(self._threads)} 个线程')
         if len(self._threads) == 0:
             self._is_runing = False
+            logger.info(f'任务完成')
 
     @eventmanager.register(EventType.TransferComplete)
     def rmcdata(self, event):
