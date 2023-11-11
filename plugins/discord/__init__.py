@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.21"
+    plugin_version = "1.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -475,6 +475,7 @@ class Discord(_PluginBase):
         # 转换数据为embed格式
         embed = convert_data_to_embed(raw_data,target_type)
         if(self._debug_enabled):
+            logger.info(f"title: " + str(raw_data.get('title')))
             logger.info(f"embed: " + str(embed))
 
         # 发送请求 
