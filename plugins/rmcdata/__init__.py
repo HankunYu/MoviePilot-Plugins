@@ -18,7 +18,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "1.2.4"
+    plugin_version = "1.2.5"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -192,8 +192,9 @@ class RmCdata(_PluginBase):
         with open(file_path, 'w') as file:
             file.write(content)
             logger.info(f'{file_path} 处理完成')
-            if rm_empty:
-                RmCdata.delete_file_without_plot(file_path)
+
+        if rm_empty:
+            RmCdata.delete_file_without_plot(file_path)
     
     @staticmethod
     def delete_file_without_plot(file_path):
