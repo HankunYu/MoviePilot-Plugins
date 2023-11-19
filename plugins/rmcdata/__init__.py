@@ -18,7 +18,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "1.2.3"
+    plugin_version = "1.2.4"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -199,7 +199,7 @@ class RmCdata(_PluginBase):
     def delete_file_without_plot(file_path):
         with open(file_path, "r") as file:
             text = file.read()
-
+            logger.info(text)
             start_tag = "<plot>"
             end_tag = "</plot>"
 
