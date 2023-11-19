@@ -18,7 +18,7 @@ class RmCdata(_PluginBase):
     # 主题色
     plugin_color = "#32699D"
     # 插件版本
-    plugin_version = "1.2.2"
+    plugin_version = "1.2.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -55,6 +55,7 @@ class RmCdata(_PluginBase):
             self._rm_all = False
             self.update_config({
                     "enabled": self._enabled,
+                    "rm_empty": self._rm_empty,
                     "rm_all": False,
                     "all_path": self._all_path,
                 })
@@ -206,6 +207,7 @@ class RmCdata(_PluginBase):
             end_index = text.find(end_tag)
 
             if start_index == -1 or end_index == -1:
+                logger.info(f'start_index: {start_index}, end_index: {end_index}')
                 logger.info(f'{file_path} 元数据没找到plot标签')
                 return
             
@@ -216,9 +218,6 @@ class RmCdata(_PluginBase):
                 else:
                     logger.info(f'plot标签为空，删除 {file_path}...')
                     os.remove(file_path)
-            else:
-                logger.info(f'end_index: {end_index}, start_index: {start_index}, len(start_tag): {len(start_tag)}')
-                logger.info(f"{file_path}元数据没找到plot标签，跳过...")
 
     def process_all_nfo_files(self,directory):
         logger.info(f'正在处理 {directory} 下的所有 nfo 文件...')
