@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.30"
+    plugin_version = "0.31"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -503,10 +503,12 @@ class Bangumi(_PluginBase):
         self._is_runing_update_nfo = True
         threads = []
         for path in self._library_path.split('\n'):
+            logger.info(f"准备处理 {path}...")
             if os.path.exists(path): 
                 for root, dirs, files in os.walk(path):
                     for file in files:
                         if file.endswith('.nfo'):
+                            logger.info(f'准备处理 {file}...')
                             file_path = os.path.join(root, file)
                             title = re.sub(r'\([^()]*\)', '', file)
                             title = re.sub(r'-.+', '', title)
