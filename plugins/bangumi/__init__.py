@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.db import Engine, DbOper, ScopedSession
 from app.db.mediaserver_oper import MediaServerOper
 
+import threading
 import requests
 import time
 from urllib.parse import quote
@@ -26,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.14"
+    plugin_version = "0.15"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -43,16 +44,33 @@ class Bangumi(_PluginBase):
     _enabled = False
     _token = ""
     _select_servers = None
-    _db = None
+    _run_once = False
+    _is_runing_sync = False
+    _bangumi_id = ""
     _media_in_library = None
+    _max_thread = 5
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
+            self._run_once = config.get("run_once")
             self._token = config.get("token")
             self._select_servers = config.get("select_servers")
         if self._enabled:
             logger.debug("初始化Bangumi插件")
-            self.get_media_in_library()
+            self.login()
+            self._media_in_library = self.get_data("synced_media")
+            if self._run_once and not self._is_runing_sync:
+                self._is_runing_sync = True
+                thread = threading.Thread(target=self.check_all_librarys)
+                thread.start()
+                self.update_config({
+                    "enabled": self._enabled,
+                    "run_once": False,
+                    "token": self._token,
+                    "select_servers": self._select_servers
+                    })
+
+
 
 
     def get_state(self) -> bool:
@@ -89,6 +107,22 @@ class Bangumi(_PluginBase):
                                         'props': {
                                             'model': 'enabled',
                                             'label': '启用插件',
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'run_once',
+                                            'label': '同步一次媒体库到Bangumi',
                                         }
                                     }
                                 ]
@@ -153,6 +187,7 @@ class Bangumi(_PluginBase):
             }
         ], {
             "enabled": False,
+            "run_once": False,
             "token": "",
             "select_servers": []
         }
@@ -160,17 +195,71 @@ class Bangumi(_PluginBase):
     def get_page(self) -> List[dict]:
         pass
 
+    # 检查媒体库中所有媒体，并尝试同步到Bangumi
+    def check_all_librarys(self):
+        results = self.get_media_in_library()
+        if len(results) == 0:
+            logger.info("媒体库中没有找到媒体，跳过同步全部媒体库")
+            return
+        logger.info("开始同步媒体库")
+        thread = []
+        for media in results:
+            if media.id in self._media_in_library: continue
+            t = threading.Thread(target=self.sync_media, args=(media,))
+            thread.append(t)
+        for i in range(0, len(thread), self._max_thread):
+            for j in range(i, min(i + self._max_thread, len(thread))):
+                thread[j].start()
+            for j in range(i, min(i + self._max_thread, len(thread))):
+                thread[j].join()
+        self.save_data("synced_media", self._media_in_library)
+        self._is_runing_sync = False
+        logger.info("媒体库同步完成")
+
+    def login(self):
+        if self._token == "":
+            logger.info("未配置Bangumi API Token，跳过登录")
+            return
+        url = "https://api.bgm.tv/v0/me"
+        headers = {
+            "accept: application/json",
+            "Authorization: Bearer {self._token}"
+        }
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            self._bangumi_id = res.json().get("id")
+            logger.info("登录Bangumi成功")
+        else:
+            logger.info("登录Bangumi失败, 请检查API Token是否正确")
+        
+    # 同步媒体库
+    def sync_media(self, media):
+        subject_id = self.search_subject(media.title)
+        self._media_in_library.append(media.id)
+        if subject_id == None:
+            subject_id = self.search_subject(media.original_title)
+        if subject_id == None:
+            logger.info(f"未在Bangumi中找到{media.title}的条目")
+            return
+        # 检查是否已收藏
+        if self.check_subject_in_collections(subject_id):
+            logger.info(f"{media.title}已收藏，跳过")
+            return
+        # 添加收藏
+        if self.add_collections(subject_id):
+            logger.info(f"{media.title}收藏成功")
+        
+    
+    # 获取媒体库中的媒体
     def get_media_in_library(self):
-        """
-        获取库存中的媒体
-        """
         db = ScopedSession
 
         results = db.query(MediaServerItem).filter(
             MediaServerItem.server.in_(self._select_servers)
         ).all()
 
-        logger.info(f"找到媒体总共 {len(results)} 条")
+        db.close()
+        return results
         
 
     # 获取名字对应的条目ID
@@ -204,6 +293,19 @@ class Bangumi(_PluginBase):
         else:
             return None
     
+    # 检查是否已收藏
+    def check_subject_in_collections(self, subject_id: str):
+        url = f"https://api.bgm.tv/v0/users/{self._bangumi_id}/collections/{subject_id}"
+        headers = {
+            "accept: application/json",
+            "Authorization: Bearer {self._token}"
+        }
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            return True
+        else:
+            return False
+
     # 添加收藏
     def add_collections(self, subject_id: str):
         url = f"https:://api.bgm.tv/v0/users/-/collections/{subject_id}"
