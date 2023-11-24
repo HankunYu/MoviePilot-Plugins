@@ -24,7 +24,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.4"
+    plugin_version = "0.5"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -157,9 +157,6 @@ class Bangumi(_PluginBase):
 
     def get_page(self) -> List[dict]:
         pass
-
-    def __init__(self, db: Session = None):
-        super().__init__(db)
 
     def get_media_in_library(self):
         """
