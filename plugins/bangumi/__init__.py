@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.23"
+    plugin_version = "0.24"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -82,7 +82,6 @@ class Bangumi(_PluginBase):
                     })
                 
             if self._update_nfo_all_once and not self._is_runing_update_nfo:
-                self.update_nfo_all_once()
                 self.update_config({
                     "enabled": self._enabled,
                     "run_once": self._run_once,
@@ -92,6 +91,7 @@ class Bangumi(_PluginBase):
                     "update_nfo_all_once": False,
                     "sync_subscribe_rank": self._sycn_subscribe_rank
                     })
+                self.update_nfo_all_once()
             if self._sycn_subscribe_rank and not self._is_runing_update_rank:
                 thread = threading.Thread(target=self.update_subscribe_rank)
                 thread.start()
@@ -273,7 +273,8 @@ class Bangumi(_PluginBase):
             "token": "",
             "select_servers": [],
             "update_nfo": False,
-            "update_nfo_all_once": False
+            "update_nfo_all_once": False,
+            "sync_subscribe_rank": False
         }
 
     def get_page(self) -> List[dict]:
@@ -459,12 +460,12 @@ class Bangumi(_PluginBase):
             return True
         
     def update_nfo_all_once(self):
+        logger.info("开始更新已入库的NFO文件")
         self._is_runing_update_nfo = True
         results = self.get_media_in_library()
         if len(results) == 0:
             logger.info("媒体库中没有找到媒体，跳过更新NFO文件")
             return
-        logger.info("开始更新已入库的NFO文件")
         thread = []
         for media in results:
             # 电影直接获取文件路径
@@ -511,6 +512,7 @@ class Bangumi(_PluginBase):
     
     def update_subscribe_rank(self):
         self._is_runing_update_rank = True
+        logger.info("开始更新订阅页面评分")
         db = ScopedSession
         results = db.query(Subscribe).all()
         for subscribe in results:
@@ -524,6 +526,7 @@ class Bangumi(_PluginBase):
             subscribe.vote = rank
         db.commit()
         db.close()
+        logger.info("订阅页面评分更新完成")
         self._is_runing_update_rank = False
 
         
