@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.24"
+    plugin_version = "0.25"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -63,10 +63,14 @@ class Bangumi(_PluginBase):
             self._token = config.get("token")
             self._select_servers = config.get("select_servers")
             self._update_nfo = config.get("update_nfo")
+            self._update_nfo_all_once = config.get("update_nfo_all_once")
+            self._sycn_subscribe_rank = config.get("sync_subscribe_rank")
         if self._enabled:
             logger.debug("初始化Bangumi插件")
             self.login()
+
             self._media_in_library = self.get_data("synced_media")
+
             if self._run_once and not self._is_runing_sync:
                 self._is_runing_sync = True
                 thread = threading.Thread(target=self.check_all_librarys)
@@ -92,6 +96,7 @@ class Bangumi(_PluginBase):
                     "sync_subscribe_rank": self._sycn_subscribe_rank
                     })
                 self.update_nfo_all_once()
+
             if self._sycn_subscribe_rank and not self._is_runing_update_rank:
                 thread = threading.Thread(target=self.update_subscribe_rank)
                 thread.start()
@@ -372,6 +377,7 @@ class Bangumi(_PluginBase):
             if res.json().get("results") == 0:
                 return None
             results = res.json().get("list")
+            if results == None: return None
             for result in results:
                 result_name = re.sub(r'[\W_]+', '',result.get("name"))
                 result_name_cn = re.sub(r'[\W_]+', '',result.get("name_cn"))
