@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.26"
+    plugin_version = "0.27"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -459,6 +459,7 @@ class Bangumi(_PluginBase):
         if not os.path.exists(file_path):
             logger.info(f"{file_path} 不存在")
             return False
+        logger.info(f'准备处理 {file_path}...')
         with open(file_path, 'r') as file:
             content = file.read()
         content = re.sub(r'<rating>.*?</rating>', f'<rating>{rank}</rating>', content)
