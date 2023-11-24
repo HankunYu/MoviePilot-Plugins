@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.27"
+    plugin_version = "0.28"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -456,8 +456,11 @@ class Bangumi(_PluginBase):
         if rank == None: return False
 
         # 更新NFO
+
         if not os.path.exists(file_path):
             logger.info(f"{file_path} 不存在")
+            if os.path.exists(file_path.replace("/Volumes", "")):
+                logger.info(f"{file_path.replace('/Volumes', '')} 存在")
             return False
         logger.info(f'准备处理 {file_path}...')
         with open(file_path, 'r') as file:
@@ -521,7 +524,7 @@ class Bangumi(_PluginBase):
                 if file.endswith('.nfo'):
                     t = threading.Thread(target=self.update_nfo, args=(file, subject_id))
                     thread.append(t)
-    
+
     def update_subscribe_rank(self):
         self._is_runing_update_rank = True
         logger.info("开始更新订阅页面评分")
