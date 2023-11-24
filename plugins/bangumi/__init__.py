@@ -4,7 +4,12 @@ from app.core.event import eventmanager
 from app.schemas.types import EventType
 from typing import Any, List, Dict, Tuple
 
-from  plugins.bangumi.bangumi_db import BangumiDbOper
+from app.db.models.mediaserver import MediaServerItem
+from app.db import db_query
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
+from app.db import Engine, DbOper, get_db
+from app.db.mediaserver_oper import MediaServerOper
 
 import requests
 from urllib.parse import quote
@@ -20,7 +25,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.10"
+    plugin_version = "0.11"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -39,7 +44,6 @@ class Bangumi(_PluginBase):
     _select_servers = None
     _db = None
     _media_in_library = None
-    _db_oper = BangumiDbOper()
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
@@ -159,8 +163,12 @@ class Bangumi(_PluginBase):
         """
         获取库存中的媒体
         """
-        results = self._db_oper.get_media_in_library(self._select_servers)
-        logger.info(f"找到媒体总共 {results.len()}")
+        db = get_db()
+
+        # results = db.query(MediaServerItem).filter(
+        #     MediaServerItem.server.in_(self._select_servers)
+        # ).all()
+        logger.info(f"找到媒体总共 {db}")
 
         
 
