@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.19"
+    plugin_version = "0.20"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -207,7 +207,7 @@ class Bangumi(_PluginBase):
         if self._media_in_library == None: self._media_in_library = []
         thread = []
         for media in results:
-            if media.id in self._media_in_library: continue
+            if media.title in self._media_in_library: continue
             t = threading.Thread(target=self.sync_media, args=(media,))
             thread.append(t)
         for i in range(0, len(thread), self._max_thread):
@@ -239,7 +239,7 @@ class Bangumi(_PluginBase):
     # 同步媒体库
     def sync_media(self, media):
         subject_id = self.search_subject(media.title)
-        self._media_in_library.append(media.id)
+        self._media_in_library.append(media.title)
         if subject_id == None:
             subject_id = self.search_subject(media.original_title)
         if subject_id == None:
@@ -269,8 +269,7 @@ class Bangumi(_PluginBase):
     # 获取名字对应的条目ID
     def search_subject(self, name: str):
         # 去除特殊字符
-        name = re.sub(r'[^a-zA-Z0-9\s]', '', name)
-        name = re.sub(r'\s+', ' ', name)
+        name = re.sub(r'[\W_]+', '',name)
         # 转义
         keyword = quote(name)
         url = f"https://api.bgm.tv/search/subject/{keyword}?type=2&responseGroup=small"
@@ -280,9 +279,22 @@ class Bangumi(_PluginBase):
         }
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
-            if res.json().get("results") == 0 or res.json().get("list").get("0").get("name_cn") != name or res.json().get("list").get("0").get("name") != name:
+            if res.json().get("results") == 0:
                 return None
-            return res.json().get("list").get("0").get("id")
+            results = res.json().get("list")
+            for result in results:
+                result_name = re.sub(r'[\W_]+', '',result.get("name"))
+                result_name_cn = re.sub(r'[\W_]+', '',result.get("name_cn"))
+                if result_name == name or result_name_cn == name:
+                    return result.get("id")
+                else:
+                    # 尝试移除罗马字符
+                    pattern = re.compile(r'[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩIVX]')
+                    result_name = re.sub(pattern, '',result_name)
+                    result_name_cn = re.sub(pattern, '',result_name_cn)
+                    name = re.sub(pattern, '',name)
+                    if result_name == name or result_name_cn == name:
+                        return result.get("id")
         else:
             return None
     
