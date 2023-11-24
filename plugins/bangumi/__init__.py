@@ -20,7 +20,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.7"
+    plugin_version = "0.8"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -160,7 +160,7 @@ class Bangumi(_PluginBase):
         获取库存中的媒体
         """
         results = self._db_oper.get_media_in_library(self._select_servers)
-        logger.debug(f"找到媒体总共 {results.len()}")
+        logger.info(f"找到媒体总共 {results.len()}")
 
         
 
