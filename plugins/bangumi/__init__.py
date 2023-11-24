@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.25"
+    plugin_version = "0.26"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -95,7 +95,8 @@ class Bangumi(_PluginBase):
                     "update_nfo_all_once": False,
                     "sync_subscribe_rank": self._sycn_subscribe_rank
                     })
-                self.update_nfo_all_once()
+                thread = threading.Thread(target=self.update_nfo_all_once)
+                thread.start()
 
             if self._sycn_subscribe_rank and not self._is_runing_update_rank:
                 thread = threading.Thread(target=self.update_subscribe_rank)
@@ -407,6 +408,7 @@ class Bangumi(_PluginBase):
         if 'application/json' not in content_type: return None
 
         if res.status_code == 200:
+            if res.json().get("rating").get("score") == None: return None
             return res.json().get("rating").get("score") == 0 and 0 or res.json().get("rating").get("score")
         else:
             return None
@@ -454,6 +456,9 @@ class Bangumi(_PluginBase):
         if rank == None: return False
 
         # 更新NFO
+        if not os.path.exists(file_path):
+            logger.info(f"{file_path} 不存在")
+            return False
         with open(file_path, 'r') as file:
             content = file.read()
         content = re.sub(r'<rating>.*?</rating>', f'<rating>{rank}</rating>', content)
@@ -478,7 +483,7 @@ class Bangumi(_PluginBase):
             if media.item_type == "电影":
                 self.update_nfo_movie(media, thread)
             # 剧集需要获取文件夹下所有文件
-            if media.item_type == "电视剧":
+            elif media.item_type == "电视剧":
                 self.update_nfo_anime(media, thread)
 
         for i in range(0, len(thread), self._max_thread):
