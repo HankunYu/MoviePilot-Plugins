@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.18"
+    plugin_version = "0.19"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -203,9 +203,11 @@ class Bangumi(_PluginBase):
             logger.info("媒体库中没有找到媒体，跳过同步全部媒体库")
             return
         logger.info("开始同步媒体库")
+        # 第一次运行时初始化列表
+        if self._media_in_library == None: self._media_in_library = []
         thread = []
         for media in results:
-            if self._media_in_library is not None and media.id in self._media_in_library: continue
+            if media.id in self._media_in_library: continue
             t = threading.Thread(target=self.sync_media, args=(media,))
             thread.append(t)
         for i in range(0, len(thread), self._max_thread):
