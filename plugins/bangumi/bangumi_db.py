@@ -8,8 +8,7 @@ class BangumiDbOper(DbOper):
     def __init__(self, db: Session = None):
         super().__init__(db)
 
-    # @staticmethod
-    # @db_query
+    @db_query
     def get_media_in_library(self, media_server: list,):
         media_in_library = self._db.query(MediaServerItem).filter(
             MediaServerItem.server.in_(media_server),
