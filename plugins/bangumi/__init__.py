@@ -5,13 +5,14 @@ from app.schemas.types import EventType
 from typing import Any, List, Dict, Tuple
 
 from app.db.models.mediaserver import MediaServerItem
+from app.db.models.subscribe import Subscribe
 from app.db import db_query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from app.db import Engine, DbOper, ScopedSession
-from app.db.mediaserver_oper import MediaServerOper
+from app.db import ScopedSession
 
 import threading
+from threading import Thread
 import requests
 from urllib.parse import quote
 import re
@@ -26,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.22"
+    plugin_version = "0.23"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -44,10 +45,13 @@ class Bangumi(_PluginBase):
     _token = ""
     _select_servers = None
     _run_once = False
+    _sycn_subscribe_rank = False
     _update_nfo = False
     _update_nfo_all_once = False
 
     _is_runing_sync = False
+    _is_runing_update_nfo = False
+    _is_runing_update_rank = False
     _bangumi_id = ""
     _media_in_library = []
     _max_thread = 5
@@ -73,10 +77,11 @@ class Bangumi(_PluginBase):
                     "token": self._token,
                     "select_servers": self._select_servers,
                     "update_nfo": self._update_nfo,
-                    "update_nfo_all_once": self._update_nfo_all_once
+                    "update_nfo_all_once": self._update_nfo_all_once,
+                    "sync_subscribe_rank": self._sycn_subscribe_rank
                     })
                 
-            if self._update_nfo_all_once:
+            if self._update_nfo_all_once and not self._is_runing_update_nfo:
                 self.update_nfo_all_once()
                 self.update_config({
                     "enabled": self._enabled,
@@ -84,10 +89,12 @@ class Bangumi(_PluginBase):
                     "token": self._token,
                     "select_servers": self._select_servers,
                     "update_nfo": self._update_nfo,
-                    "update_nfo_all_once": False
+                    "update_nfo_all_once": False,
+                    "sync_subscribe_rank": self._sycn_subscribe_rank
                     })
-
-
+            if self._sycn_subscribe_rank and not self._is_runing_update_rank:
+                thread = threading.Thread(target=self.update_subscribe_rank)
+                thread.start()
 
 
     def get_state(self) -> bool:
@@ -176,7 +183,28 @@ class Bangumi(_PluginBase):
                                         'component': 'VSwitch',
                                         'props': {
                                             'model': 'update_nfo_all_once',
-                                            'label': '使用Bangumi评分更新一次所有入库NFO文件',
+                                            'label': '使用Bangumi评分更新一次所有已入库NFO文件',
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'sync_subscribe_rank',
+                                            'label': '使用Bangumi评分更新订阅页面评分',
                                         }
                                     }
                                 ]
@@ -244,7 +272,8 @@ class Bangumi(_PluginBase):
             "run_once": False,
             "token": "",
             "select_servers": [],
-            "update_nfo": False
+            "update_nfo": False,
+            "update_nfo_all_once": False
         }
 
     def get_page(self) -> List[dict]:
@@ -371,7 +400,7 @@ class Bangumi(_PluginBase):
         if 'application/json' not in content_type: return None
 
         if res.status_code == 200:
-            return res.json().get("rating").get("score")
+            return res.json().get("rating").get("score") == 0 and 0 or res.json().get("rating").get("score")
         else:
             return None
     
@@ -428,9 +457,78 @@ class Bangumi(_PluginBase):
             file.write(content)
             logger.info(f"更新{file_path}的评分为{rank}")
             return True
+        
+    def update_nfo_all_once(self):
+        self._is_runing_update_nfo = True
+        results = self.get_media_in_library()
+        if len(results) == 0:
+            logger.info("媒体库中没有找到媒体，跳过更新NFO文件")
+            return
+        logger.info("开始更新已入库的NFO文件")
+        thread = []
+        for media in results:
+            # 电影直接获取文件路径
+            if media.item_type == "电影":
+                self.update_nfo_movie(media, thread)
+            # 剧集需要获取文件夹下所有文件
+            if media.item_type == "电视剧":
+                self.update_nfo_anime(media, thread)
 
+        for i in range(0, len(thread), self._max_thread):
+            for j in range(i, min(i + self._max_thread, len(thread))):
+                thread[j].start()
+            for j in range(i, min(i + self._max_thread, len(thread))):
+                thread[j].join()
+        self._is_runing_update_nfo = False
+        logger.info("已入库NFO文件更新完成")
+
+    # 处理电影类型
+    def update_nfo_movie(self, media: MediaServerItem, thread: List[Thread]):
+        subject_id = self.search_subject(media.title)
+        if subject_id == None:
+            subject_id = self.search_subject(media.original_title)
+        if subject_id == None:
+            logger.info(f"未在Bangumi中找到{media.title}的条目, 跳过更新NFO文件")
+            return
+        file_name, file_ext = os.path.splitext(media.path)
+        nfo_file = file_name + ".nfo"
+        t = threading.Thread(target=self.update_nfo, args=(nfo_file, subject_id))
+        thread.append(t)
+    # 处理剧集类型
+    def update_nfo_anime(self, media: MediaServerItem, thread: List[Thread]):
+        subject_id = self.search_subject(media.title)
+        if subject_id == None:
+            subject_id = self.search_subject(media.original_title)
+        if subject_id == None:
+            logger.info(f"未在Bangumi中找到{media.title}的条目, 跳过更新NFO文件")
+            return
+        
+        for root, dirs, files in os.walk(media.path):
+            for file in files:
+                if file.endswith('.nfo'):
+                    t = threading.Thread(target=self.update_nfo, args=(file, subject_id))
+                    thread.append(t)
+    
+    def update_subscribe_rank(self):
+        self._is_runing_update_rank = True
+        db = ScopedSession
+        results = db.query(Subscribe).all()
+        for subscribe in results:
+            # 取得Bangumi评分
+            subject_id = self.search_subject(subscribe.name)
+            if subject_id == None: continue
+            rank = self.get_rank(subject_id)
+            if rank == None: continue
+            # 更新订阅评分
+
+            subscribe.vote = rank
+        db.commit()
+        db.close()
+        self._is_runing_update_rank = False
+
+        
     @eventmanager.register(EventType.TransferComplete)
-    def rmcdata(self, event):
+    def update_nfo_by_event(self, event):
         
         if not self._enabled:
             return
@@ -463,16 +561,20 @@ class Bangumi(_PluginBase):
 
         raw_data = __to_dict(event.event_data)
         targets_file = raw_data.get("transferinfo").get("file_list_new")
+        title = raw_data.get("mediainfo").get("title")
 
-        logger.info(f"raw data: {raw_data}")
-        # for media_name in targets_file:
-        #     file_name, file_ext = os.path.splitext(media_name)
-        #     nfo_file = file_name + ".nfo"
-        #     if os.path.exists(nfo_file):
-        #         logger.info(f'准备处理 {nfo_file}...')
-        #         self.replace_cdata_tags(nfo_file, self._rm_empty)
-        #     else:
-        #         logger.error(f'{nfo_file} 不存在')
+        # logger.info(f"raw data: {raw_data}")
+
+        # 开始处理入库文件
+        subject_id = self.search_subject(title)
+        for media_name in targets_file:
+            file_name, file_ext = os.path.splitext(media_name)
+            nfo_file = file_name + ".nfo"
+            if os.path.exists(nfo_file):
+                logger.info(f'准备处理 {nfo_file}...')
+                self.update_nfo(nfo_file, subject_id)
+            else:
+                logger.error(f'{nfo_file} 不存在')
 
         
 
