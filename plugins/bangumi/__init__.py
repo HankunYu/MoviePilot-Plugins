@@ -4,11 +4,7 @@ from app.core.event import eventmanager
 from app.schemas.types import EventType
 from typing import Any, List, Dict, Tuple
 
-from app.db.models.mediaserver import MediaServerItem
-from app.db import get_db
-from sqlalchemy import or_
-from sqlalchemy.orm import Session
-from app.db import Engine, DbOper
+from plugins.bangumi.bangumi_db import BangumiDbOper
 
 import requests
 from urllib.parse import quote
@@ -24,7 +20,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.5"
+    plugin_version = "0.6"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -37,17 +33,18 @@ class Bangumi(_PluginBase):
     auth_level = 1
 
     # 私有属性
-    _librarys = ["plex", "jellyfin", "emby"]
+    _servers = ["plex", "jellyfin", "emby"]
     _enabled = False
     _token = ""
-    _select_librarys = None
+    _select_servers = None
     _db = None
     _media_in_library = None
+    _db_oper = BangumiDbOper()
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
             self._token = config.get("token")
-            self._select_librarys = config.get("select_librarys")
+            self._select_servers = config.get("select_servers")
         if self._enabled:
             logger.debug("初始化Bangumi插件")
             self.get_media_in_library()
@@ -117,9 +114,9 @@ class Bangumi(_PluginBase):
                                         'props': {
                                             'chips': True,
                                             'multiple': True,
-                                            'model': 'select_librarys',
+                                            'model': 'select_servers',
                                             'label': '选择同步用的媒体库',
-                                            'items': self._librarys
+                                            'items': self._servers
                                         }
                                     }
                                 ]
@@ -152,7 +149,7 @@ class Bangumi(_PluginBase):
         ], {
             "enabled": False,
             "token": "",
-            "select_librarys": []
+            "select_servers": []
         }
 
     def get_page(self) -> List[dict]:
@@ -162,14 +159,7 @@ class Bangumi(_PluginBase):
         """
         获取库存中的媒体
         """
-        engine = Engine
-        db = DbOper(engine)
-
-        query = db.query(MediaServerItem).filter(
-            MediaServerItem.server.in_(self._select_librarys),
-            MediaServerItem.library.in_(["1", "2"])
-        )
-        results = query.all()
+        results = self._db_oper.get_media_in_library(self._select_servers)
         logger.debug(f"找到媒体总共 {results.len()}")
 
         
@@ -271,3 +261,4 @@ class Bangumi(_PluginBase):
         退出插件
         """
         pass
+
