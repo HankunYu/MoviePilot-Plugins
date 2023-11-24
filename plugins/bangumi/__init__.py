@@ -13,10 +13,9 @@ from app.db.mediaserver_oper import MediaServerOper
 
 import threading
 import requests
-import time
 from urllib.parse import quote
 import re
-
+import os
 class Bangumi(_PluginBase):
     # 插件名称
     plugin_name = "Bangumi"
@@ -27,7 +26,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.21"
+    plugin_version = "0.22"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -45,6 +44,9 @@ class Bangumi(_PluginBase):
     _token = ""
     _select_servers = None
     _run_once = False
+    _update_nfo = False
+    _update_nfo_all_once = False
+
     _is_runing_sync = False
     _bangumi_id = ""
     _media_in_library = []
@@ -56,6 +58,7 @@ class Bangumi(_PluginBase):
             self._run_once = config.get("run_once")
             self._token = config.get("token")
             self._select_servers = config.get("select_servers")
+            self._update_nfo = config.get("update_nfo")
         if self._enabled:
             logger.debug("初始化Bangumi插件")
             self.login()
@@ -68,7 +71,20 @@ class Bangumi(_PluginBase):
                     "enabled": self._enabled,
                     "run_once": False,
                     "token": self._token,
-                    "select_servers": self._select_servers
+                    "select_servers": self._select_servers,
+                    "update_nfo": self._update_nfo,
+                    "update_nfo_all_once": self._update_nfo_all_once
+                    })
+                
+            if self._update_nfo_all_once:
+                self.update_nfo_all_once()
+                self.update_config({
+                    "enabled": self._enabled,
+                    "run_once": self._run_once,
+                    "token": self._token,
+                    "select_servers": self._select_servers,
+                    "update_nfo": self._update_nfo,
+                    "update_nfo_all_once": False
                     })
 
 
@@ -135,6 +151,43 @@ class Bangumi(_PluginBase):
                         'content': [
                             {
                                 'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'update_nfo',
+                                            'label': '使用Bangumi评分更新新入库NFO文件',
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'update_nfo_all_once',
+                                            'label': '使用Bangumi评分更新一次所有入库NFO文件',
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
                                 'content': [
                                     {
                                         'component': 'VTextarea',
@@ -190,7 +243,8 @@ class Bangumi(_PluginBase):
             "enabled": False,
             "run_once": False,
             "token": "",
-            "select_servers": []
+            "select_servers": [],
+            "update_nfo": False
         }
 
     def get_page(self) -> List[dict]:
@@ -269,6 +323,7 @@ class Bangumi(_PluginBase):
     # 获取名字对应的条目ID
     def search_subject(self, name: str):
         # 去除特殊字符
+        if name == None: return None
         name = re.sub(r'[\W_]+', '',name)
         # 转义
         keyword = quote(name)
@@ -311,6 +366,10 @@ class Bangumi(_PluginBase):
             "User-Agent": self._user_agent
         }
         res = requests.get(url, headers=headers)
+
+        content_type = res.headers.get('Content-Type')
+        if 'application/json' not in content_type: return None
+
         if res.status_code == 200:
             return res.json().get("rating").get("score")
         else:
@@ -353,6 +412,23 @@ class Bangumi(_PluginBase):
         else:
             return False
     
+    def update_nfo(self, file_path: str, subject_id: str):
+        # 获取评分
+        rank = self.get_rank(subject_id)
+        if rank == None: return False
+
+        # 更新NFO
+        with open(file_path, 'r') as file:
+            content = file.read()
+        content = re.sub(r'<rating>.*?</rating>', f'<rating>{rank}</rating>', content)
+        if re.search(r'<rating>.*?</rating>', content) == None:
+            logger.info(f"{file_path} 中没有rating字段")
+            return False
+        with open(file_path, 'w') as file:
+            file.write(content)
+            logger.info(f"更新{file_path}的评分为{rank}")
+            return True
+
     @eventmanager.register(EventType.TransferComplete)
     def rmcdata(self, event):
         
@@ -388,7 +464,15 @@ class Bangumi(_PluginBase):
         raw_data = __to_dict(event.event_data)
         targets_file = raw_data.get("transferinfo").get("file_list_new")
 
-
+        logger.info(f"raw data: {raw_data}")
+        # for media_name in targets_file:
+        #     file_name, file_ext = os.path.splitext(media_name)
+        #     nfo_file = file_name + ".nfo"
+        #     if os.path.exists(nfo_file):
+        #         logger.info(f'准备处理 {nfo_file}...')
+        #         self.replace_cdata_tags(nfo_file, self._rm_empty)
+        #     else:
+        #         logger.error(f'{nfo_file} 不存在')
 
         
 
