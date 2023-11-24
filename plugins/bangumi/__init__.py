@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.28"
+    plugin_version = "0.29"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -48,13 +48,14 @@ class Bangumi(_PluginBase):
     _sycn_subscribe_rank = False
     _update_nfo = False
     _update_nfo_all_once = False
+    _library_path = ""
 
     _is_runing_sync = False
     _is_runing_update_nfo = False
     _is_runing_update_rank = False
     _bangumi_id = ""
     _media_in_library = []
-    _max_thread = 5
+    _max_thread = 500
     _user_agent = "hankunyu/moviepilot_plugin (https://github.com/HankunYu/MoviePilot-Plugins)"
     def init_plugin(self, config: dict = None):
         if config:
@@ -237,13 +238,32 @@ class Bangumi(_PluginBase):
                                 'component': 'VCol',
                                 'content': [
                                     {
-                                        'component': 'VSelect',
+                                        'component': 'VTextarea',
                                         'props': {
                                             'chips': True,
                                             'multiple': True,
                                             'model': 'select_servers',
                                             'label': '选择同步用的媒体库',
                                             'items': self._servers
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'content': [
+                                    {
+                                        'component': 'VTextarea',
+                                        'props': {
+                                            'model': 'library_path',
+                                            'label': '动漫媒体库路径',
+                                            'placeholder': '如果有剧场版就包括电影路径。一行一个路径。',
+                                            'rows': 1,
                                         }
                                     }
                                 ]
@@ -477,53 +497,25 @@ class Bangumi(_PluginBase):
     def update_nfo_all_once(self):
         logger.info("开始更新已入库的NFO文件")
         self._is_runing_update_nfo = True
-        results = self.get_media_in_library()
-        if len(results) == 0:
-            logger.info("媒体库中没有找到媒体，跳过更新NFO文件")
-            return
-        thread = []
-        for media in results:
-            # 电影直接获取文件路径
-            if media.item_type == "电影":
-                self.update_nfo_movie(media, thread)
-            # 剧集需要获取文件夹下所有文件
-            elif media.item_type == "电视剧":
-                self.update_nfo_anime(media, thread)
+        threads = []
+        for path in self._library_path.split('\n'):
+            if os.path.exists(path): 
+                for root, dirs, files in os.walk(path):
+                    for file in files:
+                        if file.endswith('.nfo'):
+                            file_path = os.path.join(root, file)
+                            title = re.sub(r'\([^()]*\)', '', file)
+                            title = re.sub(r'-.+', '', title)
+                            thread = threading.Thread(target=self.update_nfo, args=(file_path, title))
+                            threads.append(thread)
 
-        for i in range(0, len(thread), self._max_thread):
-            for j in range(i, min(i + self._max_thread, len(thread))):
-                thread[j].start()
-            for j in range(i, min(i + self._max_thread, len(thread))):
-                thread[j].join()
+        for i in range(0, len(threads), self._max_thread):
+            for j in range(i, min(i + self._max_thread, len(threads))):
+                threads[j].start()
+            for j in range(i, min(i + self._max_thread, len(threads))):
+                threads[j].join()
         self._is_runing_update_nfo = False
-        logger.info("已入库NFO文件更新完成")
-
-    # 处理电影类型
-    def update_nfo_movie(self, media: MediaServerItem, thread: List[Thread]):
-        subject_id = self.search_subject(media.title)
-        if subject_id == None:
-            subject_id = self.search_subject(media.original_title)
-        if subject_id == None:
-            logger.info(f"未在Bangumi中找到{media.title}的条目, 跳过更新NFO文件")
-            return
-        file_name, file_ext = os.path.splitext(media.path)
-        nfo_file = file_name + ".nfo"
-        t = threading.Thread(target=self.update_nfo, args=(nfo_file, subject_id))
-        thread.append(t)
-    # 处理剧集类型
-    def update_nfo_anime(self, media: MediaServerItem, thread: List[Thread]):
-        subject_id = self.search_subject(media.title)
-        if subject_id == None:
-            subject_id = self.search_subject(media.original_title)
-        if subject_id == None:
-            logger.info(f"未在Bangumi中找到{media.title}的条目, 跳过更新NFO文件")
-            return
-        
-        for root, dirs, files in os.walk(media.path):
-            for file in files:
-                if file.endswith('.nfo'):
-                    t = threading.Thread(target=self.update_nfo, args=(file, subject_id))
-                    thread.append(t)
+        logger.info("NFO文件更新完成")
 
     def update_subscribe_rank(self):
         self._is_runing_update_rank = True
