@@ -23,7 +23,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.2"
+    plugin_version = "0.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -162,11 +162,15 @@ class Bangumi(_PluginBase):
         """
         获取库存中的媒体
         """
-        Session = sessionmaker(bind=self._db)
-        session = Session()
-        query = session.query(MediaServerItem).filter(
-            MediaServerItem.server.in_(self._select_librarys),
-            MediaServerItem.library.in_(["1", "2"])
+        # Session = sessionmaker(bind=self._db)
+        # session = Session()
+        # query = session.query(MediaServerItem).filter(
+        #     MediaServerItem.server.in_(self._select_librarys),
+        #     MediaServerItem.library.in_(["1", "2"])
+        # )
+        query = self._db.query(MediaServerItem).filter(
+            MediaServerItem.server == "plex",
+            MediaServerItem.library == "1"
         )
         results = query.all()
         logger.debug(f"找到媒体总共 {results.len()}")
