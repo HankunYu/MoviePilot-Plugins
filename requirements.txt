@@ -1,1 +1,1 @@
-discord.py==2.3.2
+sqlalchemy==1.4.25
