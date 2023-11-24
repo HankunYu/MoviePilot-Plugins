@@ -26,7 +26,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.12"
+    plugin_version = "0.13"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -174,7 +174,7 @@ class Bangumi(_PluginBase):
             MediaServerItem.server.in_(self._select_servers)
         ).all()
 
-        logger.info(f"找到媒体总共 {db}")
+        logger.info(f"找到媒体总共 {results.len()}")
         
 
     # 获取名字对应的条目ID
