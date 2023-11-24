@@ -7,6 +7,7 @@ from typing import Any, List, Dict, Tuple
 from app.db.models.mediaserver import MediaServerItem
 from app.db import get_db
 from sqlalchemy import or_
+from sqlalchemy.orm import sessionmaker
 
 import requests
 from urllib.parse import quote
@@ -22,7 +23,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.1"
+    plugin_version = "0.2"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -48,6 +49,7 @@ class Bangumi(_PluginBase):
             self._select_librarys = config.get("select_librarys")
         if self._enabled:
             self._db = get_db()
+            logger.debug("初始化Bangumi插件")
             self.get_media_in_library()
 
 
@@ -138,7 +140,7 @@ class Bangumi(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'flat',
-                                            'text': '请到 <a href="https://next.bgm.tv/demo/access-token" target="_blank">Bangumi</a> 申请 API Token',
+                                            'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token',
                                         }
                                     }
                                 ]
@@ -160,7 +162,9 @@ class Bangumi(_PluginBase):
         """
         获取库存中的媒体
         """
-        query = self._db.query(MediaServerItem).filter(
+        Session = sessionmaker(bind=self._db)
+        session = Session()
+        query = session.query(MediaServerItem).filter(
             MediaServerItem.server.in_(self._select_librarys),
             MediaServerItem.library.in_(["1", "2"])
         )
