@@ -4,7 +4,7 @@ from app.core.event import eventmanager
 from app.schemas.types import EventType
 from typing import Any, List, Dict, Tuple
 
-from plugins.bangumi.bangumi_db import BangumiDbOper
+from  plugins.bangumi.bangumi_db import BangumiDbOper
 
 import requests
 from urllib.parse import quote
@@ -20,7 +20,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.6"
+    plugin_version = "0.7"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
