@@ -7,7 +7,8 @@ from typing import Any, List, Dict, Tuple
 from app.db.models.mediaserver import MediaServerItem
 from app.db import get_db
 from sqlalchemy import or_
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session
+from app.db import Engine, DbOper
 
 import requests
 from urllib.parse import quote
@@ -23,7 +24,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.3"
+    plugin_version = "0.4"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -48,7 +49,6 @@ class Bangumi(_PluginBase):
             self._token = config.get("token")
             self._select_librarys = config.get("select_librarys")
         if self._enabled:
-            self._db = get_db()
             logger.debug("初始化Bangumi插件")
             self.get_media_in_library()
 
@@ -157,20 +157,20 @@ class Bangumi(_PluginBase):
 
     def get_page(self) -> List[dict]:
         pass
-    
+
+    def __init__(self, db: Session = None):
+        super().__init__(db)
+
     def get_media_in_library(self):
         """
         获取库存中的媒体
         """
-        # Session = sessionmaker(bind=self._db)
-        # session = Session()
-        # query = session.query(MediaServerItem).filter(
-        #     MediaServerItem.server.in_(self._select_librarys),
-        #     MediaServerItem.library.in_(["1", "2"])
-        # )
-        query = self._db.query(MediaServerItem).filter(
-            MediaServerItem.server == "plex",
-            MediaServerItem.library == "1"
+        engine = Engine
+        db = DbOper(engine)
+
+        query = db.query(MediaServerItem).filter(
+            MediaServerItem.server.in_(self._select_librarys),
+            MediaServerItem.library.in_(["1", "2"])
         )
         results = query.all()
         logger.debug(f"找到媒体总共 {results.len()}")
