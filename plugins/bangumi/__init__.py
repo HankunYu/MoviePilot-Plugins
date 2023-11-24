@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.16"
+    plugin_version = "0.17"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -47,7 +47,7 @@ class Bangumi(_PluginBase):
     _run_once = False
     _is_runing_sync = False
     _bangumi_id = ""
-    _media_in_library = None
+    _media_in_library = []
     _max_thread = 5
     _user_agent = "hankunyu/moviepilot_plugin (https://github.com/HankunYu/MoviePilot-Plugins)"
     def init_plugin(self, config: dict = None):
