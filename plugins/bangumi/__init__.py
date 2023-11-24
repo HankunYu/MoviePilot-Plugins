@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.15"
+    plugin_version = "0.16"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -49,6 +49,7 @@ class Bangumi(_PluginBase):
     _bangumi_id = ""
     _media_in_library = None
     _max_thread = 5
+    _user_agent = "hankunyu/moviepilot_plugin (https://github.com/HankunYu/MoviePilot-Plugins)"
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
@@ -222,8 +223,9 @@ class Bangumi(_PluginBase):
             return
         url = "https://api.bgm.tv/v0/me"
         headers = {
-            "accept: application/json",
-            "Authorization: Bearer {self._token}"
+            "accept": "application/json",
+            "Authorization": f"Bearer {self._token}",
+            "User-Agent": self._user_agent
         }
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
@@ -271,7 +273,8 @@ class Bangumi(_PluginBase):
         keyword = quote(name)
         url = f"https://api.bgm.tv/search/subject/{keyword}?type=2&responseGroup=small"
         headers = {
-            "accept: application/json"
+            "accept": "application/json",
+            "User-Agent": self._user_agent
         }
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
@@ -285,7 +288,8 @@ class Bangumi(_PluginBase):
     def get_rank(self, subject_id: str):
         url = f"https://api.bgm.tv/subject/{subject_id}"
         headers = {
-            "accept: application/json"
+            "accept": "application/json",
+            "User-Agent": self._user_agent
         }
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
@@ -297,8 +301,9 @@ class Bangumi(_PluginBase):
     def check_subject_in_collections(self, subject_id: str):
         url = f"https://api.bgm.tv/v0/users/{self._bangumi_id}/collections/{subject_id}"
         headers = {
-            "accept: application/json",
-            "Authorization: Bearer {self._token}"
+            "accept": "application/json",
+            "Authorization": f"Bearer {self._token}",
+            "User-Agent": self._user_agent
         }
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
@@ -310,9 +315,10 @@ class Bangumi(_PluginBase):
     def add_collections(self, subject_id: str):
         url = f"https:://api.bgm.tv/v0/users/-/collections/{subject_id}"
         headers = {
-            "accept: */*",
-            "Authorization: Bearer {self._token}",
-            "Content-Type: application/json"
+            "accept": "*/*",
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json",
+            "User-Agent": self._user_agent
         }
         data = {
             "type": 2,
