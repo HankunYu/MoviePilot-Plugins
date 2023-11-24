@@ -8,10 +8,11 @@ from app.db.models.mediaserver import MediaServerItem
 from app.db import db_query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from app.db import Engine, DbOper, get_db
+from app.db import Engine, DbOper, ScopedSession
 from app.db.mediaserver_oper import MediaServerOper
 
 import requests
+import time
 from urllib.parse import quote
 import re
 
@@ -25,7 +26,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.11"
+    plugin_version = "0.12"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -163,13 +164,17 @@ class Bangumi(_PluginBase):
         """
         获取库存中的媒体
         """
-        db = get_db()
+        db = ScopedSession
 
-        # results = db.query(MediaServerItem).filter(
-        #     MediaServerItem.server.in_(self._select_servers)
-        # ).all()
+        logger.info(f"1111 {db}")
+
+        time.sleep(1)
+
+        results = db.query(MediaServerItem).filter(
+            MediaServerItem.server.in_(self._select_servers)
+        ).all()
+
         logger.info(f"找到媒体总共 {db}")
-
         
 
     # 获取名字对应的条目ID
