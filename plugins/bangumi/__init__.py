@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.29"
+    plugin_version = "0.30"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -66,6 +66,7 @@ class Bangumi(_PluginBase):
             self._update_nfo = config.get("update_nfo")
             self._update_nfo_all_once = config.get("update_nfo_all_once")
             self._sycn_subscribe_rank = config.get("sync_subscribe_rank")
+            self._library_path = config.get("library_path")
         if self._enabled:
             logger.debug("初始化Bangumi插件")
             self.login()
@@ -83,7 +84,8 @@ class Bangumi(_PluginBase):
                     "select_servers": self._select_servers,
                     "update_nfo": self._update_nfo,
                     "update_nfo_all_once": self._update_nfo_all_once,
-                    "sync_subscribe_rank": self._sycn_subscribe_rank
+                    "sync_subscribe_rank": self._sycn_subscribe_rank,
+                    "library_path": self._library_path
                     })
                 
             if self._update_nfo_all_once and not self._is_runing_update_nfo:
@@ -94,7 +96,8 @@ class Bangumi(_PluginBase):
                     "select_servers": self._select_servers,
                     "update_nfo": self._update_nfo,
                     "update_nfo_all_once": False,
-                    "sync_subscribe_rank": self._sycn_subscribe_rank
+                    "sync_subscribe_rank": self._sycn_subscribe_rank,
+                    "library_path": self._library_path
                     })
                 thread = threading.Thread(target=self.update_nfo_all_once)
                 thread.start()
@@ -238,7 +241,7 @@ class Bangumi(_PluginBase):
                                 'component': 'VCol',
                                 'content': [
                                     {
-                                        'component': 'VTextarea',
+                                        'component': 'VSelect',
                                         'props': {
                                             'chips': True,
                                             'multiple': True,
@@ -263,7 +266,7 @@ class Bangumi(_PluginBase):
                                             'model': 'library_path',
                                             'label': '动漫媒体库路径',
                                             'placeholder': '如果有剧场版就包括电影路径。一行一个路径。',
-                                            'rows': 1,
+                                            'rows': 5,
                                         }
                                     }
                                 ]
@@ -300,7 +303,8 @@ class Bangumi(_PluginBase):
             "select_servers": [],
             "update_nfo": False,
             "update_nfo_all_once": False,
-            "sync_subscribe_rank": False
+            "sync_subscribe_rank": False,
+            "library_path": ""
         }
 
     def get_page(self) -> List[dict]:
