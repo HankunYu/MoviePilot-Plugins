@@ -27,7 +27,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.20"
+    plugin_version = "0.21"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -278,6 +278,11 @@ class Bangumi(_PluginBase):
             "User-Agent": self._user_agent
         }
         res = requests.get(url, headers=headers)
+
+        # 检查返回类型
+        content_type = res.headers.get('Content-Type')
+        if 'application/json' not in content_type: return None
+
         if res.status_code == 200:
             if res.json().get("results") == 0:
                 return None
@@ -327,7 +332,7 @@ class Bangumi(_PluginBase):
 
     # 添加收藏
     def add_collections(self, subject_id: str):
-        url = f"https:://api.bgm.tv/v0/users/-/collections/{subject_id}"
+        url = f"https://api.bgm.tv/v0/users/-/collections/{subject_id}"
         headers = {
             "accept": "*/*",
             "Authorization": f"Bearer {self._token}",
@@ -342,7 +347,7 @@ class Bangumi(_PluginBase):
             "tags": [""]
         }
 
-        res = requests.post(url, headers=headers, data=data)
+        res = requests.post(url, headers=headers, json=data)
         if res.status_code == 204 or res.status_code == 202:
             return True
         else:
