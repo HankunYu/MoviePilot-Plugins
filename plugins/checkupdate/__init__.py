@@ -14,7 +14,7 @@ class CheckUpdate(_PluginBase):
     # 主题色
     plugin_color = "#66778E"
     # 插件版本
-    plugin_version = "0.1"
+    plugin_version = "0.2"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
