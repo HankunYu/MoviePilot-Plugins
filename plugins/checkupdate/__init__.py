@@ -4,12 +4,6 @@ from typing import Any, List, Dict, Tuple
 
 from from app.core.plugin import PluginManager
 
-import threading
-from threading import Thread
-import requests
-from urllib.parse import quote
-import re
-import os
 class CheckUpdate(_PluginBase):
     # 插件名称
     plugin_name = "插件更新检查"
