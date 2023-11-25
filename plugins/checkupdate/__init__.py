@@ -34,7 +34,7 @@ class CheckUpdate(_PluginBase):
         if self._enabled:
             PluginManager().init_config()
         
-        config.update({
+        self.update_config({
             "enabled": False
         })
 
