@@ -25,5 +25,14 @@
         "color": "#5378A4",
         "author": "hankun",
         "level": 1
+    },
+    "CheckUpdate": {
+        "name": "插件更新检查",
+        "description": "手动检查一次所有插件是否有更新",
+        "version": "0.1",
+        "icon": "download.png",
+        "color": "#66778E",
+        "author": "hankun",
+        "level": 1
     }
 }

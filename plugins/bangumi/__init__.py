@@ -10,6 +10,7 @@ from app.db import db_query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.db import ScopedSession
+from from app.core.plugin import PluginManager
 
 import threading
 from threading import Thread
@@ -312,7 +313,7 @@ class Bangumi(_PluginBase):
 
     # 检查媒体库中所有媒体，并尝试同步到Bangumi
     def check_all_librarys(self):
-        results = self.get_media_in_library()
+        results = self.get_medias_in_library()
         if len(results) == 0:
             logger.info("媒体库中没有找到媒体，跳过同步全部媒体库")
             return
@@ -369,7 +370,7 @@ class Bangumi(_PluginBase):
         
     
     # 获取媒体库中的媒体
-    def get_media_in_library(self):
+    def get_medias_in_library(self):
         db = ScopedSession
 
         results = db.query(MediaServerItem).filter(
@@ -502,25 +503,23 @@ class Bangumi(_PluginBase):
         logger.info("开始更新已入库的NFO文件")
         self._is_runing_update_nfo = True
         threads = []
+        paths = []
         for path in self._library_path.split('\n'):
             if os.path.exists(path): 
-                for root, dirs, files in os.walk(path):
-                    for file in files:
-                        if file.endswith('.nfo'):
-                            file_path = os.path.join(root, file)
-                            title = re.sub(r'\([^()]*\)', '', file)
-                            title = re.sub(r'-.+', '', title)
+                paths.append(path)
+        for path in paths:
+            for root, dirs, files in os.walk(path):
+                for file in files:
+                    if not file.endswith('.nfo'): continue
+                    if file == "season.nfo" or file == "tvshow.nfo": continue
+                    file_path = os.path.join(root, file)
+                    # 通过媒体文件获取媒体名称
+                    # 去除电影文件名的括号加年份
+                    title = re.sub(r'\([^()]*\)', '', file)
+                    
+                    subject_id = self.search_subject(title)
+                    self.update_nfo(file_path, subject_id)
 
-                            logger.info(f'准备处理 {title}...')
-                            subject_id = self.search_subject(title)
-                            thread = threading.Thread(target=self.update_nfo, args=(file_path, subject_id))
-                            threads.append(thread)
-
-        for i in range(0, len(threads), self._max_thread):
-            for j in range(i, min(i + self._max_thread, len(threads))):
-                threads[j].start()
-            for j in range(i, min(i + self._max_thread, len(threads))):
-                threads[j].join()
         self._is_runing_update_nfo = False
         logger.info("NFO文件更新完成")
 
@@ -543,6 +542,34 @@ class Bangumi(_PluginBase):
         logger.info("订阅页面评分更新完成")
         self._is_runing_update_rank = False
 
+    def name_season_convert(self, name : str) -> str:
+        string = name
+        # 判断是否包含 "S02" 或者大于2的 "S0X"
+        match = re.search(r'S(\d{2})', string)
+        if match:
+            season_number = int(match.group(1))
+            if season_number >= 2:
+                chinese_number = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
+                chinese_season = "第" + chinese_number[season_number - 1] + "季"
+                string = re.sub(r'S\d{2}', chinese_season, string)
+
+                # 去除 "E0X"
+                string = re.sub(r'E\d{2}', '', string)
+            # 去除 "S01"
+            elif season_number == 1:
+                string = re.sub(r'S01', '', string)
+                # 去除 "E0X"
+                string = re.sub(r'E\d{2}', '', string)
+        return string 
+    
+    def get_original_title(self, name :str) -> str:
+        medias = self.get_medias_in_library()
+        if len(medias) == 0: return None
+        for media in medias:
+            if media.title == name:
+                return media.original_title
+        return None
+    
         
     @eventmanager.register(EventType.TransferComplete)
     def update_nfo_by_event(self, event):
