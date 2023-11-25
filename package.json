@@ -28,8 +28,8 @@
     },
     "CheckUpdate": {
         "name": "插件更新检查",
-        "description": "手动检查一次所有插件是否有更新",
-        "version": "0.2",
+        "description": "手动检查一次所有插件是否有更新 - 开发Debug用",
+        "version": "0.3",
         "icon": "download.png",
         "color": "#66778E",
         "author": "hankun",

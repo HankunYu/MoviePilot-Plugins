@@ -2,8 +2,12 @@ from app.log import logger
 from app.plugins import _PluginBase
 from typing import Any, List, Dict, Tuple
 
+from app.db.systemconfig_oper import SystemConfigOper
+from app.helper.plugin import PluginHelper
 from app.core.plugin import PluginManager
+from app.schemas.types import SystemConfigKey
 
+import threading
 class CheckUpdate(_PluginBase):
     # 插件名称
     plugin_name = "插件更新检查"
@@ -14,7 +18,7 @@ class CheckUpdate(_PluginBase):
     # 主题色
     plugin_color = "#66778E"
     # 插件版本
-    plugin_version = "0.2"
+    plugin_version = "0.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -32,12 +36,49 @@ class CheckUpdate(_PluginBase):
         if config:
             self._enabled = config.get("enabled")
         if self._enabled:
-            PluginManager().init_config()
-        
-        self.update_config({
-            "enabled": False
-        })
+            threading.Thread(target=self.plugin_update).start()
+            self.update_config({
+                "enabled": False
+            })
 
+    # from https://github.com/thsrite/MoviePilot-Plugins/blob/main/plugins/pluginautoupdate/__init__.py
+    def plugin_update(self):
+        """
+        插件自动更新
+        """
+        # 已安装插件
+        install_plugins = SystemConfigOper().get(SystemConfigKey.UserInstalledPlugins) or []
+        # 在线插件
+        online_plugins = PluginManager().get_online_plugins()
+        if not online_plugins:
+            logger.error("未获取到在线插件，停止运行")
+            return
+
+        plugin_reload = False
+        # 支持更新的插件自动更新
+        for plugin in online_plugins:
+            # 只处理已安装的插件
+            if str(plugin.get("id")) in install_plugins:
+                # 有更新 或者 本地未安装的
+                if plugin.get("has_update") or not plugin.get("installed"):
+                    # 下载安装
+                    state, msg = PluginHelper().install(pid=plugin.get("id"),
+                                                        repo_url=plugin.get("repo_url"))
+                    # 安装失败
+                    if not state:
+                        logger.error(
+                            f"插件 {plugin.get('plugin_name')} 更新失败，最新版本 {plugin.get('plugin_version')}")
+                        continue
+
+                    logger.info(f"插件 {plugin.get('plugin_name')} 更新成功，最新版本 {plugin.get('plugin_version')}")
+                    plugin_reload = True
+
+        # 重载插件管理器
+        if plugin_reload:
+            logger.info("开始插件重载")
+            PluginManager().init_config()
+        else:
+            logger.info("所有插件已是最新版本")
 
     def get_state(self) -> bool:
         return self._enabled
