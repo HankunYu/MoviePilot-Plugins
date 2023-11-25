@@ -28,7 +28,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.34"
+    plugin_version = "0.35"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -519,6 +519,12 @@ class Bangumi(_PluginBase):
                     # 去除电影文件名的括号加年份
                     title = re.sub(r'\([^()]*\)', '', file)
                     logger.info(f"正在处理 {title}...")
+                    # 去除文件名中的后缀
+                    title = os.path.splitext(title)[0]
+                    # 去除分辨率
+                    title = re.sub(r'\d{3,4}p', '', title)
+                    # 转换季数为中文
+                    title = self.name_season_convert(title)
                     # 获取原始名称
                     original_title = self.get_original_title(title)
                     logger.info(f"原始名称为 {original_title}")
