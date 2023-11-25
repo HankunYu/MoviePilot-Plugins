@@ -29,7 +29,7 @@
     "CheckUpdate": {
         "name": "插件更新检查",
         "description": "手动检查一次所有插件是否有更新 - 开发Debug用",
-        "version": "0.3",
+        "version": "0.4",
         "icon": "download.png",
         "color": "#66778E",
         "author": "hankun",
