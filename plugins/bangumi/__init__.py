@@ -28,7 +28,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.32"
+    plugin_version = "0.33"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
