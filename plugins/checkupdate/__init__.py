@@ -2,7 +2,7 @@ from app.log import logger
 from app.plugins import _PluginBase
 from typing import Any, List, Dict, Tuple
 
-from from app.core.plugin import PluginManager
+from app.core.plugin import PluginManager
 
 class CheckUpdate(_PluginBase):
     # 插件名称

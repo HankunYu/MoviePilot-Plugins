@@ -10,7 +10,7 @@ from app.db import db_query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.db import ScopedSession
-from from app.core.plugin import PluginManager
+from app.core.plugin import PluginManager
 
 import threading
 from threading import Thread
