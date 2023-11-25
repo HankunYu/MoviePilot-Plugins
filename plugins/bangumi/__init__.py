@@ -28,7 +28,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.33"
+    plugin_version = "0.34"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -323,7 +323,7 @@ class Bangumi(_PluginBase):
         thread = []
         for media in results:
             if media.title in self._media_in_library: continue
-            t = threading.Thread(target=self.sync_media, args=(media,))
+            t = threading.Thread(target=self.sync_media_to_bangumi, args=(media,))
             thread.append(t)
         for i in range(0, len(thread), self._max_thread):
             for j in range(i, min(i + self._max_thread, len(thread))):
@@ -334,9 +334,10 @@ class Bangumi(_PluginBase):
         self._is_runing_sync = False
         logger.info("媒体库同步完成")
 
+    # 获取用户UID
     def login(self):
         if self._token == "":
-            logger.info("未配置Bangumi API Token，跳过登录")
+            logger.info("请配置Bangumi API Token")
             return
         url = "https://api.bgm.tv/v0/me"
         headers = {
@@ -351,8 +352,8 @@ class Bangumi(_PluginBase):
         else:
             logger.info("登录Bangumi失败, 请检查API Token是否正确")
         
-    # 同步媒体库
-    def sync_media(self, media):
+    # 同步番剧到 Bangumi 为已看
+    def sync_media_to_bangumi(self, media):
         subject_id = self.search_subject(media.title)
         self._media_in_library.append(media.title)
         if subject_id == None:
@@ -368,8 +369,7 @@ class Bangumi(_PluginBase):
         if self.add_collections(subject_id):
             logger.info(f"{media.title}收藏成功")
         
-    
-    # 获取媒体库中的媒体
+    # 获取媒体库中的媒体 目标为数据库中的 MediaServerItem 表
     def get_medias_in_library(self):
         db = ScopedSession
 
@@ -381,7 +381,7 @@ class Bangumi(_PluginBase):
         return results
         
 
-    # 获取名字对应的条目ID
+    # 获取名字对应的条目ID 将移除特殊字符后进行匹配
     def search_subject(self, name: str):
         # 去除特殊字符
         if name == None: return None
@@ -475,6 +475,7 @@ class Bangumi(_PluginBase):
         else:
             return False
     
+    # 更新NFO文件的评分
     def update_nfo(self, file_path: str, subject_id: str):
         # 获取评分
         rank = self.get_rank(subject_id)
@@ -498,7 +499,8 @@ class Bangumi(_PluginBase):
             file.write(content)
             logger.info(f"更新{file_path}的评分为{rank}")
             return True
-        
+    
+    # 更新所有已入库的NFO文件
     def update_nfo_all_once(self):
         logger.info("开始更新已入库的NFO文件")
         self._is_runing_update_nfo = True
@@ -516,13 +518,21 @@ class Bangumi(_PluginBase):
                     # 通过媒体文件获取媒体名称
                     # 去除电影文件名的括号加年份
                     title = re.sub(r'\([^()]*\)', '', file)
-                    
+                    logger.info(f"正在处理 {title}...")
+                    # 获取原始名称
+                    original_title = self.get_original_title(title)
+                    logger.info(f"原始名称为 {original_title}")
+                    # 获取subject_id
                     subject_id = self.search_subject(title)
+                    if subject_id == None and original_title != None:
+                        subject_id = self.search_subject(original_title)
+                    if subject_id == None: continue
                     self.update_nfo(file_path, subject_id)
 
         self._is_runing_update_nfo = False
         logger.info("NFO文件更新完成")
 
+    # 更新订阅页面评分
     def update_subscribe_rank(self):
         self._is_runing_update_rank = True
         logger.info("开始更新订阅页面评分")
@@ -542,6 +552,7 @@ class Bangumi(_PluginBase):
         logger.info("订阅页面评分更新完成")
         self._is_runing_update_rank = False
 
+    # 去除名字中的 "S01" 和 "E0X" ，并将 "S02" 之后并转换为中文 第二季等
     def name_season_convert(self, name : str) -> str:
         string = name
         # 判断是否包含 "S02" 或者大于2的 "S0X"
@@ -562,6 +573,7 @@ class Bangumi(_PluginBase):
                 string = re.sub(r'E\d{2}', '', string)
         return string 
     
+    # 通过MediaServerItem获取原始名称
     def get_original_title(self, name :str) -> str:
         medias = self.get_medias_in_library()
         if len(medias) == 0: return None
@@ -570,11 +582,10 @@ class Bangumi(_PluginBase):
                 return media.original_title
         return None
     
-        
     @eventmanager.register(EventType.TransferComplete)
     def update_nfo_by_event(self, event):
         
-        if not self._enabled:
+        if not self._enabled or not self._update_nfo:
             return
 
         def __to_dict(_event):
