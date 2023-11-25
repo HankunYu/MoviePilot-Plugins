@@ -28,7 +28,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.35"
+    plugin_version = "0.37"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -433,7 +433,10 @@ class Bangumi(_PluginBase):
         if 'application/json' not in content_type: return None
 
         if res.status_code == 200:
-            if res.json().get("rating").get("score") == None: return None
+            try:
+                rank = res.json().get("rating").get("score")
+            except (AttributeError, KeyError, TypeError):
+                return None
             return res.json().get("rating").get("score") == 0 and 0 or res.json().get("rating").get("score")
         else:
             return None
@@ -482,13 +485,8 @@ class Bangumi(_PluginBase):
         if rank == None: return False
 
         # 更新NFO
-
         if not os.path.exists(file_path):
-            logger.info(f"{file_path} 不存在")
-            if os.path.exists(file_path.replace("/Volumes", "")):
-                logger.info(f"{file_path.replace('/Volumes', '')} 存在")
             return False
-        logger.info(f'准备处理 {file_path}...')
         with open(file_path, 'r') as file:
             content = file.read()
         content = re.sub(r'<rating>.*?</rating>', f'<rating>{rank}</rating>', content)
@@ -518,7 +516,6 @@ class Bangumi(_PluginBase):
                     # 通过媒体文件获取媒体名称
                     # 去除电影文件名的括号加年份
                     title = re.sub(r'\([^()]*\)', '', file)
-                    logger.info(f"正在处理 {title}...")
                     # 去除文件名中的后缀
                     title = os.path.splitext(title)[0]
                     # 去除分辨率
@@ -527,6 +524,7 @@ class Bangumi(_PluginBase):
                     title = self.name_season_convert(title)
                     # 获取原始名称
                     original_title = self.get_original_title(title)
+                    logger.info(f"修正后名称为 {title}...")
                     logger.info(f"原始名称为 {original_title}")
                     # 获取subject_id
                     subject_id = self.search_subject(title)
@@ -583,6 +581,7 @@ class Bangumi(_PluginBase):
     def get_original_title(self, name :str) -> str:
         medias = self.get_medias_in_library()
         if len(medias) == 0: return None
+        name = name.strip()
         for media in medias:
             if media.title == name:
                 return media.original_title
@@ -632,7 +631,6 @@ class Bangumi(_PluginBase):
             file_name, file_ext = os.path.splitext(media_name)
             nfo_file = file_name + ".nfo"
             if os.path.exists(nfo_file):
-                logger.info(f'准备处理 {nfo_file}...')
                 self.update_nfo(nfo_file, subject_id)
             else:
                 logger.error(f'{nfo_file} 不存在')
