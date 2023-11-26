@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.51"
+    plugin_version = "0.52"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -67,7 +67,7 @@ class Bangumi(_PluginBase):
     _is_runing_cache = False
     _bangumi_id = ""
     _media_info = []
-    _max_thread = 500
+    _max_thread = 100
     _user_agent = "hankunyu/moviepilot_plugin (https://github.com/HankunYu/MoviePilot-Plugins)"
     _scheduler: Optional[BackgroundScheduler] = None
 
@@ -82,6 +82,7 @@ class Bangumi(_PluginBase):
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
+            self._clear_cache = config.get("clear_cache")
             self._enable_sync = config.get("enable_sync")
             self._token = config.get("token")
             self._select_servers = config.get("select_servers")
@@ -90,6 +91,12 @@ class Bangumi(_PluginBase):
             self._sycn_subscribe_rank = config.get("sync_subscribe_rank")
             self._library_path = config.get("library_path")
             self._interval = config.get("interval")
+        
+        # 清除缓存
+        if self._clear_cache:
+            self.clear_cache()
+            self._clear_cache = False
+            self.__update_config()
         if self._enabled:
             self.check_cache()
             self.login()
@@ -129,6 +136,7 @@ class Bangumi(_PluginBase):
     def __update_config(self):
         self.update_config({
             "enabled": self._enabled,
+            "clear_cache": self._clear_cache,
             "enable_sync": self._enable_sync,
             "token": self._token,
             "select_servers": self._select_servers,
@@ -173,6 +181,22 @@ class Bangumi(_PluginBase):
                                         'props': {
                                             'model': 'enabled',
                                             'label': '启用插件',
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'clear_cache',
+                                            'label': '清除缓存',
                                         }
                                     }
                                 ]
@@ -344,6 +368,7 @@ class Bangumi(_PluginBase):
             }
         ], {
             "enabled": False,
+            "clear_cache": False,
             "enable_sync": False,
             "token": "",
             "select_servers": [],
@@ -374,6 +399,7 @@ class Bangumi(_PluginBase):
         self._is_runing_cache = True
         logger.info("开始缓存媒体库数据")
         results = self.get_medias_in_library()
+        threading_list = []
         if len(results) == 0:
             logger.error("媒体库中没有找到媒体，请检查是否设置正确")
             return
@@ -385,7 +411,6 @@ class Bangumi(_PluginBase):
                 season_list = []
             if len(season_list) > 0:
                 for season in season_list:
-                    logger.info(f"正在缓存 {media.title} {season}")
                     # 转为int
                     season = int(season)
                     # 第二季以上才需要加季数
@@ -398,19 +423,25 @@ class Bangumi(_PluginBase):
                     media_info["original_title"] = media.original_title
                     # 如果已存在于缓存中，跳过
                     if media.title in [subject["title"] for subject in self._media_info]: continue
-                    info = self.get_bangumi_info(media_info)
-                    self.add_or_update_media_info(info)
+                    threading_list.append(Thread(target=self.get_bangumi_data_and_update_cache, args=(media_info,)))
             else:
                 # 如果已存在于缓存中，跳过
-                logger.info(f"正在缓存 {media.title}")
                 if media.title in [subject["title"] for subject in self._media_info]: continue
                 media_info["title"] = media.title
                 media_info["original_title"] = media.original_title
-                info = self.get_bangumi_info(media_info)
-                self.add_or_update_media_info(info)
+                threading_list.append(Thread(target=self.get_bangumi_data_and_update_cache, args=(media_info,)))
+        # 启动线程
+        for thread in threading_list:
+            thread.start()
+        # 等待所有线程完成
+        for thread in threading_list:
+            thread.join()
         self._is_runing_cache = False
         logger.info("媒体库数据缓存完成")
-        
+    
+    def get_bangumi_data_and_update_cache(self, info: mediainfo):
+        media_info = self.get_bangumi_info(info)
+        self.add_or_update_media_info(media_info)
     # 检查缓存中所有媒体，并尝试同步到Bangumi
     def check_all_librarys_for_sync(self):
         if self._is_runing_sync or self._is_runing_cache: return
@@ -767,8 +798,10 @@ class Bangumi(_PluginBase):
         # 如果存在于缓存中则更新，否则添加
         if media_info["title"] in [subject["title"] for subject in self._media_info]:
             self._media_info = [subject for subject in self._media_info if subject["title"] != media_info["title"]]
+            logger.info(f"更新缓存中的 {media_info['title']} 信息")
         else:
             self._media_info.append(media_info)
+            logger.info(f"添加 {media_info['title']} 到缓存中")
         # 保存缓存
         self.save_data("media_info", self._media_info)
 
