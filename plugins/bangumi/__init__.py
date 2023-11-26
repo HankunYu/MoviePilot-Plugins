@@ -2,6 +2,7 @@ import datetime
 from app.log import logger
 from app.plugins import _PluginBase
 from app.core.event import eventmanager
+from app.core.config import settings
 from app.schemas.types import EventType
 from typing import Optional, Any, List, Dict, Tuple
 
@@ -34,7 +35,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.43"
+    plugin_version = "0.44"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -56,7 +57,7 @@ class Bangumi(_PluginBase):
     _update_nfo = False
     _update_nfo_all_once = False
     _library_path = ""
-    _cron = "0 */1 * * *"
+    _interval = "60"
     _clear_cache = False
 
     _is_runing_sync = False
@@ -87,18 +88,24 @@ class Bangumi(_PluginBase):
             self._update_nfo_all_once = config.get("update_nfo_all_once")
             self._sycn_subscribe_rank = config.get("sync_subscribe_rank")
             self._library_path = config.get("library_path")
-            self._cron = config.get("cron")
+            self._interval = config.get("interval")
         if self._enabled:
             self.check_cache()
             self.login()
             logger.debug("初始化Bangumi插件")
-
+            self._scheduler = BackgroundScheduler(timezone=settings.TZ)
             # 定时任务
-            if self._cron:
+            if self._interval:
                 try:
-                    self._scheduler.add_job(func=self.check_all_librarys_for_sync,
-                                            trigger=CronTrigger.from_crontab(self._cron),
-                                            name="Bangumi同步媒体库到已看")
+                    try:
+                        interval = int(self._interval)
+                    except ValueError:
+                        logger.error("定时任务执行间隔必须为数字")
+                        interval = 60
+                    if interval <= 1:
+                        logger.error("定时任务执行间隔必须大于1")
+                        interval = 60
+                    self._scheduler.add_job(self.check_all_librarys_for_sync, "interval", minutes=interval, name="Bangumi同步媒体库到已看")
                 except Exception as e:
                     logger.error(f"添加定时任务 同步媒体库 失败: {e}")
 
@@ -128,7 +135,7 @@ class Bangumi(_PluginBase):
             "update_nfo_all_once": self._update_nfo_all_once,
             "sync_subscribe_rank": self._sycn_subscribe_rank,
             "library_path": self._library_path,
-            "cron": self._cron
+            "interval": self._interval
         })
 
     def get_state(self) -> bool:
@@ -249,10 +256,10 @@ class Bangumi(_PluginBase):
                                     {
                                         'component': 'VTextarea',
                                         'props': {
-                                            'model': 'cron',
-                                            'label': '定时任务 Cron 表达式 (默认每小时)',
+                                            'model': 'interval',
+                                            'label': '定时任务执行间隔 (分钟)',
                                             'rows': 1,
-                                            'value': '0 */1 * * *'
+                                            'value': '60'
                                         }
                                     }
                                 ]
@@ -343,7 +350,7 @@ class Bangumi(_PluginBase):
             "update_nfo_all_once": False,
             "sync_subscribe_rank": False,
             "library_path": "",
-            "cron": "0 */1 * * *"
+            "interval": "60"
         }
 
     def get_page(self) -> List[dict]:
@@ -370,7 +377,7 @@ class Bangumi(_PluginBase):
             logger.error("媒体库中没有找到媒体，请检查是否设置正确")
             return
         for media in results:
-            if len(media.seasoninfo) == 0:
+            if len(media.seasoninfo) != 0:
                 for season in media.seasoninfo:
                     media_info = self.mediainfo
                     # 转为int
