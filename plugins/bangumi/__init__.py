@@ -393,6 +393,7 @@ class Bangumi(_PluginBase):
     def clear_cache(self):
         self._media_info = []
         self.save_data("media_info", self._media_info)
+        logger.info("清除缓存完成")
 
     # 缓存媒体库数据 需要保证其他函数不会在更新缓存时调用缓存
     def cache_library(self):
