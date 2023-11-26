@@ -34,7 +34,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.41"
+    plugin_version = "0.42"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -56,7 +56,7 @@ class Bangumi(_PluginBase):
     _update_nfo = False
     _update_nfo_all_once = False
     _library_path = ""
-    _corn = "0 */1 * * *"
+    _cron = "0 */1 * * *"
     _clear_cache = False
 
     _is_runing_sync = False
@@ -86,7 +86,7 @@ class Bangumi(_PluginBase):
             self._update_nfo_all_once = config.get("update_nfo_all_once")
             self._sycn_subscribe_rank = config.get("sync_subscribe_rank")
             self._library_path = config.get("library_path")
-            self._corn = config.get("corn")
+            self._cron = config.get("cron")
         if self._enabled:
             self.check_cache()
             self.login()
@@ -127,7 +127,7 @@ class Bangumi(_PluginBase):
             "update_nfo_all_once": self._update_nfo_all_once,
             "sync_subscribe_rank": self._sycn_subscribe_rank,
             "library_path": self._library_path,
-            "corn": self._corn
+            "cron": self._cron
         })
 
     def get_state(self) -> bool:
@@ -248,7 +248,7 @@ class Bangumi(_PluginBase):
                                     {
                                         'component': 'VTextarea',
                                         'props': {
-                                            'model': 'corn',
+                                            'model': 'cron',
                                             'label': '定时任务 Cron 表达式 (默认每小时)',
                                             'rows': 1,
                                         }
@@ -341,7 +341,7 @@ class Bangumi(_PluginBase):
             "update_nfo_all_once": False,
             "sync_subscribe_rank": False,
             "library_path": "",
-            "corn": "0 */1 * * *"
+            "cron": "0 */1 * * *"
         }
 
     def get_page(self) -> List[dict]:
