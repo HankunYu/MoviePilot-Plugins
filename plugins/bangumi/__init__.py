@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.55"
+    plugin_version = "0.56"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -101,21 +101,21 @@ class Bangumi(_PluginBase):
             self.check_cache()
             self.login()
             logger.debug("初始化Bangumi插件")
-            self._scheduler = BackgroundScheduler(timezone=settings.TZ)
-            # 定时任务
-            if self._enable_sync and self._interval != "":
-                try:
-                    try:
-                        interval = int(self._interval)
-                    except ValueError:
-                        logger.error("定时任务执行间隔必须为数字")
-                        interval = 60
-                    if interval <= 1:
-                        logger.error("定时任务执行间隔必须大于1")
-                        interval = 60
-                    self._scheduler.add_job(self.check_all_librarys_for_sync, "interval", minutes=interval, name="Bangumi同步媒体库到已看")
-                except Exception as e:
-                    logger.error(f"添加定时任务 同步媒体库 失败: {e}")
+            # self._scheduler = BackgroundScheduler(timezone=settings.TZ)
+            # # 定时任务
+            # if self._enable_sync and self._interval != "":
+            #     try:
+            #         try:
+            #             interval = int(self._interval)
+            #         except ValueError:
+            #             logger.error("定时任务执行间隔必须为数字")
+            #             interval = 60
+            #         if interval <= 1:
+            #             logger.error("定时任务执行间隔必须大于1")
+            #             interval = 60
+            #         self._scheduler.add_job(self.check_all_librarys_for_sync, "interval", minutes=interval, name="Bangumi同步媒体库到已看")
+            #     except Exception as e:
+            #         logger.error(f"添加定时任务 同步媒体库 失败: {e}")
 
             # 运行一次同步到Bangumi
             if self._enable_sync and not self._is_runing_sync:
@@ -386,6 +386,7 @@ class Bangumi(_PluginBase):
         self._media_info = self.get_data("media_info")
         # 如果没有缓存，初始化列表
         if self._media_info == None: 
+            logger.info("没有找到缓存，初始化列表")
             self._media_info = []
             thread = threading.Thread(target=self.cache_library)
             thread.start()
@@ -412,14 +413,13 @@ class Bangumi(_PluginBase):
             except (AttributeError, KeyError, TypeError):
                 season_list = []
             if len(season_list) > 0:
-                logger.info(f"发现 {media.title} 有多季 {season_list} type:{type(season_list)}")
                 for season in season_list:
                     # 转为int
-                    season = int(season)
+                    season_number = int(season)
                     # 第二季以上才需要加季数
-                    if season > 1:
+                    if season_number > 1:
                         chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"]
-                        chinese_season = " 第" + chinese_number[season] + "季"
+                        chinese_season = " 第" + chinese_number[season_number] + "季"
                         media_info['title']= media.title + chinese_season
                     else:
                         media_info["title"] = media.title
@@ -448,8 +448,8 @@ class Bangumi(_PluginBase):
         logger.info("媒体库数据缓存完成")
     
     def get_bangumi_data_and_update_cache(self, info: mediainfo):
-        logger.info(f"开始缓存 {info['title']} 数据")
         media_info = self.get_bangumi_info(info)
+        logger.info(f"获取到 {media_info['title']} 的Bangumi数据 评分: {media_info['rank']} 状态: {media_info['status']}")
         self._media_info.append(media_info)
         
     # 检查缓存中所有媒体，并尝试同步到Bangumi
