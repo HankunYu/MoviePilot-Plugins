@@ -28,7 +28,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.37"
+    plugin_version = "0.38"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -386,6 +386,8 @@ class Bangumi(_PluginBase):
         # 去除特殊字符
         if name == None: return None
         name = re.sub(r'[\W_]+', '',name)
+        # 如果名字内带季数，则在季数前加上空格
+        name = re.sub(r'第[一二三四五六七八九十\d]季', lambda x: ' ' + x.group(), name)
         # 转义
         keyword = quote(name)
         url = f"https://api.bgm.tv/search/subject/{keyword}?type=2&responseGroup=small"
@@ -522,6 +524,13 @@ class Bangumi(_PluginBase):
                     title = re.sub(r'\d{3,4}p', '', title)
                     # 转换季数为中文
                     title = self.name_season_convert(title)
+                    # 去除首尾空格
+                    title = title.strip()
+                    # 去除结尾的 "-"
+                    if title.endswith("-"):
+                        title = title[:-1]
+                    # 去除第X季之前的-和空格
+                    title = re.sub(r'-\s*第', '第', title)
                     # 获取原始名称
                     original_title = self.get_original_title(title)
                     logger.info(f"修正后名称为 {title}...")
@@ -581,7 +590,6 @@ class Bangumi(_PluginBase):
     def get_original_title(self, name :str) -> str:
         medias = self.get_medias_in_library()
         if len(medias) == 0: return None
-        name = name.strip()
         for media in medias:
             if media.title == name:
                 return media.original_title
