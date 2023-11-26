@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.59"
+    plugin_version = "0.60"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -416,13 +416,16 @@ class Bangumi(_PluginBase):
                 for season in season_list:
                     # 转为int
                     season_number = int(season)
+                    logger.info(f"正在缓存 {media.title} 第{season_number}季")
                     # 第二季以上才需要加季数
                     if season_number > 1:
                         chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"]
                         chinese_season = " 第" + chinese_number[season_number] + "季"
                         media_info['title']= media.title + chinese_season
+                        logger.info(media_info['title'])
                     else:
                         media_info["title"] = media.title
+                        logger.info(media_info['title'])
                     media_info["original_title"] = media.original_title
                     # 如果已存在于缓存中，跳过
                     logger.info(media_info["title"] + " " + media_info["title"] in [subject["title"] for subject in self._media_info])
