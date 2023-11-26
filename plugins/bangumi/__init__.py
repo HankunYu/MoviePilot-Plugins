@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.50"
+    plugin_version = "0.51"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -402,7 +402,7 @@ class Bangumi(_PluginBase):
                     self.add_or_update_media_info(info)
             else:
                 # 如果已存在于缓存中，跳过
-                logger.info(f"正在缓存 {media.title} {season}")
+                logger.info(f"正在缓存 {media.title}")
                 if media.title in [subject["title"] for subject in self._media_info]: continue
                 media_info["title"] = media.title
                 media_info["original_title"] = media.original_title
