@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.57"
+    plugin_version = "0.58"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -427,22 +427,21 @@ class Bangumi(_PluginBase):
                     media_info["original_title"] = media.original_title
                     # 如果已存在于缓存中，跳过
                     if media_info["title"] in [subject["title"] for subject in self._media_info]: continue
-                    self.get_bangumi_data_and_update_cache(media_info)
+                    media_info = self.get_bangumi_info(media_info)
+                    logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rank']}, 状态: {media_info['status']}")
+                    self._media_info.append(media_info)
             else:
                 # 如果已存在于缓存中，跳过
                 if media.title in [subject["title"] for subject in self._media_info]: continue
                 media_info["title"] = media.title
                 media_info["original_title"] = media.original_title
-                self.get_bangumi_data_and_update_cache(media_info)
+                media_info = self.get_bangumi_info(media_info)
+                logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rank']}, 状态: {media_info['status']}")
+                self._media_info.append(media_info)
         # 保存缓存
         self.save_data("media_info", self._media_info)
         self._is_runing_cache = False
         logger.info("媒体库数据缓存完成")
-    
-    def get_bangumi_data_and_update_cache(self, info: mediainfo):
-        media_info = self.get_bangumi_info(info)
-        logger.info(f"获取到 {media_info['title']} 的Bangumi数据 评分: {media_info['rank']} 状态: {media_info['status']}")
-        self._media_info.append(media_info)
         
     # 检查缓存中所有媒体，并尝试同步到Bangumi
     def check_all_librarys_for_sync(self):
