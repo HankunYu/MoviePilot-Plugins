@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.60"
+    plugin_version = "0.61"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -426,7 +426,9 @@ class Bangumi(_PluginBase):
                     else:
                         media_info["title"] = media.title
                         logger.info(media_info['title'])
+
                     media_info["original_title"] = media.original_title
+                    logger.info("title: " + media_info["title"])
                     # 如果已存在于缓存中，跳过
                     logger.info(media_info["title"] + " " + media_info["title"] in [subject["title"] for subject in self._media_info])
                     if media_info["title"] in [subject["title"] for subject in self._media_info]: continue
@@ -485,6 +487,11 @@ class Bangumi(_PluginBase):
         new_media_info = self.mediainfo
         new_media_info["title"] = info['title']
         new_media_info["original_title"] = info['original_title']
+        new_media_info["subject_id"] = None
+        new_media_info["rank"] = None
+        new_media_info["status"] = None
+        new_media_info["synced"] = False
+
         # 获取条目ID
         subject_id = self.search_subject(new_media_info["title"])
         # 如果没有找到条目ID，尝试使用原始名称
