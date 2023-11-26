@@ -35,7 +35,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.47"
+    plugin_version = "0.48"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -377,10 +377,10 @@ class Bangumi(_PluginBase):
             logger.error("媒体库中没有找到媒体，请检查是否设置正确")
             return
         for media in results:
+            media_info = self.mediainfo
             if media.seasoninfo != "{}":
                 for season in media.seasoninfo:
                     logger.error(f"season: {season}")
-                    media_info = self.mediainfo
                     # 转为int
                     season = int(season)
                     # 第二季以上才需要加季数
@@ -394,13 +394,14 @@ class Bangumi(_PluginBase):
                     # 如果已存在于缓存中，跳过
                     if media.title in [subject["title"] for subject in self._media_info]: continue
                     info = self.get_bangumi_info(media_info)
+                    self.add_or_update_media_info(info)
             else:
                 # 如果已存在于缓存中，跳过
                 if media.title in [subject["title"] for subject in self._media_info]: continue
                 media_info["title"] = media.title
                 media_info["original_title"] = media.original_title
                 info = self.get_bangumi_info(media_info)
-            self.add_or_update_media_info(info)
+                self.add_or_update_media_info(info)
         self._is_runing_cache = False
         logger.info("媒体库数据缓存完成")
         
