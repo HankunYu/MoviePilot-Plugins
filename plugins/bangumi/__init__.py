@@ -28,7 +28,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.38"
+    plugin_version = "0.39"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -531,6 +531,7 @@ class Bangumi(_PluginBase):
                         title = title[:-1]
                     # 去除第X季之前的-和空格
                     title = re.sub(r'-\s*第', '第', title)
+                    title = title.strip()
                     # 获取原始名称
                     original_title = self.get_original_title(title)
                     logger.info(f"修正后名称为 {title}...")
