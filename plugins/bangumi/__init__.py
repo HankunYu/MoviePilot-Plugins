@@ -35,7 +35,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.44"
+    plugin_version = "0.45"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -381,6 +381,7 @@ class Bangumi(_PluginBase):
                 for season in media.seasoninfo:
                     media_info = self.mediainfo
                     # 转为int
+                    logger.error(season)
                     season = int(season)
                     # 第二季以上才需要加季数
                     if season > 1:
