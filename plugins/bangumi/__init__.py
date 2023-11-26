@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.56"
+    plugin_version = "0.57"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -402,7 +402,6 @@ class Bangumi(_PluginBase):
         self._is_runing_cache = True
         logger.info("开始缓存媒体库数据")
         results = self.get_medias_in_library()
-        threading_list = []
         if len(results) == 0:
             logger.error("媒体库中没有找到媒体，请检查是否设置正确")
             return
@@ -413,8 +412,10 @@ class Bangumi(_PluginBase):
             except (AttributeError, KeyError, TypeError):
                 season_list = []
             if len(season_list) > 0:
+                # 添加每一季
                 for season in season_list:
                     # 转为int
+                    logger.info(f"{media.title}  {season}")
                     season_number = int(season)
                     # 第二季以上才需要加季数
                     if season_number > 1:
@@ -426,22 +427,13 @@ class Bangumi(_PluginBase):
                     media_info["original_title"] = media.original_title
                     # 如果已存在于缓存中，跳过
                     if media_info["title"] in [subject["title"] for subject in self._media_info]: continue
-                    thread = Thread(target=self.get_bangumi_data_and_update_cache, args=(media_info,))
-                    logger.info(f"添加线程{media.title}")
-                    threading_list.append(thread)
-                    thread.start()
+                    self.get_bangumi_data_and_update_cache(media_info)
             else:
                 # 如果已存在于缓存中，跳过
                 if media.title in [subject["title"] for subject in self._media_info]: continue
                 media_info["title"] = media.title
                 media_info["original_title"] = media.original_title
-                thread = Thread(target=self.get_bangumi_data_and_update_cache, args=(media_info,))
-                threading_list.append(thread)
-                logger.info(f"添加线程{media.title}")
-                thread.start()
-        # 等待所有线程完成
-        for thread in threading_list:
-            thread.join()
+                self.get_bangumi_data_and_update_cache(media_info)
         # 保存缓存
         self.save_data("media_info", self._media_info)
         self._is_runing_cache = False
@@ -798,7 +790,7 @@ class Bangumi(_PluginBase):
             try:
                 type = res.json().get("type")
             except (AttributeError, KeyError, TypeError):
-                return 
+                return None
             return type
         else:
             return None
