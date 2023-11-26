@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.53"
+    plugin_version = "0.54"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -424,8 +424,9 @@ class Bangumi(_PluginBase):
                         media_info["title"] = media.title
                     media_info["original_title"] = media.original_title
                     # 如果已存在于缓存中，跳过
-                    if media.title in [subject["title"] for subject in self._media_info]: continue
+                    if media_info["title"] in [subject["title"] for subject in self._media_info]: continue
                     thread = Thread(target=self.get_bangumi_data_and_update_cache, args=(media_info,))
+                    logger.info(f"添加线程{media.title}")
                     threading_list.append(thread)
                     thread.start()
             else:
@@ -435,6 +436,7 @@ class Bangumi(_PluginBase):
                 media_info["original_title"] = media.original_title
                 thread = Thread(target=self.get_bangumi_data_and_update_cache, args=(media_info,))
                 threading_list.append(thread)
+                logger.info(f"添加线程{media.title}")
                 thread.start()
         # 等待所有线程完成
         for thread in threading_list:
