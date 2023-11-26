@@ -25,6 +25,7 @@ import requests
 from urllib.parse import quote
 import re
 import os
+import json
 class Bangumi(_PluginBase):
     # 插件名称
     plugin_name = "Bangumi"
@@ -35,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.48"
+    plugin_version = "0.49"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -378,7 +379,11 @@ class Bangumi(_PluginBase):
             return
         for media in results:
             media_info = self.mediainfo
-            if media.seasoninfo != "{}":
+            try:
+                season_list = json.loads(media.seasoninfo)
+            except (AttributeError, KeyError, TypeError):
+                season_list = []
+            if len(season_list) > 0:
                 for season in media.seasoninfo:
                     logger.error(f"season: {season}")
                     # 转为int
