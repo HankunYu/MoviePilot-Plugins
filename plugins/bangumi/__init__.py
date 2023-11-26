@@ -35,7 +35,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.45"
+    plugin_version = "0.46"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -95,7 +95,7 @@ class Bangumi(_PluginBase):
             logger.debug("初始化Bangumi插件")
             self._scheduler = BackgroundScheduler(timezone=settings.TZ)
             # 定时任务
-            if self._interval:
+            if self._enable_sync and self._interval != "":
                 try:
                     try:
                         interval = int(self._interval)
@@ -377,11 +377,14 @@ class Bangumi(_PluginBase):
             logger.error("媒体库中没有找到媒体，请检查是否设置正确")
             return
         for media in results:
+            logger.info(f"缓存 {media.title}")
             if len(media.seasoninfo) != 0:
+                logger.error(f"{media.seasoninfo} , {len(media.seasoninfo)}")
                 for season in media.seasoninfo:
+
+                    logger.error(f"season: {season}")
                     media_info = self.mediainfo
                     # 转为int
-                    logger.error(season)
                     season = int(season)
                     # 第二季以上才需要加季数
                     if season > 1:
