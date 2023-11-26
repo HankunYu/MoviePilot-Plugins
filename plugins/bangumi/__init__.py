@@ -3,7 +3,7 @@ from app.log import logger
 from app.plugins import _PluginBase
 from app.core.event import eventmanager
 from app.schemas.types import EventType
-from typing import Any, List, Dict, Tuple
+from typing import Optional, Any, List, Dict, Tuple
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -34,7 +34,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.42"
+    plugin_version = "0.43"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -67,7 +67,8 @@ class Bangumi(_PluginBase):
     _media_info = []
     _max_thread = 500
     _user_agent = "hankunyu/moviepilot_plugin (https://github.com/HankunYu/MoviePilot-Plugins)"
-    
+    _scheduler: Optional[BackgroundScheduler] = None
+
     mediainfo = {
         "title": None,
         "original_title": None,
@@ -251,6 +252,7 @@ class Bangumi(_PluginBase):
                                             'model': 'cron',
                                             'label': '定时任务 Cron 表达式 (默认每小时)',
                                             'rows': 1,
+                                            'value': '0 */1 * * *'
                                         }
                                     }
                                 ]
@@ -368,14 +370,18 @@ class Bangumi(_PluginBase):
             logger.error("媒体库中没有找到媒体，请检查是否设置正确")
             return
         for media in results:
-            if media.seasoninfo != None:
-                for season in range(1, len(media.seasoninfo) + 1):
-                    chinese_number = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
-                    chinese_season = " 第" + chinese_number[season - 1] + "季"
-                    media.title = media.title + chinese_season
-
+            if len(media.seasoninfo) == 0:
+                for season in media.seasoninfo:
                     media_info = self.mediainfo
-                    media_info["title"] = media.title
+                    # 转为int
+                    season = int(season)
+                    # 第二季以上才需要加季数
+                    if season > 1:
+                        chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"]
+                        chinese_season = " 第" + chinese_number[season] + "季"
+                        media_info['title']= media.title + chinese_season
+                    else:
+                        media_info["title"] = media.title
                     media_info["original_title"] = media.original_title
                     # 如果已存在于缓存中，跳过
                     if media.title in [subject["title"] for subject in self._media_info]: continue
