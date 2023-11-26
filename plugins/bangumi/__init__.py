@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.58"
+    plugin_version = "0.59"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -415,7 +415,6 @@ class Bangumi(_PluginBase):
                 # 添加每一季
                 for season in season_list:
                     # 转为int
-                    logger.info(f"{media.title}  {season}")
                     season_number = int(season)
                     # 第二季以上才需要加季数
                     if season_number > 1:
@@ -426,6 +425,7 @@ class Bangumi(_PluginBase):
                         media_info["title"] = media.title
                     media_info["original_title"] = media.original_title
                     # 如果已存在于缓存中，跳过
+                    logger.info(media_info["title"] + " " + media_info["title"] in [subject["title"] for subject in self._media_info])
                     if media_info["title"] in [subject["title"] for subject in self._media_info]: continue
                     media_info = self.get_bangumi_info(media_info)
                     logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rank']}, 状态: {media_info['status']}")
