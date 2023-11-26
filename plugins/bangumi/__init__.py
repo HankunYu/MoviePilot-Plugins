@@ -34,7 +34,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.40"
+    plugin_version = "0.41"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -62,6 +62,7 @@ class Bangumi(_PluginBase):
     _is_runing_sync = False
     _is_runing_update_nfo = False
     _is_runing_update_rank = False
+    _is_runing_cache = False
     _bangumi_id = ""
     _media_info = []
     _max_thread = 500
@@ -322,7 +323,7 @@ class Bangumi(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'flat',
-                                            'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token',
+                                            'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token\n第一次启用会扫描并缓存所有媒体库中的番剧，可能会花费较长时间，请耐心等待',
                                         }
                                     }
                                 ]
@@ -351,13 +352,17 @@ class Bangumi(_PluginBase):
         # 如果没有缓存，初始化列表
         if self._media_info == None: 
             self._media_info = []
-            self.cache_library()
+            thread = threading.Thread(target=self.cache_library)
+            thread.start()
     # 清除缓存
     def clear_cache(self):
         self._media_info = []
         self.save_data("media_info", self._media_info)
     # 缓存媒体库数据
     def cache_library(self):
+        if self._is_runing_cache: return
+        self._is_runing_cache = True
+        logger.info("开始缓存媒体库数据")
         results = self.get_medias_in_library()
         if len(results) == 0:
             logger.error("媒体库中没有找到媒体，请检查是否设置正确")
@@ -382,10 +387,12 @@ class Bangumi(_PluginBase):
                 media_info["original_title"] = media.original_title
                 info = self.get_bangumi_info(media_info)
             self.add_or_update_media_info(info)
+        self._is_runing_cache = False
+        logger.info("媒体库数据缓存完成")
         
     # 检查缓存中所有媒体，并尝试同步到Bangumi
     def check_all_librarys_for_sync(self):
-        if self._is_runing_sync: return
+        if self._is_runing_sync or self._is_runing_cache: return
         self._is_runing_sync = True
         # 更新缓存
         self.cache_library()
@@ -580,6 +587,12 @@ class Bangumi(_PluginBase):
     
     # 更新所有已入库的NFO文件
     def update_nfo_all_once(self):
+        if self._is_runing_update_nfo: 
+            logger.info("已有更新NFO文件的任务正在运行")
+            return
+        if self._is_runing_cache:
+            logger.info("正在运行缓存媒体库数据任务，请稍后再试")
+            return
         logger.info("开始更新已入库的NFO文件")
         self._is_runing_update_nfo = True
         threads = []
@@ -626,6 +639,7 @@ class Bangumi(_PluginBase):
     
     # 更新订阅页面评分
     def update_subscribe_rank(self):
+        if self._is_runing_update_rank: return
         self._is_runing_update_rank = True
         logger.info("开始更新订阅页面评分")
         db = ScopedSession
