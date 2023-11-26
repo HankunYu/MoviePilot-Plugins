@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.54"
+    plugin_version = "0.55"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -412,6 +412,7 @@ class Bangumi(_PluginBase):
             except (AttributeError, KeyError, TypeError):
                 season_list = []
             if len(season_list) > 0:
+                logger.info(f"发现 {media.title} 有多季 {season_list} type:{type(season_list)}")
                 for season in season_list:
                     # 转为int
                     season = int(season)
@@ -447,6 +448,7 @@ class Bangumi(_PluginBase):
         logger.info("媒体库数据缓存完成")
     
     def get_bangumi_data_and_update_cache(self, info: mediainfo):
+        logger.info(f"开始缓存 {info['title']} 数据")
         media_info = self.get_bangumi_info(info)
         self._media_info.append(media_info)
         
