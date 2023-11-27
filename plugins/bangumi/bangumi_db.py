@@ -35,8 +35,28 @@ class BangumiInfo(Base):
     def empty(db: Session):
         db.query(BangumiInfo).delete()
 
+    @staticmethod
+    @db_query
+    def exists_by_title(db: Session, title: str):
+        return db.query(BangumiInfo).filter(BangumiInfo.title == title).first()
 
     @staticmethod
     @db_query
-    def exists_by_title(db: Session, title: str, mtype: str, year: str):
-        return db.query(BangumiInfo).filter(BangumiInfo.title == title).first()
+    def get_amount(db: Session):
+        return db.query(BangumiInfo).count()
+    
+    @staticmethod
+    @db_query
+    def get_all(db: Session):
+        return db.query(BangumiInfo).all()
+    
+    @staticmethod
+    @db_update
+    def update_info(db: Session, title: str, subject_id: str, rating: str, status: str, synced: bool):
+        db.query(BangumiInfo).filter(BangumiInfo.title == title).update({
+            "subject_id": subject_id,
+            "rating": rating,
+            "status": status,
+            "synced": synced
+        })
+        

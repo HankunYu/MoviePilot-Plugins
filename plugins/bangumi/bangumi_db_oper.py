@@ -36,15 +36,14 @@ class BangumiOper(DbOper):
         判断媒体服务器数据是否存在
         """
         if kwargs.get("title"):
-            # 优先按名称查
-            item = BangumiInfo.exists_by_title(self._db, tmdbid=kwargs.get("title"))
+            item = BangumiInfo.exists_by_title(self._db, title=kwargs.get("title"))
         else:
             return None
         if not item:
             return None
         return item
 
-    def get_item_id(self, **kwargs) -> Optional[str]:
+    def get_subject_id(self, **kwargs) -> Optional[str]:
         """
         获取 Bangumi ID
         """
@@ -52,3 +51,34 @@ class BangumiOper(DbOper):
         if not item:
             return None
         return str(item.subject_id)
+    
+    def get_amount(self) -> int:
+        """
+        获取 Bangumi 数据量
+        """
+        return BangumiInfo.get_amount(self._db)
+    
+    def get_all(self) -> list:
+        """
+        获取所有 Bangumi 数据
+        """
+        return BangumiInfo.get_all(self._db)
+    
+    def update_info(self, **kwargs) -> bool:
+        """
+        更新 Bangumi 数据
+        """
+        item = self.exists(**kwargs)
+        if not item:
+            return False
+        item.update_info(self._db, **kwargs)
+        return True
+
+    def get_original_title(self, **kwargs) -> Optional[str]:
+        """
+        获取原标题
+        """
+        item = self.exists(**kwargs)
+        if not item:
+            return None
+        return str(item.original_title)

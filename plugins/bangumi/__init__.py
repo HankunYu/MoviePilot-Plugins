@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.81"
+    plugin_version = "0.82"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -76,8 +76,9 @@ class Bangumi(_PluginBase):
     _is_runing_update_rating = False
     _is_runing_cache = False
     _bangumi_id = ""
-    _media_info = []
+    # _media_info = []
     _max_thread = 100
+    _lock = threading.Lock()
     _user_agent = "hankunyu/moviepilot_plugin (https://github.com/HankunYu/MoviePilot-Plugins)"
     _scheduler: Optional[BackgroundScheduler] = None
 
@@ -107,14 +108,12 @@ class Bangumi(_PluginBase):
         if self._clear_cache:
             self.clear_cache()
             self._clear_cache = False
-            self._oper.empty()
             self.__update_config()
         if self._enabled:
-
             self.check_table()
             self.check_cache()
             self.login()
-            logger.debug("初始化Bangumi插件")
+            logger.info("初始化Bangumi插件完成")
             # self._scheduler = BackgroundScheduler(timezone=settings.TZ)
             # # 定时任务
             # if self._enable_sync and self._interval != "":
@@ -132,12 +131,12 @@ class Bangumi(_PluginBase):
             #         logger.error(f"添加定时任务 同步媒体库 失败: {e}")
 
             # 运行一次同步到Bangumi
-            if self._enable_sync and not self._is_runing_sync:
+            if self._enable_sync and not self._is_runing_sync and not self._is_runing_cache:
                 thread = threading.Thread(target=self.check_all_librarys_for_sync)
                 thread.start()
             
             # 更新全部NFO文件
-            if self._update_nfo_all_once and not self._is_runing_update_nfo:
+            if self._update_nfo_all_once and not self._is_runing_update_nfo and not self._is_runing_cache:
                 self._update_nfo_all_once = False
                 self.__update_config()
                 thread = threading.Thread(target=self.update_nfo_all_once)
@@ -407,87 +406,98 @@ class Bangumi(_PluginBase):
 
     def get_page(self) -> List[dict]:
         pass
-    # 检查缓存
+    
     def check_cache(self):
-        self._media_info = self.get_data("mediainfo")
-        # 如果没有缓存，初始化列表
-        if self._media_info == None: 
+        """
+        检查缓存是否存在，不存在则初始化
+        """
+        if self._oper.get_amount == 0: 
             logger.info("没有找到缓存，初始化列表")
-            self._media_info = []
             thread = threading.Thread(target=self.cache_library)
             thread.start()
-    # 清除缓存
+    
     def clear_cache(self):
-        self._media_info = []
-        self.save_data("mediainfo", self._media_info)
+        """
+        清除缓存
+        """
+        self._oper.empty()
         logger.info("清除缓存完成")
 
     # 缓存媒体库数据 需要保证其他函数不会在更新缓存时调用缓存
     def cache_library(self):
         if self._is_runing_cache: return
         self._is_runing_cache = True
-        logger.info("开始缓存媒体库数据")
-        results = self.get_medias_in_library()
-        if len(results) == 0:
-            logger.error("媒体库中没有找到媒体，请检查是否设置正确")
-            return
-        for media in results:
-            media_info = self.mediainfo
-            try:
-                season_list = json.loads(media.seasoninfo)
-            except (AttributeError, KeyError, TypeError):
-                season_list = []
+        self._lock.acquire()
+        try:
+            logger.info("开始缓存媒体库数据")
+            results = self.get_medias_in_library()
+            if len(results) == 0:
+                logger.error("媒体库中没有找到媒体，请检查是否设置正确")
+                return
+            for media in results:
+                media_info = self.mediainfo
+                try:
+                    season_list = json.loads(media.seasoninfo)
+                except (AttributeError, KeyError, TypeError):
+                    season_list = []
 
-            if len(season_list) > 0:
-                # 添加每一季
-                for season in season_list:
-                    # 转为int
-                    season_number = int(season)
-                    # 第二季以上才需要加季数
-                    if season_number > 1:
-                        chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"]
-                        chinese_season = " 第" + chinese_number[season_number] + "季"
-                        media_info['title']= media.title + chinese_season
-                    else:
-                        media_info["title"] = media.title
+                if len(season_list) > 0:
+                    # 添加每一季
+                    for season in season_list:
+                        # 转为int
+                        season_number = int(season)
+                        # 第二季以上才需要加季数
+                        if season_number > 1:
+                            chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"]
+                            chinese_season = " 第" + chinese_number[season_number] + "季"
+                            media_info['title']= media.title + chinese_season
+                        else:
+                            media_info["title"] = media.title
 
-                    media_info["original_title"] = media.original_title
+                        media_info["original_title"] = media.original_title
+                        # 如果已存在于缓存中，跳过
+                        if self._oper.exists(title = media_info['title']): continue
+                        media_info = self.get_bangumi_info(media_info)
+                        logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
+                        self._oper.add(**media_info)
+                else:
                     # 如果已存在于缓存中，跳过
-                    if media.title in [subject["title"] for subject in self._media_info]: continue
+                    if self._oper.exists(title = media.title): continue
+                    media_info["title"] = media.title
+                    media_info["original_title"] = media.original_title
                     media_info = self.get_bangumi_info(media_info)
-                    logger.info(f'运行到这里正常')
                     logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
-                    self._media_info.append(media_info)
-            else:
-                # 如果已存在于缓存中，跳过
-                if media.title in [subject["title"] for subject in self._media_info]: continue
-                media_info["title"] = media.title
-                media_info["original_title"] = media.original_title
-                media_info = self.get_bangumi_info(media_info)
-                logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
-                self._media_info.append(media_info)
-        # 保存缓存
-        self.save_data("mediainfo", self._media_info)
-        self._is_runing_cache = False
-        logger.info("媒体库数据缓存完成")
+                    self._oper.add(**media_info)
+            logger.info("媒体库数据缓存完成")
+        finally:
+            self._is_runing_cache = False
+            self._lock.release()
         
-    # 检查缓存中所有媒体，并尝试同步到Bangumi
     def check_all_librarys_for_sync(self):
+        """
+        同步全部媒体库到Bangumi
+        """
         if self._is_runing_sync or self._is_runing_cache: return
         self._is_runing_sync = True
-        # 更新缓存
-        self.cache_library()
-        if len(self._media_info) == 0:
-            logger.info("媒体库中没有找到媒体，跳过同步全部媒体库")
-            return
-        logger.info("开始同步媒体库")
-        for info in self._media_info:
-            self.sync_media_to_bangumi(info)
-        self._is_runing_sync = False
-        logger.info("媒体库同步完成")
+        self._lock.acquire()
+        try:
+            # 更新缓存
+            self.cache_library()
+            if self._oper.get_amount == 0:
+                logger.info("媒体库中没有找到媒体，跳过同步全部媒体库")
+                return
+            logger.info("开始同步媒体库")
+            for info in self._oper.get_all():
+                self.sync_media_to_bangumi(info)
+        finally:
+            self._lock.release()
+            self._is_runing_sync = False
+            logger.info("媒体库同步完成")
 
-    # 获取用户UID
     def login(self):
+        """
+        登录Bangumi，获取用户UID
+        """
         if self._token == "":
             logger.info("请配置Bangumi API Token")
             return
@@ -504,57 +514,60 @@ class Bangumi(_PluginBase):
         else:
             logger.info("登录Bangumi失败, 请检查API Token是否正确")
     
-    # 根据媒体数据获取Bangumi上数据
     def get_bangumi_info(self, info: mediainfo):
-         # 新建媒体信息
-        new_media_info = self.mediainfo
-        new_media_info["title"] = info['title']
-        new_media_info["original_title"] = info['original_title']
-        new_media_info["subject_id"] = None
-        new_media_info["rating"] = None
-        new_media_info["status"] = None
-        new_media_info["synced"] = False
+        """
+        获取Bangumi信息 需要传入 mediainfo
+        """
+        self._lock.acquire()
+        try:
+            # 新建媒体信息
+            new_media_info = self.mediainfo
+            new_media_info["title"] = info['title']
+            new_media_info["original_title"] = info['original_title']
+            new_media_info["subject_id"] = None
+            new_media_info["rating"] = None
+            new_media_info["status"] = None
+            new_media_info["synced"] = False
 
-        # 获取条目ID
-        subject_id = self.search_subject(new_media_info["title"])
-        # 如果没有找到条目ID，尝试使用原始名称
-        if subject_id == None:
-            subject_id = self.search_subject(new_media_info["original_title"])
-        # 如果没有找到条目ID，跳过
-        if subject_id == None:
-            return new_media_info
-        new_media_info["subject_id"] = subject_id
-        # 获取评分
-        new_media_info['rating'] = self.get_rating(subject_id)
-        # 检查收藏状态
-        status = self.get_collection_status(subject_id)
-        new_media_info["status"] = status
-        # copy是否已同步
-        new_media_info["synced"] = info["synced"]
-
+            # 获取条目ID
+            subject_id = self.search_subject(new_media_info["title"])
+            # 如果没有找到条目ID，尝试使用原始名称
+            if subject_id == None:
+                subject_id = self.search_subject(new_media_info["original_title"])
+            # 如果没有找到条目ID，跳过
+            if subject_id == None:
+                return new_media_info
+            new_media_info["subject_id"] = subject_id
+            # 获取评分
+            new_media_info['rating'] = self.get_rating(subject_id)
+            # 检查收藏状态
+            status = self.get_collection_status(subject_id)
+            new_media_info["status"] = status
+            # copy是否已同步
+            new_media_info["synced"] = info["synced"]
+        finally:
+            self._lock.release()
         return new_media_info
 
     # 同步番剧到 Bangumi 为已看
-    def sync_media_to_bangumi(self, info: mediainfo):
-        new_mediainfo = self.mediainfo
+    def sync_media_to_bangumi(self, info: BangumiInfo):
         # 如果已同步，跳过
-        if new_mediainfo["synced"] == True: 
-            logger.info(f"{new_mediainfo['title']}已同步，跳过")
+        if info.synced == True: 
+            logger.info(f"{info.title}已同步，跳过")
             return
         # 如果已收藏，跳过
-        if new_mediainfo['status'] != None:
-            logger.info(f"{new_mediainfo['title']}已收藏，跳过")
-            new_mediainfo["synced"] = True
-            self.add_or_update_media_info(new_mediainfo)
+        if info.status != None:
+            logger.info(f"{info.title}已收藏，跳过")
+            info.synced = True
+            self._oper.update_info(**info)
             return
-        # 添加收藏
-        if self.add_collections(new_mediainfo["subject_id"]):
-            new_mediainfo["synced"] = True
-            new_mediainfo["status"] = 3
-            self.add_or_update_media_info(new_mediainfo)
-            logger.info(f"{new_mediainfo['title']}收藏成功")
+        # 添加收藏 为已看
+        if self.add_collections(info["subject_id"]):
+            info.synced = True
+            info.status = 3
+            if self._oper.update_info(**info): logger.info(f"{info.title}收藏成功")
         else:
-            logger.info(f"{new_mediainfo['title']}收藏失败")
+            logger.info(f"{info.title}收藏失败")
     
     # 获取媒体库中的媒体 目标为数据库中的 MediaServerItem 表
     def get_medias_in_library(self):
@@ -567,8 +580,10 @@ class Bangumi(_PluginBase):
         db.close()
         return results      
 
-    # 获取名字对应的条目ID 将移除特殊字符后进行匹配
     def search_subject(self, name: str):
+        """
+        获取名字对应的条目ID 将移除特殊字符后进行匹配
+        """
         if name == None: return None
         # 转义
         keyword = quote(name)
@@ -605,8 +620,11 @@ class Bangumi(_PluginBase):
         else:
             return None
     
-    # 获取条目评分
+    
     def get_rating(self, subject_id: str):
+        """
+        获取条目评分
+        """
         url = f"https://api.bgm.tv/subject/{subject_id}"
         headers = {
             "accept": "application/json",
@@ -626,12 +644,16 @@ class Bangumi(_PluginBase):
         else:
             return None
     
-    # 检查 Bangumi 是否已收藏
     def check_subject_in_collections(self, subject_id: str):
+        """
+        检查 Bangumi 是否已收藏
+        """
         return self.get_collection_status(subject_id) is not None
 
-    # 添加收藏
     def add_collections(self, subject_id: str):
+        """
+        添加收藏
+        """
         url = f"https://api.bgm.tv/v0/users/-/collections/{subject_id}"
         headers = {
             "accept": "*/*",
@@ -703,8 +725,11 @@ class Bangumi(_PluginBase):
         self._is_runing_update_nfo = False
         logger.info("NFO文件更新完成")
 
-    # 处理nfo文件名称，转换为媒体名称
+   
     def nfo_name_convert(self, file_name: str) -> str:
+        """
+        处理nfo文件名称，转换为媒体名称
+        """
         # 处理文件名称
         # 通过媒体文件获取媒体名称
         # 去除电影文件名的括号加年份
@@ -750,8 +775,11 @@ class Bangumi(_PluginBase):
         logger.info("订阅页面评分更新完成")
         self._is_runing_update_rating = False
 
-    # 去除名字中的 "S01" 和 "E0X" ，并将 "S02" 之后并转换为中文 第二季等
+    
     def name_season_convert(self, name : str) -> str:
+        """
+        去除名字中的 "S01" 和 "E0X" ，并将 "S02" 之后并转换为中文 第二季等
+        """
         string = name
         # 判断是否包含 "S02" 或者大于2的 "S0X"
         match = re.search(r'S(\d{2})', string)
@@ -771,23 +799,18 @@ class Bangumi(_PluginBase):
                 string = re.sub(r'E\d{2}', '', string)
         return string 
     
-    # 获取原始名称
     def get_original_title(self, name :str) -> str:
-        if len(self._media_info) == 0: return None
-        for info in self._media_info:
-            if info['title'] == name:
-                return info['original_title']
-        return None
+        """
+        通过名字获取原始名称
+        """
+        return self._oper.get_original_title(title = name)
         
     def get_subject_id_by_title(self, title):
         """
         从缓存中获取条目ID
         """
-        if len(self._media_info) == 0: return None
-        for info in self._media_info:
-            if title == info['title']:
-                return info['subject_id']
-        return None
+        if title == None: return None
+        return self._oper.get_subject_id(title = title)
     
     # 获取用户 Bangumi 上的 想看
     def get_wish(self):
@@ -829,17 +852,6 @@ class Bangumi(_PluginBase):
         else:
             return None
     
-    # 添加或者更新 media_info
-    def add_or_update_media_info(self, media_info: dict):
-        # 如果存在于缓存中则更新，否则添加
-        if media_info["title"] in [subject["title"] for subject in self._media_info]:
-            self._media_info = [subject for subject in self._media_info if subject["title"] != media_info["title"]]
-            logger.info(f"更新缓存中的 {media_info['title']} 信息")
-        else:
-            self._media_info.append(media_info)
-            logger.info(f"添加 {media_info['title']} 到缓存中")
-        # 保存缓存
-        self.save_data("mediainfo", self._media_info)
 
     @eventmanager.register(EventType.TransferComplete)
     def update_nfo_by_event(self, event):
