@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.93"
+    plugin_version = "0.94"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -124,6 +124,11 @@ class Bangumi(_PluginBase):
                                                 name = "同步媒体库到Bangumi为已看")
                     except Exception as e:
                         logger.error(f"定时任务添加失败: {e}")
+                
+                # 启动定时任务
+                if self._scheduler.get_jobs():
+                    self._scheduler.print_jobs()
+                    self._scheduler.start()
 
             # 运行一次同步到Bangumi
             if self._enable_sync and not self._is_runing_sync and not self._is_runing_cache:
