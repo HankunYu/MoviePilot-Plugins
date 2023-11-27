@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.62"
+    plugin_version = "0.63"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -383,7 +383,7 @@ class Bangumi(_PluginBase):
         pass
     # 检查缓存
     def check_cache(self):
-        self._media_info = self.get_data("media_info")
+        self._media_info = self.get_data("mediainfo")
         # 如果没有缓存，初始化列表
         if self._media_info == None: 
             logger.info("没有找到缓存，初始化列表")
@@ -393,7 +393,7 @@ class Bangumi(_PluginBase):
     # 清除缓存
     def clear_cache(self):
         self._media_info = []
-        self.save_data("media_info", self._media_info)
+        self.save_data("mediainfo", self._media_info)
         logger.info("清除缓存完成")
 
     # 缓存媒体库数据 需要保证其他函数不会在更新缓存时调用缓存
@@ -416,7 +416,6 @@ class Bangumi(_PluginBase):
                 for season in season_list:
                     # 转为int
                     season_number = int(season)
-                    logger.info(f"正在缓存 {media.title} 第{season_number}季")
                     # 第二季以上才需要加季数
                     if season_number > 1:
                         chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"]
@@ -441,7 +440,7 @@ class Bangumi(_PluginBase):
                 logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rank']}, 状态: {media_info['status']}")
                 self._media_info.append(media_info)
         # 保存缓存
-        self.save_data("media_info", self._media_info)
+        self.save_data("mediainfo", self._media_info)
         self._is_runing_cache = False
         logger.info("媒体库数据缓存完成")
         
@@ -813,7 +812,7 @@ class Bangumi(_PluginBase):
             self._media_info.append(media_info)
             logger.info(f"添加 {media_info['title']} 到缓存中")
         # 保存缓存
-        self.save_data("media_info", self._media_info)
+        self.save_data("mediainfo", self._media_info)
 
     @eventmanager.register(EventType.TransferComplete)
     def update_nfo_by_event(self, event):
