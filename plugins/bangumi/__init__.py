@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.129"
+    plugin_version = "0.130"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -620,8 +620,8 @@ class Bangumi(_PluginBase):
                         'content':[
                             {
                                 'component': 'VLabel',
-                                props: {
-                                    text: '想看',
+                                'props': {
+                                    'text': '想看',
                                 }
                             }
                         ]
@@ -646,8 +646,8 @@ class Bangumi(_PluginBase):
                         'content':[
                             {
                                 'component': 'VLabel',
-                                props: {
-                                    text: '在看',
+                                'props': {
+                                    'text': '在看',
                                 }
                             }
                         ]
@@ -672,8 +672,8 @@ class Bangumi(_PluginBase):
                         'content':[
                             {
                                 'component': 'VLabel',
-                                props: {
-                                    text: '看过',
+                                'props': {
+                                    'text': '看过',
                                 }
                             }
                         ]
@@ -698,8 +698,8 @@ class Bangumi(_PluginBase):
                         'content':[
                             {
                                 'component': 'VLabel',
-                                props: {
-                                    text: '抛弃',
+                                'props': {
+                                    'text': '抛弃',
                                 }
                             }
                         ]
