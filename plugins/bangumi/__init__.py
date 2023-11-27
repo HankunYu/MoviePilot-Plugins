@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.82"
+    plugin_version = "0.83"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -411,6 +411,7 @@ class Bangumi(_PluginBase):
         """
         检查缓存是否存在，不存在则初始化
         """
+        logger.info(f"检查缓存: {self._oper.get_amount}")
         if self._oper.get_amount == 0: 
             logger.info("没有找到缓存，初始化列表")
             thread = threading.Thread(target=self.cache_library)
