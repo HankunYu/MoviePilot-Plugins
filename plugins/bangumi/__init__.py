@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.110"
+    plugin_version = "0.111"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -492,8 +492,8 @@ class Bangumi(_PluginBase):
                 contents_dropped.append(content)
 
         return [
-            { 
-                'component': 'div', 
+            {
+                'component': 'div',
                 'content': [
                     {
                         "component": "VTabs",
@@ -505,23 +505,44 @@ class Bangumi(_PluginBase):
                                     "href": "#tab-1",
                                     'title': '想看'
                                 },
-                                "children": "Tab 1"
-                                'content': [{
-                                    'component': 'VSwitch',
-                                    'props': {
-                                        'model': 'enabled',
-                                        'label': '启用插件',
+                                "children": "Tab 1",
+
+                                'content': [
+                                    {
+                                        'component': 'VCol',
+                                        'props': {
+                                            'cols': 12,
+                                        },
+                                        'content': [
+                                            {
+                                                'component': 'VAlert',
+                                                'props': {
+                                                    'type': 'info',
+                                                    'variant': 'flat',
+                                                    'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token\n第一次启用会扫描并缓存所有媒体库中的番剧，可能会花费较长时间，请耐心等待',
+                                                }
+                                            }
+                                        ]
                                     }
-                                }]
+                                ]
                             }
                         ]
                     },
                     {
-                        'component': 'VSwitch',
+                        'component': 'VCol',
                         'props': {
-                            'model': 'enabled2',
-                            'label': '启用插件11',
-                        }
+                            'cols': 12,
+                        },
+                        'content': [
+                            {
+                                'component': 'VAlert',
+                                'props': {
+                                    'type': 'info',
+                                    'variant': 'flat',
+                                    'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token\n第一次启用会扫描并缓存所有媒体库中的番剧，可能会花费较长时间，请耐心等待',
+                                }
+                            }
+                        ]
                     }
                 ]
             }
