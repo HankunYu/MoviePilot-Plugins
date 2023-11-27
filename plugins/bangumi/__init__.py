@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.114"
+    plugin_version = "0.115"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -507,7 +507,7 @@ class Bangumi(_PluginBase):
                             {
                                 'component': 'VTab',
                                 'props': {
-                                    'value': '1',
+                                    'value': 2,
                                 },
                                 'content': [
                                     {
@@ -521,7 +521,7 @@ class Bangumi(_PluginBase):
                             {
                                 'component': 'VTab',
                                 'props': {
-                                    'value': '2',
+                                    'value': 3,
                                 },
                                 'content': [
                                     {
@@ -535,7 +535,7 @@ class Bangumi(_PluginBase):
                             {
                                 'component': 'VTab',
                                 'props': {
-                                    'value': '3',
+                                    'value': 4,
                                 },
                                 'content': [
                                     {
@@ -549,7 +549,7 @@ class Bangumi(_PluginBase):
                             {
                                 'component': 'VTab',
                                 'props': {
-                                    'value': '4',
+                                    'value': 5,
                                 },
                                 'content': [
                                     {
@@ -563,6 +563,9 @@ class Bangumi(_PluginBase):
                         ]
                     },
                     {
+                        'component': 'VSpacer'
+                    },
+                    {
                         'component': 'VWindow',
                         'props': {
                             'model-value': 'tab'
@@ -572,7 +575,7 @@ class Bangumi(_PluginBase):
                                 'component': 'VWindowItem',
                                 'props': {
                                     'class': 'grid gap-3 grid-info-card',
-                                    'value': '1',
+                                    'value': 1,
                                 },
                                 'content': contents_wish
                             },
@@ -580,7 +583,7 @@ class Bangumi(_PluginBase):
                                 'component': 'VWindowItem',
                                 'props': {
                                     'class': 'grid gap-3 grid-info-card',
-                                    'value': '2',
+                                    'value': 2,
                                 },
                                 'content': contents_watched
                             },
@@ -588,7 +591,7 @@ class Bangumi(_PluginBase):
                                 'component': 'VWindowItem',
                                 'props': {
                                     'class': 'grid gap-3 grid-info-card',
-                                    'value': '3',
+                                    'value': 3,
                                 },
                                 'content': contents_watching
                             },
@@ -596,7 +599,7 @@ class Bangumi(_PluginBase):
                                 'component': 'VWindowItem',
                                 'props': {
                                     'class': 'grid gap-3 grid-info-card',
-                                    'value': '4',
+                                    'value': 4,
                                 },
                                 'content': contents_dropped
                             },
