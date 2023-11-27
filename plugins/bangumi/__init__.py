@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.99"
+    plugin_version = "0.100"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -492,53 +492,90 @@ class Bangumi(_PluginBase):
                 contents_dropped.append(content)
         
         return [
-            {
-                'component': 'div',
-                'props': {
+           {
+            "component": "v-card",
+            "children": [
+                {
+                "component": "v-tabs",
+                "props": {
+                    "v-model": "tab",
+                    "color": "deep-purple-accent-4",
+                    "align-tabs": "center"
                 },
-                'content': [
+                "children": [
                     {
-                        'component': 'VTabs',
-                        'props': {
-                            'class': 'text-center',
-                            'color': 'primary',
-                            'grow': True,
-                            'centered': True,
-                            'v-model': 'tab',
-                        },
-                        'content': [
-                            {
-                                'component': 'VTab',
-                                'props': { 
-                                    'title': '想看',
-                                },
-                                'content': contents_wish
-                            },
-                            {
-                                'component': 'VTab',
-                                'props': {
-                                    'title': '看过'
-                                },
-                                'content': contents_watched
-                            },
-                            {
-                                'component': 'VTab',
-                                'props': {
-                                    'title': '在看'
-                                },
-                                'content': contents_watching
-                            },
-                            {
-                                'component': 'VTab',
-                                'props': {
-                                    'title': '抛弃'
-                                },
-                                'content': contents_dropped
-                            }
-                        ]
+                    "component": "v-tab",
+                    "props": {
+                        "value": 1
+                    },
+                    "children": ["Landscape"]
+                    },
+                    {
+                    "component": "v-tab",
+                    "props": {
+                        "value": 2
+                    },
+                    "children": ["City"]
+                    },
+                    {
+                    "component": "v-tab",
+                    "props": {
+                        "value": 3
+                    },
+                    "children": ["Abstract"]
                     }
                 ]
-            }
+                },
+                {
+                "component": "v-window",
+                "props": {
+                    "v-model": "tab"
+                },
+                "children": [
+                    {
+                    "component": "v-window-item",
+                    "props": {
+                        "value": "n",
+                        "v-for": "n in 3"
+                    },
+                    "children": [
+                        {
+                        "component": "v-container",
+                        "props": {
+                            "fluid": True
+                        },
+                        "children": [
+                            {
+                            "component": "v-row",
+                            "children": [
+                                {
+                                "component": "v-col",
+                                "props": {
+                                    "cols": "12",
+                                    "md": "4",
+                                    "v-for": "i in 6"
+                                },
+                                "children": [
+                                    {
+                                    "component": "v-img",
+                                    "props": {
+                                        "src": "`https://picsum.photos/500/300?image=${i * n * 5 + 10}`",
+                                        "lazy-src": "`https://picsum.photos/10/6?image=${i * n * 5 + 10}`",
+                                        "aspect-ratio": "1"
+                                    }
+                                    }
+                                ]
+                                }
+                            ]
+                            }
+                        ]
+                        }
+                    ]
+                    }
+                ]
+                }
+            ]
+            },
         ]
     
     def check_cache(self):
