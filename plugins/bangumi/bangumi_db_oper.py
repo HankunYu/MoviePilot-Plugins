@@ -68,7 +68,7 @@ class BangumiOper(DbOper):
         """
         更新 Bangumi 数据
         """
-        item = self.exists(**kwargs)
+        item = self.exists(**kwargs.get("title"))
         if not item:
             return False
         item.update_info(self._db, **kwargs)

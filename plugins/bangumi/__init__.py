@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.90"
+    plugin_version = "0.91"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -68,7 +68,7 @@ class Bangumi(_PluginBase):
     _update_nfo = False
     _update_nfo_all_once = False
     _library_path = ""
-    _interval = "60"
+    _cron = ""
     _clear_cache = False
 
     _is_runing_sync = False
@@ -102,7 +102,7 @@ class Bangumi(_PluginBase):
             self._update_nfo_all_once = config.get("update_nfo_all_once")
             self._sycn_subscribe_rating = config.get("sync_subscribe_rating")
             self._library_path = config.get("library_path")
-            self._interval = config.get("interval")
+            self._cron = config.get("cron")
         
         # 清除缓存
         if self._clear_cache:
@@ -117,16 +117,13 @@ class Bangumi(_PluginBase):
             self._scheduler = BackgroundScheduler(timezone=settings.TZ)
             # 定时任务
             if self._enable_sync:
-                try:
-                    interval = int(self._interval)
-                except ValueError:
-                    logger.error("定时任务执行间隔不是数字")
-                    interval = 60
-                try:
-                    self._scheduler.add_job(self.check_all_librarys_for_sync, "interval", minutes=1, name="Bangumi同步媒体库到已看")
-                    logger.info(f"添加定时任务 同步媒体库到已看 成功，间隔 {interval} 分钟")
-                except Exception as e:
-                    logger.error(f"添加定时任务 同步媒体库 失败: {e}")
+                if self._cron:
+                    try:
+                        self._scheduler.add_job(func = self.check_all_librarys_for_sync, 
+                                                trigger = CronTrigger.from_crontab(self._cron),
+                                                name = "同步媒体库到Bangumi为已看")
+                    except Exception as e:
+                        logger.error(f"定时任务添加失败: {e}")
 
             # 运行一次同步到Bangumi
             if self._enable_sync and not self._is_runing_sync and not self._is_runing_cache:
@@ -168,7 +165,7 @@ class Bangumi(_PluginBase):
             "update_nfo_all_once": self._update_nfo_all_once,
             "sync_subscribe_rating": self._sycn_subscribe_rating,
             "library_path": self._library_path,
-            "interval": self._interval
+            "cron": self._cron
         })
 
     def get_state(self) -> bool:
@@ -305,10 +302,10 @@ class Bangumi(_PluginBase):
                                     {
                                         'component': 'VTextarea',
                                         'props': {
-                                            'model': 'interval',
-                                            'label': '定时任务执行间隔 (分钟)',
+                                            'model': 'cron',
+                                            'label': '定时任务 Cron 表达式',
                                             'rows': 1,
-                                            'value': '60'
+                                            'value': '* * * * *'
                                         }
                                     }
                                 ]
@@ -400,7 +397,7 @@ class Bangumi(_PluginBase):
             "update_nfo_all_once": False,
             "sync_subscribe_rating": False,
             "library_path": "",
-            "interval": "60"
+            "cron": "60"
         }
 
     def get_page(self) -> List[dict]:
@@ -566,6 +563,10 @@ class Bangumi(_PluginBase):
         # 如果已同步，跳过
         if media_info["synced"] == True: 
             logger.info(f"{media_info['title']}已同步，跳过")
+            return
+        # 如果没有条目ID，跳过
+        if media_info["subject_id"] == None:
+            logger.info(f"{media_info['title']} 无法在Bangumi上找到，跳过")
             return
         # 如果已收藏，跳过
         if media_info["status"] != None:
