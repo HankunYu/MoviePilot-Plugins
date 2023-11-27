@@ -93,6 +93,7 @@ class Bangumi(_PluginBase):
         "poster": None
     }
     def init_plugin(self, config: dict = None):
+        self.check_table()
         if config:
             self._enabled = config.get("enabled")
             self._clear_cache = config.get("clear_cache")
@@ -111,7 +112,6 @@ class Bangumi(_PluginBase):
             self._clear_cache = False
             self.__update_config()
         if self._enabled:
-            self.check_table()
             self.check_cache()
             self.login()
             logger.info("初始化Bangumi插件完成")
