@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.127"
+    plugin_version = "0.128"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -491,7 +491,8 @@ class Bangumi(_PluginBase):
                 contents_watching.append(content)
             elif item.status == "4":
                 contents_dropped.append(content)
-
+        """
+        Tabs 不能与 VWindowItem 互动， 目测因为 v-model 值写死了？
         return [
             {
                 'component': 'div',
@@ -604,6 +605,112 @@ class Bangumi(_PluginBase):
                             },
                         ]
                     }
+                ]
+            }
+        ]
+        """
+        return [
+            {
+                'component': 'div',
+                'content': [
+                    {
+                        'component': 'VCardTitle',
+                        'props': {
+                        },
+                        'content':[
+                            {
+                                component: 'VLabel',
+                                props: {
+                                    text: '想看',
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'div',
+                        'props': {
+                            'class': 'grid gap-3 grid-info-card',
+                        },
+                        'content': contents_wish
+                    },
+                    {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 2,
+                        }
+                    },
+                    {
+                        'component': 'VCardTitle',
+                        'props': {
+                        },
+                        'content':[
+                            {
+                                component: 'VLabel',
+                                props: {
+                                    text: '在看',
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'div',
+                        'props': {
+                            'class': 'grid gap-3 grid-info-card',
+                        },
+                        'content': contents_watching
+                    },
+                    {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 2,
+                        }
+                    },
+                    {
+                        'component': 'VCardTitle',
+                        'props': {
+                        },
+                        'content':[
+                            {
+                                component: 'VLabel',
+                                props: {
+                                    text: '看过',
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'div',
+                        'props': {
+                            'class': 'grid gap-3 grid-info-card',
+                        },
+                        'content': contents_watched
+                    },
+                    {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 2,
+                        }
+                    },
+                    {
+                        'component': 'VCardTitle',
+                        'props': {
+                        },
+                        'content':[
+                            {
+                                component: 'VLabel',
+                                props: {
+                                    text: '抛弃',
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'div',
+                        'props': {
+                            'class': 'grid gap-3 grid-info-card',
+                        },
+                        'content': contents_dropped
+                    },
                 ]
             }
         ]
