@@ -88,3 +88,28 @@ class BangumiOper(DbOper):
         获取所有 Bangumi 数据
         """
         return BangumiInfo.get_all_bangumi(self._db)
+    
+    def get_wish(self) -> list:
+        """
+        获取所有 Bangumi 上 想看 的条目
+        """
+        return BangumiInfo.get_wish(self._db)
+    
+    def get_watched(self) -> list:
+        """
+        获取所有 Bangumi 上 看过 的条目
+        """
+        return BangumiInfo.get_watched(self._db)
+    
+    def get_watching(self) -> list:
+        """
+        获取所有 Bangumi 上 在看 的条目
+        """
+        return BangumiInfo.get_watching(self._db)
+    
+    def get_synced(self) -> list:
+        """
+        获取所有 Bangumi 上 已同步 的条目
+        """
+        return BangumiInfo.get_synced(self._db)
+    

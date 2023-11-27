@@ -69,3 +69,22 @@ class BangumiInfo(Base):
             "poster": poster,
         })
         
+    @staticmethod
+    @db_query
+    def get_wish(db: Session):
+        return db.query(BangumiInfo).filter(BangumiInfo.status == 1).all()
+    
+    @staticmethod
+    @db_query
+    def get_watched(db: Session):
+        return db.query(BangumiInfo).filter(BangumiInfo.status == 2).all()
+    
+    @staticmethod
+    @db_query
+    def get_watching(db: Session):
+        return db.query(BangumiInfo).filter(BangumiInfo.status == 3).all()
+    
+    @staticmethod
+    @db_query
+    def get_dropped(db: Session):
+        return db.query(BangumiInfo).filter(BangumiInfo.status == 4).all()

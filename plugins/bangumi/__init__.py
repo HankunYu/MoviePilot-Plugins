@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.97"
+    plugin_version = "0.98"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -412,10 +412,13 @@ class Bangumi(_PluginBase):
                 }
             ]
         info = self._oper.get_all_bangumi()
-        contents = []
+        contents_wish = []
+        contents_watched = []
+        contents_watching = []
+        contents_dropped = []
         status_list = ["想看", "看过", "在看", "抛弃"]
         for item in info:
-            contents.append({
+            content = ({
                 'component': 'VCard',
                 'content': [
                     {
@@ -479,13 +482,41 @@ class Bangumi(_PluginBase):
                     }
                 ]
             })
+            if item.status == "1":
+                contents_wish.append(content)
+            elif item.status == "2":
+                contents_watched.append(content)
+            elif item.status == "3":
+                contents_watching.append(content)
+            elif item.status == "4":
+                contents_dropped.append(content)
         return [
             {
                 'component': 'div',
                 'props': {
-                    'class': 'grid gap-3 grid-info-card',
+                    'align': 'center'
                 },
-                'content': contents
+                'tab': [
+                    {
+                        'title': '想看',
+                        'props': {
+                            'variant': 'flat'
+                        },
+                        'content': contents_wish
+                    },
+                    {
+                        'title': '看过',
+                        'content': contents_watched
+                    },
+                    {
+                        'title': '在看',
+                        'content': contents_watching
+                    },
+                    {
+                        'title': '抛弃',
+                        'content': contents_dropped
+                    }
+                ]
             }
         ]
     
