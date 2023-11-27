@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.107"
+    plugin_version = "0.108"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -492,33 +492,36 @@ class Bangumi(_PluginBase):
                 contents_dropped.append(content)
 
         return [
+            { 
+                'component': 'div', 
+                'content': [
                 {
-                    "component": "v-tabs",
+                    "component": "VTabs",
                     "value": "tab",
                     "children": [
                     {
-                        "component": "v-tab",
+                        "component": "VTab",
                         "props": {
                         "href": "#tab-1"
                         },
                         "children": "Tab 1"
                     },
                     {
-                        "component": "v-tab",
+                        "component": "VTab",
                         "props": {
                         "href": "#tab-2"
                         },
                         "children": "Tab 2"
                     },
                     {
-                        "component": "v-tab",
+                        "component": "VTab",
                         "props": {
                         "href": "#tab-3"
                         },
                         "children": "Tab 3"
                     },
                     {
-                        "component": "v-tab-item",
+                        "component": "VTab-item",
                         "props": {
                         "value": "tab-1"
                         },
@@ -540,6 +543,8 @@ class Bangumi(_PluginBase):
                     }
                     ]
                 }
+                ]
+            }
             ]
 
     
