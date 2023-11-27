@@ -17,11 +17,11 @@ class BangumiInfo(Base):
     # 原标题
     original_title = Column(String)
     # bangumi 项目 ID
-    subject_id = Column(String)
+    subject_id = Column(String, index=True)
     # 评分
     rating = Column(String)
     # 收藏状态 1:想看 2:看过 3:在看 4:抛弃
-    status = Column(String)
+    status = Column(String, index=True)
     # 是否同步过
     synced = Column(String, index=True)
 

@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.88"
+    plugin_version = "0.89"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -78,7 +78,8 @@ class Bangumi(_PluginBase):
     _bangumi_id = ""
     # _media_info = []
     _max_thread = 100
-    _lock = threading.Lock()
+    _cache_lock = threading.Lock()
+    _sync_lock = threading.Lock()
     _user_agent = "hankunyu/moviepilot_plugin (https://github.com/HankunYu/MoviePilot-Plugins)"
     _scheduler: Optional[BackgroundScheduler] = None
 
@@ -114,21 +115,18 @@ class Bangumi(_PluginBase):
             self.check_cache()
             self.login()
             logger.info("初始化Bangumi插件完成")
-            # self._scheduler = BackgroundScheduler(timezone=settings.TZ)
-            # # 定时任务
-            # if self._enable_sync and self._interval != "":
-            #     try:
-            #         try:
-            #             interval = int(self._interval)
-            #         except ValueError:
-            #             logger.error("定时任务执行间隔必须为数字")
-            #             interval = 60
-            #         if interval <= 1:
-            #             logger.error("定时任务执行间隔必须大于1")
-            #             interval = 60
-            #         self._scheduler.add_job(self.check_all_librarys_for_sync, "interval", minutes=interval, name="Bangumi同步媒体库到已看")
-            #     except Exception as e:
-            #         logger.error(f"添加定时任务 同步媒体库 失败: {e}")
+            self._scheduler = BackgroundScheduler(timezone=settings.TZ)
+            # 定时任务
+            if self._enable_sync:
+                try:
+                    interval = int(self._interval)
+                except ValueError:
+                    logger.error("定时任务执行间隔不是数字")
+                    interval = 60
+                try:
+                    self._scheduler.add_job(self.check_all_librarys_for_sync, "interval", minutes=interval, name="Bangumi同步媒体库到已看")
+                except Exception as e:
+                    logger.error(f"添加定时任务 同步媒体库 失败: {e}")
 
             # 运行一次同步到Bangumi
             if self._enable_sync and not self._is_runing_sync and not self._is_runing_cache:
@@ -141,6 +139,7 @@ class Bangumi(_PluginBase):
                 self.__update_config()
                 thread = threading.Thread(target=self.update_nfo_all_once)
                 thread.start()
+
             # 更新订阅页面评分
             if self._sycn_subscribe_rating and not self._is_runing_update_rating:
                 thread = threading.Thread(target=self.update_subscribe_rating)
@@ -427,7 +426,7 @@ class Bangumi(_PluginBase):
     def cache_library(self):
         if self._is_runing_cache: return
         self._is_runing_cache = True
-        self._lock.acquire()
+        self._cache_lock.acquire()
         try:
             logger.info("开始缓存媒体库数据")
             results = self.get_medias_in_library()
@@ -477,7 +476,7 @@ class Bangumi(_PluginBase):
             logger.info("媒体库数据缓存完成")
         finally:
             self._is_runing_cache = False
-            self._lock.release()
+            self._cache_lock.release()
         
     def check_all_librarys_for_sync(self):
         """
@@ -485,7 +484,7 @@ class Bangumi(_PluginBase):
         """
         if self._is_runing_sync or self._is_runing_cache: return
         self._is_runing_sync = True
-        self._lock.acquire()
+        self._sync_lock.acquire()
         try:
             # 更新缓存
             self.cache_library()
@@ -496,7 +495,7 @@ class Bangumi(_PluginBase):
             for info in self._oper.get_all():
                 self.sync_media_to_bangumi(info)
         finally:
-            self._lock.release()
+            self._sync_lock.release()
             self._is_runing_sync = False
             logger.info("媒体库同步完成")
 
