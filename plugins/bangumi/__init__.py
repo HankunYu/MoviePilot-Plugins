@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.109"
+    plugin_version = "0.110"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -506,11 +506,23 @@ class Bangumi(_PluginBase):
                                     'title': '想看'
                                 },
                                 "children": "Tab 1"
-                                'content': contents_watching
+                                'content': [{
+                                    'component': 'VSwitch',
+                                    'props': {
+                                        'model': 'enabled',
+                                        'label': '启用插件',
+                                    }
+                                }]
                             }
                         ]
                     },
-                    contents_wish
+                    {
+                        'component': 'VSwitch',
+                        'props': {
+                            'model': 'enabled2',
+                            'label': '启用插件11',
+                        }
+                    }
                 ]
             }
         ]
