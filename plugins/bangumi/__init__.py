@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.126"
+    plugin_version = "0.127"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -417,6 +417,7 @@ class Bangumi(_PluginBase):
         contents_watching = []
         contents_dropped = []
         status_list = ["想看", "看过", "在看", "抛弃"]
+        value = "tab"
         for item in info:
             content = ({
                 'component': 'VCard',
@@ -493,12 +494,12 @@ class Bangumi(_PluginBase):
 
         return [
             {
-                'component': 'VCard',
+                'component': 'div',
                 'content': [
                     {
                         "component": "VTabs",
                         "props": {
-                            "model-value": "tab",
+                            "model-value": value,
                             "grow": True,
                             "centered": True,
                             "class": "text-center"
@@ -565,7 +566,7 @@ class Bangumi(_PluginBase):
                     {
                         'component': 'VWindow',
                         'props': {
-                            "model-value": "tab",
+                            "model-value": value,
                             "show-arrows": True,
                         },
                         'content': [
