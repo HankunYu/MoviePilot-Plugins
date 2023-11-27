@@ -14,10 +14,20 @@ from app.chain.subscribe import SubscribeChain
 from app.db.models.mediaserver import MediaServerItem
 from app.db.models.subscribe import Subscribe
 from app.db import db_query
+from app.db.models import Base, db_update
+
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import scoped_session
+
 from app.db import ScopedSession
 from app.core.plugin import PluginManager
+
+from plugins.bangumi.bangumi_db import BangumiInfo
+from plugins.bangumi.bangumi_db_oper import BangumiOper
 
 import threading
 from threading import Thread
@@ -36,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.63"
+    plugin_version = "0.64"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -71,6 +81,7 @@ class Bangumi(_PluginBase):
     _user_agent = "hankunyu/moviepilot_plugin (https://github.com/HankunYu/MoviePilot-Plugins)"
     _scheduler: Optional[BackgroundScheduler] = None
 
+    _oper = BangumiOper()
     mediainfo = {
         "title": None,
         "original_title": None,
@@ -96,8 +107,10 @@ class Bangumi(_PluginBase):
         if self._clear_cache:
             self.clear_cache()
             self._clear_cache = False
+            self._oper.empty()
             self.__update_config()
         if self._enabled:
+            self._oper.add(title="test", original_title="test", subject_id="test", status="test", synced="test")
             self.check_cache()
             self.login()
             logger.debug("初始化Bangumi插件")
@@ -411,6 +424,7 @@ class Bangumi(_PluginBase):
                 season_list = json.loads(media.seasoninfo)
             except (AttributeError, KeyError, TypeError):
                 season_list = []
+
             if len(season_list) > 0:
                 # 添加每一季
                 for season in season_list:
@@ -426,7 +440,7 @@ class Bangumi(_PluginBase):
 
                     media_info["original_title"] = media.original_title
                     # 如果已存在于缓存中，跳过
-                    if media_info['title'] in [subject["title"] for subject in self._media_info]: continue
+                    if media.title in [subject["title"] for subject in self._media_info]: continue
                     media_info = self.get_bangumi_info(media_info)
                     logger.info(f'运行到这里正常')
                     logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rank']}, 状态: {media_info['status']}")
@@ -877,4 +891,3 @@ class Bangumi(_PluginBase):
                 self._scheduler = None
         except Exception as e:
             logger.error("退出插件失败：%s" % str(e))
-
