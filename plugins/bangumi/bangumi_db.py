@@ -9,7 +9,7 @@ from app.db.models import Base, db_update
 
 class BangumiInfo(Base):
     """
-    站点表
+    Bangumi 数据表
     """
     id = Column(Integer, Sequence('id'), primary_key=True, index=True)
     # 标题
