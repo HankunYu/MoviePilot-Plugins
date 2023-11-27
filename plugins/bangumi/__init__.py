@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.108"
+    plugin_version = "0.109"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -495,57 +495,25 @@ class Bangumi(_PluginBase):
             { 
                 'component': 'div', 
                 'content': [
-                {
-                    "component": "VTabs",
-                    "value": "tab",
-                    "children": [
                     {
-                        "component": "VTab",
-                        "props": {
-                        "href": "#tab-1"
-                        },
-                        "children": "Tab 1"
+                        "component": "VTabs",
+                        "value": "tab",
+                        "children": [
+                            {
+                                "component": "VTab",
+                                "props": {
+                                    "href": "#tab-1",
+                                    'title': '想看'
+                                },
+                                "children": "Tab 1"
+                                'content': contents_watching
+                            }
+                        ]
                     },
-                    {
-                        "component": "VTab",
-                        "props": {
-                        "href": "#tab-2"
-                        },
-                        "children": "Tab 2"
-                    },
-                    {
-                        "component": "VTab",
-                        "props": {
-                        "href": "#tab-3"
-                        },
-                        "children": "Tab 3"
-                    },
-                    {
-                        "component": "VTab-item",
-                        "props": {
-                        "value": "tab-1"
-                        },
-                        "children": "This is Tab 1 content"
-                    },
-                    {
-                        "component": "v-tab-item",
-                        "props": {
-                        "value": "tab-2"
-                        },
-                        "children": "This is Tab 2 content"
-                    },
-                    {
-                        "component": "v-tab-item",
-                        "props": {
-                        "value": "tab-3"
-                        },
-                        "children": "This is Tab 3 content"
-                    }
-                    ]
-                }
+                    contents_wish
                 ]
             }
-            ]
+        ]
 
     
     def check_cache(self):
