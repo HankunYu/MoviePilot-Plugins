@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.105"
+    plugin_version = "0.106"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -490,9 +490,7 @@ class Bangumi(_PluginBase):
                 contents_watching.append(content)
             elif item.status == "4":
                 contents_dropped.append(content)
-        tabs = {
-            'tabs':
-        }
+
         return [
                 {
                     "component": "v-tabs",
