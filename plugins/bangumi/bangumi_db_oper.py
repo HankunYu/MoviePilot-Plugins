@@ -25,7 +25,7 @@ class BangumiOper(DbOper):
             return True
         return False
 
-    def empty(self, server: str):
+    def empty(self):
         """
         清空媒体服务器数据
         """
