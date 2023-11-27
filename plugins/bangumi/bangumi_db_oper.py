@@ -20,7 +20,7 @@ class BangumiOper(DbOper):
         新增媒体服务器数据
         """
         item = BangumiInfo(**kwargs)
-        if not item.get_by_itemid(self._db, kwargs.get("title")):
+        if not item.get_by_title(self._db, kwargs.get("title")):
             item.create(self._db)
             return True
         return False
