@@ -20,7 +20,7 @@
     "Bangumi": {
         "name": "Bangumi 同步",
         "description": "动漫资源引用Bangumi评分，同步订阅/库存番剧到Bangumi",
-        "version": "0.84",
+        "version": "0.85",
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/bangumi.jpg",
         "color": "#5378A4",
         "author": "hankun",

@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.84"
+    plugin_version = "0.85"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -411,14 +411,8 @@ class Bangumi(_PluginBase):
         """
         检查缓存是否存在，不存在则初始化
         """
-        logger.info(f"检查缓存: {type(self._oper.get_amount)}")
-        try:
-            count = int(self._oper.get_amount)
-            logger.info(f"缓存中已有{count}条数据")
-        except ValueError as e:
-            logger.error(e)
-
-        if self._oper.get_amount == 0: 
+        logger.info(f"检查缓存: {type(self._oper.get_amount())}")
+        if self._oper.get_amount() == 0: 
             logger.info("没有找到缓存，初始化列表")
             thread = threading.Thread(target=self.cache_library)
             thread.start()
@@ -490,7 +484,7 @@ class Bangumi(_PluginBase):
         try:
             # 更新缓存
             self.cache_library()
-            if self._oper.get_amount == 0:
+            if self._oper.get_amount() == 0:
                 logger.info("媒体库中没有找到媒体，跳过同步全部媒体库")
                 return
             logger.info("开始同步媒体库")
