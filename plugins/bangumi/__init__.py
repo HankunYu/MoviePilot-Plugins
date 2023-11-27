@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.102"
+    plugin_version = "0.103"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -497,10 +497,40 @@ class Bangumi(_PluginBase):
                 'props': {
                     'class': 'text-center',
                     'items': {
-                        '想看': contents_wish,
-                        '看过': contents_watched,
-                        '在看': contents_watching,
-                        '抛弃': contents_dropped,
+                        [
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'title': '想看',
+                                    'class': 'grid gap-3 grid-info-card',
+                                },
+                                'content': contents_wish,
+                            },
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'title': '看过',
+                                    'class': 'grid gap-3 grid-info-card',
+                                },
+                                'content': contents_watched,
+                            },
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'title': '在看',
+                                    'class': 'grid gap-3 grid-info-card',
+                                },
+                                'content': contents_watching,
+                            },
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'title': '抛弃',
+                                    'class': 'grid gap-3 grid-info-card',
+                                },
+                                'content': contents_dropped,
+                            },
+                        ]
                     },
                     'model-value': 'tab',
                 },
