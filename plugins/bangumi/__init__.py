@@ -36,7 +36,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.61"
+    plugin_version = "0.62"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -422,17 +422,14 @@ class Bangumi(_PluginBase):
                         chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"]
                         chinese_season = " 第" + chinese_number[season_number] + "季"
                         media_info['title']= media.title + chinese_season
-                        logger.info(media_info['title'])
                     else:
                         media_info["title"] = media.title
-                        logger.info(media_info['title'])
 
                     media_info["original_title"] = media.original_title
-                    logger.info("title: " + media_info["title"])
                     # 如果已存在于缓存中，跳过
-                    logger.info(media_info["title"] + " " + media_info["title"] in [subject["title"] for subject in self._media_info])
-                    if media_info["title"] in [subject["title"] for subject in self._media_info]: continue
+                    if media_info['title'] in [subject["title"] for subject in self._media_info]: continue
                     media_info = self.get_bangumi_info(media_info)
+                    logger.info(f'运行到这里正常')
                     logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rank']}, 状态: {media_info['status']}")
                     self._media_info.append(media_info)
             else:
@@ -515,7 +512,9 @@ class Bangumi(_PluginBase):
     def sync_media_to_bangumi(self, info: mediainfo):
         new_mediainfo = self.mediainfo
         # 如果已同步，跳过
-        if new_mediainfo["synced"] == True: return
+        if new_mediainfo["synced"] == True: 
+            logger.info(f"{new_mediainfo['title']}已同步，跳过")
+            return
         # 如果已收藏，跳过
         if new_mediainfo['status'] != None:
             logger.info(f"{new_mediainfo['title']}已收藏，跳过")
