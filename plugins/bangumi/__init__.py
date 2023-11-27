@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.86"
+    plugin_version = "0.87"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -470,8 +470,8 @@ class Bangumi(_PluginBase):
                     if self._oper.exists(title = media.title): 
                         logger.info(f"{media.title} 已存在于缓存中，跳过")
                         continue
-                    media_info["title"] = media.title
-                    media_info["original_title"] = media.original_title
+                    media_info.title = media.title
+                    media_info.original_title = media.original_title
                     media_info = self.get_bangumi_info(media_info)
                     logger.info(f"添加 {media_info.title} 到缓存中, 条目ID: {media_info.subject_id}, 评分: {media_info.rating}, 状态: {media_info.status}")
                     self._oper.add(**media_info)
