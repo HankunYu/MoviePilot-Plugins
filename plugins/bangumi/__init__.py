@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.98"
+    plugin_version = "0.99"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -490,31 +490,52 @@ class Bangumi(_PluginBase):
                 contents_watching.append(content)
             elif item.status == "4":
                 contents_dropped.append(content)
+        
         return [
             {
                 'component': 'div',
                 'props': {
-                    'align': 'center'
                 },
-                'tab': [
+                'content': [
                     {
-                        'title': '想看',
+                        'component': 'VTabs',
                         'props': {
-                            'variant': 'flat'
+                            'class': 'text-center',
+                            'color': 'primary',
+                            'grow': True,
+                            'centered': True,
+                            'v-model': 'tab',
                         },
-                        'content': contents_wish
-                    },
-                    {
-                        'title': '看过',
-                        'content': contents_watched
-                    },
-                    {
-                        'title': '在看',
-                        'content': contents_watching
-                    },
-                    {
-                        'title': '抛弃',
-                        'content': contents_dropped
+                        'content': [
+                            {
+                                'component': 'VTab',
+                                'props': { 
+                                    'title': '想看',
+                                },
+                                'content': contents_wish
+                            },
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'title': '看过'
+                                },
+                                'content': contents_watched
+                            },
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'title': '在看'
+                                },
+                                'content': contents_watching
+                            },
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'title': '抛弃'
+                                },
+                                'content': contents_dropped
+                            }
+                        ]
                     }
                 ]
             }
