@@ -23,7 +23,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session
 
-from app.db import ScopedSession
+from app.db import ScopedSession, Engine
 from app.core.plugin import PluginManager
 
 from plugins.bangumi.bangumi_db import BangumiInfo
@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.80"
+    plugin_version = "0.81"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -107,9 +107,11 @@ class Bangumi(_PluginBase):
         if self._clear_cache:
             self.clear_cache()
             self._clear_cache = False
-            self._oper.empty()
+            self._oper.empty("")
             self.__update_config()
         if self._enabled:
+
+            self.check_table()
             test_info = self.mediainfo
             test_info["title"] = "test"
             test_info["original_title"] = "test"
@@ -153,7 +155,18 @@ class Bangumi(_PluginBase):
             if self._sycn_subscribe_rating and not self._is_runing_update_rating:
                 thread = threading.Thread(target=self.update_subscribe_rating)
                 thread.start()
-
+    def check_table(self):
+        """
+        检查数据库是否存在
+        """
+        try:
+            engine = Engine
+            Base.metadata.create_all(engine)
+        except Exception as e:
+            logger.error(f"创建数据库失败: {e}")
+            return False
+        return True
+    
     def __update_config(self):
         self.update_config({
             "enabled": self._enabled,
