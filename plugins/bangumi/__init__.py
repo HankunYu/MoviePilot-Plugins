@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.111"
+    plugin_version = "0.112"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -497,53 +497,75 @@ class Bangumi(_PluginBase):
                 'content': [
                     {
                         "component": "VTabs",
-                        "value": "tab",
-                        "children": [
+                        "props": {
+                            "model-value": "tab",
+                            "grow": True,
+                            "centered": True,
+                            "class": "text-center"
+                        },
+                        "content": [
                             {
-                                "component": "VTab",
-                                "props": {
-                                    "href": "#tab-1",
-                                    'title': '想看'
+                                'component': 'VTab',
+                                'props': {
+                                    'value': '1',
                                 },
-                                "children": "Tab 1",
-
-                                'content': [
-                                    {
-                                        'component': 'VCol',
-                                        'props': {
-                                            'cols': 12,
-                                        },
-                                        'content': [
-                                            {
-                                                'component': 'VAlert',
-                                                'props': {
-                                                    'type': 'info',
-                                                    'variant': 'flat',
-                                                    'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token\n第一次启用会扫描并缓存所有媒体库中的番剧，可能会花费较长时间，请耐心等待',
-                                                }
-                                            }
-                                        ]
-                                    }
-                                ]
-                            }
+                                'content': "想看"
+                            },
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'value': '2',
+                                },
+                                'content': "看过"
+                            },
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'value': '3',
+                                },
+                                'content': "在看"
+                            },
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'value': '4',
+                                },
+                                'content': "抛弃"
+                            },
                         ]
                     },
                     {
-                        'component': 'VCol',
+                        'component': 'VWindowItem',
                         'props': {
-                            'cols': 12,
+                            'class': 'grid gap-3 grid-info-card',
+                            'value': '1',
                         },
-                        'content': [
-                            {
-                                'component': 'VAlert',
-                                'props': {
-                                    'type': 'info',
-                                    'variant': 'flat',
-                                    'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token\n第一次启用会扫描并缓存所有媒体库中的番剧，可能会花费较长时间，请耐心等待',
-                                }
-                            }
-                        ]
-                    }
+                        'content': contents_wish
+                    },
+                    {
+                        'component': 'VWindowItem',
+                        'props': {
+                            'class': 'grid gap-3 grid-info-card',
+                            'value': '2',
+                        },
+                        'content': contents_watched
+                    },
+                    {
+                        'component': 'VWindowItem',
+                        'props': {
+                            'class': 'grid gap-3 grid-info-card',
+                            'value': '3',
+                        },
+                        'content': contents_watching
+                    },
+                    {
+                        'component': 'VWindowItem',
+                        'props': {
+                            'class': 'grid gap-3 grid-info-card',
+                            'value': '4',
+                        },
+                        'content': contents_dropped
+                    },
                 ]
             }
         ]
