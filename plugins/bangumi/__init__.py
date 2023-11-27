@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.117"
+    plugin_version = "0.119"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -498,7 +498,7 @@ class Bangumi(_PluginBase):
                     {
                         "component": "VTabs",
                         "props": {
-                            "model": "tab",
+                            "v-model": "tab",
                             "grow": True,
                             "centered": True,
                             "class": "text-center"
@@ -565,7 +565,7 @@ class Bangumi(_PluginBase):
                     {
                         'component': 'VWindow',
                         'props': {
-                            'model': 'tab'
+                            "v-model": "tab",
                         },
                         'content': [
                             {
