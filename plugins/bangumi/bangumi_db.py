@@ -24,6 +24,8 @@ class BangumiInfo(Base):
     status = Column(String, index=True)
     # 是否同步过
     synced = Column(String, index=True)
+    # poster
+    poster = Column(String)
 
     @staticmethod
     @db_query
@@ -51,13 +53,19 @@ class BangumiInfo(Base):
         return db.query(BangumiInfo).all()
     
     @staticmethod
+    @db_query
+    def get_all_bangumi(db: Session):
+        return db.query(BangumiInfo).filter(BangumiInfo.subject_id != None).all()
+    
+    @staticmethod
     @db_update
-    def update_info(db: Session, title: str, original_title: str ,subject_id: str, rating: str, status: str, synced: bool):
+    def update_info(db: Session, title: str, original_title: str ,subject_id: str, rating: str, status: str, synced: bool, poster: str):
         db.query(BangumiInfo).filter(BangumiInfo.title == title).update({
             "original_title": original_title,
             "subject_id": subject_id,
             "rating": rating,
             "status": status,
-            "synced": synced
+            "synced": synced,
+            "poster": poster,
         })
         

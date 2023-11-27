@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.94"
+    plugin_version = "0.95"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -89,7 +89,8 @@ class Bangumi(_PluginBase):
         "subject_id": None,
         "rating": None,
         "status": None,
-        "synced": False
+        "synced": False,
+        "poster": None
     }
     def init_plugin(self, config: dict = None):
         if config:
@@ -117,18 +118,13 @@ class Bangumi(_PluginBase):
             self._scheduler = BackgroundScheduler(timezone=settings.TZ)
             # 定时任务
             if self._enable_sync:
-                if self._cron:
-                    try:
-                        self._scheduler.add_job(func = self.check_all_librarys_for_sync, 
-                                                trigger = CronTrigger.from_crontab(self._cron),
-                                                name = "同步媒体库到Bangumi为已看")
-                    except Exception as e:
-                        logger.error(f"定时任务添加失败: {e}")
-                
-                # 启动定时任务
-                if self._scheduler.get_jobs():
-                    self._scheduler.print_jobs()
-                    self._scheduler.start()
+                try:
+                    self._scheduler.add_job(self.check_all_librarys_for_sync, 
+                                            "interval",
+                                            minutes=7200,
+                                            name = "同步媒体库到Bangumi为已看")
+                except Exception as e:
+                    logger.error(f"定时任务添加失败: {e}")
 
             # 运行一次同步到Bangumi
             if self._enable_sync and not self._is_runing_sync and not self._is_runing_cache:
@@ -146,6 +142,20 @@ class Bangumi(_PluginBase):
             if self._sycn_subscribe_rating and not self._is_runing_update_rating:
                 thread = threading.Thread(target=self.update_subscribe_rating)
                 thread.start()
+
+            # 启动定时任务
+            if self._scheduler.get_jobs():
+                self._scheduler.print_jobs()
+                self._scheduler.start()
+        else:
+            try:
+                if self._scheduler:
+                    self._scheduler.remove_all_jobs()
+                    if self._scheduler.running:
+                        self._scheduler.shutdown()
+                    self._scheduler = None
+            except Exception as e:
+                logger.error("关闭插件失败%s" % str(e))
 
     def check_table(self):
         """
@@ -207,22 +217,6 @@ class Bangumi(_PluginBase):
                                         'props': {
                                             'model': 'enabled',
                                             'label': '启用插件',
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 12,
-                                    'md': 6
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VSwitch',
-                                        'props': {
-                                            'model': 'clear_cache',
-                                            'label': '清除缓存',
                                         }
                                     }
                                 ]
@@ -303,14 +297,16 @@ class Bangumi(_PluginBase):
                             },
                             {
                                 'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
                                 'content': [
                                     {
-                                        'component': 'VTextarea',
+                                        'component': 'VSwitch',
                                         'props': {
-                                            'model': 'cron',
-                                            'label': '定时任务 Cron 表达式',
-                                            'rows': 1,
-                                            'value': '* * * * *'
+                                            'model': 'clear_cache',
+                                            'label': '清除缓存',
                                         }
                                     }
                                 ]
@@ -402,11 +398,87 @@ class Bangumi(_PluginBase):
             "update_nfo_all_once": False,
             "sync_subscribe_rating": False,
             "library_path": "",
-            "cron": "60"
         }
 
     def get_page(self) -> List[dict]:
-        pass
+        if self._oper.get_amount() == 0:
+            return [
+                {
+                    'component': 'div',
+                    'text': '暂无数据',
+                    'props': {
+                        'class': 'text-center'
+                    }
+                }
+            ]
+        info = self._oper.get_all_bangumi()
+        contents = []
+        status_list = ["想看", "看过", "在看", "抛弃"]
+        for item in info:
+            contents.append({
+                'component': 'VCard',
+                'content': [
+                    {
+                        'component': 'div',
+                        'props': {
+                            'class': 'd-flex justify-space-start flex-nowrap flex-row',
+                        },
+                        'content': [
+                            {
+                                'component': 'div',
+                                'content': [
+                                    {
+                                        'component': 'VImg',
+                                        'props': {
+                                            'src': item.poster,
+                                            'height': 120,
+                                            'width': 80,
+                                            'aspect-ratio': '2/3',
+                                            'class': 'object-cover shadow ring-gray-500',
+                                            'cover': True
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'div',
+                                'content': [
+                                    {
+                                        'component': 'VCardSubtitle',
+                                        'props': {
+                                            'class': 'pa-2 font-bold break-words whitespace-break-spaces'
+                                        },
+                                        'content': [
+                                            {
+                                                'component': 'a',
+                                                'props': {
+                                                    'href': f"https://bangumi.tv/subject/{item.subject_id}",
+                                                    'target': '_blank'
+                                                },
+                                                'text': item.title
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        'component': 'VCardText',
+                                        'props': {
+                                            'class': 'pa-0 px-2'
+                                        },
+                                        'text': f'状态：{status_list[int(item.status) - 1]}' if item.status != None else "状态：未收藏"
+                                    },
+                                    {
+                                        'component': 'VCardText',
+                                        'props': {
+                                            'class': 'pa-0 px-2'
+                                        },
+                                        'text': f'评分：{item.rating}'
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            })
     
     def check_cache(self):
         """
@@ -460,7 +532,7 @@ class Bangumi(_PluginBase):
                         media_info["original_title"] = media.original_title
                         # 如果已存在于缓存中，跳过
                         if self._oper.exists(title = media_info['title']):
-                            logger.info(f"{media_info['title']} 已存在于缓存中，跳过")
+                            # logger.info(f"{media_info['title']} 已存在于缓存中，跳过")
                             continue
                         media_info = self.get_bangumi_info(media_info)
                         logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
@@ -468,7 +540,7 @@ class Bangumi(_PluginBase):
                 else:
                     # 如果已存在于缓存中，跳过
                     if self._oper.exists(title = media.title): 
-                        logger.info(f"{media.title} 已存在于缓存中，跳过")
+                        # logger.info(f"{media.title} 已存在于缓存中，跳过")
                         continue
                     media_info["title"] = media.title
                     media_info["original_title"] = media.original_title
@@ -533,6 +605,7 @@ class Bangumi(_PluginBase):
         new_media_info["rating"] = None
         new_media_info["status"] = None
         new_media_info["synced"] = False
+        new_media_info["poster"] = None
 
         # 获取条目ID
         subject_id = self.search_subject(new_media_info["title"])
@@ -543,6 +616,8 @@ class Bangumi(_PluginBase):
         if subject_id == None:
             return new_media_info
         new_media_info["subject_id"] = subject_id
+        # 获取海报
+        new_media_info["poster"] = self.get_poster(subject_id)
         # 获取评分
         new_media_info['rating'] = self.get_rating(subject_id)
         # 检查收藏状态
@@ -564,18 +639,19 @@ class Bangumi(_PluginBase):
         media_info["rating"] = info.rating
         media_info["status"] = info.status
         media_info["synced"] = info.synced
+        media_info["poster"] = info.poster
 
         # 如果已同步，跳过
         if media_info["synced"] == True: 
-            logger.info(f"{media_info['title']}已同步，跳过")
+            # logger.info(f"{media_info['title']}已同步，跳过")
             return
         # 如果没有条目ID，跳过
         if media_info["subject_id"] == None:
-            logger.info(f"{media_info['title']} 无法在Bangumi上找到，跳过")
+            # logger.info(f"{media_info['title']} 无法在Bangumi上找到，跳过")
             return
         # 如果已收藏，跳过
         if media_info["status"] != None:
-            logger.info(f"{media_info['title']}已收藏，跳过")
+            # logger.info(f"{media_info['title']}已收藏，跳过")
             media_info["synced"] = True
             self._oper.update_info(**media_info)
             return
@@ -638,6 +714,28 @@ class Bangumi(_PluginBase):
         else:
             return None
     
+    def get_poster(self, subject_id: str):
+        """
+        获取条目海报
+        """
+        url = f"https://api.bgm.tv/subject/{subject_id}"
+        headers = {
+            "accept": "application/json",
+            "User-Agent": self._user_agent
+        }
+        res = requests.get(url, headers=headers)
+
+        content_type = res.headers.get('Content-Type')
+        if 'application/json' not in content_type: return None
+
+        if res.status_code == 200:
+            try:
+                poster = res.json().get("images").get("common")
+            except (AttributeError, KeyError, TypeError):
+                return None
+            return poster
+        else:
+            return None
     
     def get_rating(self, subject_id: str):
         """

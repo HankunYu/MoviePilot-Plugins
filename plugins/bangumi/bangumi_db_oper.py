@@ -82,3 +82,9 @@ class BangumiOper(DbOper):
         if not item:
             return None
         return str(item.original_title)
+    
+    def get_all_bangumi(self) -> list:
+        """
+        获取所有 Bangumi 数据
+        """
+        return BangumiInfo.get_all_bangumi(self._db)
