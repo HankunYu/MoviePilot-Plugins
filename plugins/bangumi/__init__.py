@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.101"
+    plugin_version = "0.102"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -496,7 +496,12 @@ class Bangumi(_PluginBase):
                 'component': 'VTabs',
                 'props': {
                     'class': 'text-center',
-                    'items': status_list,
+                    'items': {
+                        '想看': contents_wish,
+                        '看过': contents_watched,
+                        '在看': contents_watching,
+                        '抛弃': contents_dropped,
+                    },
                     'model-value': 'tab',
                 },
                 
