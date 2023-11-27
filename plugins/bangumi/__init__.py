@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.122"
+    plugin_version = "0.123"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -509,9 +509,6 @@ class Bangumi(_PluginBase):
                                 'props': {
                                     'value': 1,
                                 },
-                                'on': {
-                                    'click': () => this.tab = 1
-                                },
                                 'content': [
                                     {
                                         'component': 'VLabel',
@@ -525,9 +522,6 @@ class Bangumi(_PluginBase):
                                 'component': 'VTab',
                                 'props': {
                                     'value': 2,
-                                },
-                                'on': {
-                                    'click': () => this.tab = 2
                                 },
                                 'content': [
                                     {
@@ -543,9 +537,6 @@ class Bangumi(_PluginBase):
                                 'props': {
                                     'value': 3,
                                 },
-                                'on': {
-                                    'click': () => this.tab = 3
-                                },
                                 'content': [
                                     {
                                         'component': 'VLabel',
@@ -559,9 +550,6 @@ class Bangumi(_PluginBase):
                                 'component': 'VTab',
                                 'props': {
                                     'value': 4,
-                                },
-                                'on': {
-                                    'click': () => this.tab = 4
                                 },
                                 'content': [
                                     {
@@ -577,7 +565,8 @@ class Bangumi(_PluginBase):
                     {
                         'component': 'VWindow',
                         'props': {
-                            "model-value": "tab",
+                            "model-value": "window",
+                            "show-arrows": True,
                         },
                         'content': [
                             {
