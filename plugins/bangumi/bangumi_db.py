@@ -52,8 +52,9 @@ class BangumiInfo(Base):
     
     @staticmethod
     @db_update
-    def update_info(db: Session, title: str, subject_id: str, rating: str, status: str, synced: bool):
+    def update_info(db: Session, title: str, original_title: str ,subject_id: str, rating: str, status: str, synced: bool):
         db.query(BangumiInfo).filter(BangumiInfo.title == title).update({
+            "original_title": original_title,
             "subject_id": subject_id,
             "rating": rating,
             "status": status,
