@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.96"
+    plugin_version = "0.97"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -479,6 +479,15 @@ class Bangumi(_PluginBase):
                     }
                 ]
             })
+        return [
+            {
+                'component': 'div',
+                'props': {
+                    'class': 'grid gap-3 grid-info-card',
+                },
+                'content': contents
+            }
+        ]
     
     def check_cache(self):
         """
