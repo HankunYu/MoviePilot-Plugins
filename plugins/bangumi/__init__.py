@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.132"
+    plugin_version = "0.133"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -464,22 +464,6 @@ class Bangumi(_PluginBase):
                                         ]
                                     },
                                     {
-                                        'component': 'VCardSubtitle',
-                                        'props': {
-                                            'class': 'pa-2 break-words whitespace-break-spaces'
-                                        },
-                                        'content': [
-                                            {
-                                                'component': 'a',
-                                                'props': {
-                                                    'href': f"https://bangumi.tv/subject/{item.subject_id}",
-                                                    'target': '_blank'
-                                                },
-                                                'text': item.original_title
-                                            }
-                                        ]
-                                    },
-                                    {
                                         'component': 'VCardText',
                                         'props': {
                                             'class': 'pa-0 px-2'
@@ -631,10 +615,16 @@ class Bangumi(_PluginBase):
                                 'component': 'VLabel',
                                 'props': {
                                     'text': '想看',
-                                    'class': 'text-h2'
+                                    'class': 'text-h4'
                                 }
                             }
                         ]
+                    },
+                    {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 2,
+                        }
                     },
                     {
                         'component': 'div',
@@ -647,6 +637,7 @@ class Bangumi(_PluginBase):
                         'component': 'VDivider',
                         'props': {
                             'thickness': 2,
+                            'class': 'border-opacity-0'
                         }
                     },
                     {
@@ -658,10 +649,16 @@ class Bangumi(_PluginBase):
                                 'component': 'VLabel',
                                 'props': {
                                     'text': '在看',
-                                    'class': 'text-h2'
+                                    'class': 'text-h4'
                                 }
                             }
                         ]
+                    },
+                    {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 2,
+                        }
                     },
                     {
                         'component': 'div',
@@ -674,6 +671,7 @@ class Bangumi(_PluginBase):
                         'component': 'VDivider',
                         'props': {
                             'thickness': 2,
+                            'class': 'border-opacity-0'
                         }
                     },
                     {
@@ -685,10 +683,16 @@ class Bangumi(_PluginBase):
                                 'component': 'VLabel',
                                 'props': {
                                     'text': '看过',
-                                    'class': 'text-h2'
+                                    'class': 'text-h4'
                                 }
                             }
                         ]
+                    },
+                    {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 2,
+                        }
                     },
                     {
                         'component': 'div',
@@ -701,6 +705,7 @@ class Bangumi(_PluginBase):
                         'component': 'VDivider',
                         'props': {
                             'thickness': 2,
+                            'class': 'border-opacity-0'
                         }
                     },
                     {
@@ -712,10 +717,16 @@ class Bangumi(_PluginBase):
                                 'component': 'VLabel',
                                 'props': {
                                     'text': '抛弃',
-                                    'class': 'text-h2'
+                                    'class': 'text-h4'
                                 }
                             }
                         ]
+                    },
+                    {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 2,
+                        }
                     },
                     {
                         'component': 'div',
@@ -723,6 +734,13 @@ class Bangumi(_PluginBase):
                             'class': 'grid gap-3 grid-info-card',
                         },
                         'content': contents_dropped
+                    },
+                    {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 2,
+                            'class': 'border-opacity-0'
+                        }
                     },
                 ]
             }
