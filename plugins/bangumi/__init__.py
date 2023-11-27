@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.65"
+    plugin_version = "0.66"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -110,7 +110,8 @@ class Bangumi(_PluginBase):
             self._oper.empty()
             self.__update_config()
         if self._enabled:
-            self._oper.add(title="test", original_title="test", subject_id="test", status="test", synced="test")
+            test_info = BangumiInfo(title="test", original_title="test", subject_id="test", status="test", synced="test")
+            self._oper.add(test_info)
             self.check_cache()
             self.login()
             logger.debug("初始化Bangumi插件")
