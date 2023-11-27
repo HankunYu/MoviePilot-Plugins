@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.112"
+    plugin_version = "0.113"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -509,28 +509,56 @@ class Bangumi(_PluginBase):
                                 'props': {
                                     'value': '1',
                                 },
-                                'content': "想看"
+                                'content': [
+                                    {
+                                        'component': 'VLabel',
+                                        'props': {
+                                            'text': '想看',
+                                        }
+                                    }
+                                ]
                             },
                             {
                                 'component': 'VTab',
                                 'props': {
                                     'value': '2',
                                 },
-                                'content': "看过"
+                                'content': [
+                                    {
+                                        'component': 'VLabel',
+                                        'props': {
+                                            'text': '看过',
+                                        }
+                                    }
+                                ]
                             },
                             {
                                 'component': 'VTab',
                                 'props': {
                                     'value': '3',
                                 },
-                                'content': "在看"
+                                'content': [
+                                    {
+                                        'component': 'VLabel',
+                                        'props': {
+                                            'text': '在看',
+                                        }
+                                    }
+                                ]
                             },
                             {
                                 'component': 'VTab',
                                 'props': {
                                     'value': '4',
                                 },
-                                'content': "抛弃"
+                                'content': [
+                                    {
+                                        'component': 'VLabel',
+                                        'props': {
+                                            'text': '抛弃',
+                                        }
+                                    }
+                                ]
                             },
                         ]
                     },
