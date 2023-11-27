@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.104"
+    plugin_version = "0.105"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -490,51 +490,60 @@ class Bangumi(_PluginBase):
                 contents_watching.append(content)
             elif item.status == "4":
                 contents_dropped.append(content)
-        
+        tabs = {
+            'tabs':
+        }
         return [
-            {
-                'component': 'VTabs',
-                'props': {
-                    'class': 'text-center',
-                    'items': 
-                        [
-                            {
-                                'component': 'VTab',
-                                'props': {
-                                    'title': '想看',
-                                    'class': 'grid gap-3 grid-info-card',
-                                },
-                                'content': contents_wish,
-                            },
-                            {
-                                'component': 'VTab',
-                                'props': {
-                                    'title': '看过',
-                                    'class': 'grid gap-3 grid-info-card',
-                                },
-                                'content': contents_watched,
-                            },
-                            {
-                                'component': 'VTab',
-                                'props': {
-                                    'title': '在看',
-                                    'class': 'grid gap-3 grid-info-card',
-                                },
-                                'content': contents_watching,
-                            },
-                            {
-                                'component': 'VTab',
-                                'props': {
-                                    'title': '抛弃',
-                                    'class': 'grid gap-3 grid-info-card',
-                                },
-                                'content': contents_dropped,
-                            },
-                        ],
-                },
-                
-            }
-        ]
+                {
+                    "component": "v-tabs",
+                    "value": "tab",
+                    "children": [
+                    {
+                        "component": "v-tab",
+                        "props": {
+                        "href": "#tab-1"
+                        },
+                        "children": "Tab 1"
+                    },
+                    {
+                        "component": "v-tab",
+                        "props": {
+                        "href": "#tab-2"
+                        },
+                        "children": "Tab 2"
+                    },
+                    {
+                        "component": "v-tab",
+                        "props": {
+                        "href": "#tab-3"
+                        },
+                        "children": "Tab 3"
+                    },
+                    {
+                        "component": "v-tab-item",
+                        "props": {
+                        "value": "tab-1"
+                        },
+                        "children": "This is Tab 1 content"
+                    },
+                    {
+                        "component": "v-tab-item",
+                        "props": {
+                        "value": "tab-2"
+                        },
+                        "children": "This is Tab 2 content"
+                    },
+                    {
+                        "component": "v-tab-item",
+                        "props": {
+                        "value": "tab-3"
+                        },
+                        "children": "This is Tab 3 content"
+                    }
+                    ]
+                }
+            ]
+
     
     def check_cache(self):
         """
