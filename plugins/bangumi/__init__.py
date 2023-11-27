@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.73"
+    plugin_version = "0.74"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -64,7 +64,7 @@ class Bangumi(_PluginBase):
     _token = ""
     _select_servers = None
     _enable_sync = False
-    _sycn_subscribe_rank = False
+    _sycn_subscribe_rating = False
     _update_nfo = False
     _update_nfo_all_once = False
     _library_path = ""
@@ -73,7 +73,7 @@ class Bangumi(_PluginBase):
 
     _is_runing_sync = False
     _is_runing_update_nfo = False
-    _is_runing_update_rank = False
+    _is_runing_update_rating = False
     _is_runing_cache = False
     _bangumi_id = ""
     _media_info = []
@@ -86,7 +86,7 @@ class Bangumi(_PluginBase):
         "title": None,
         "original_title": None,
         "subject_id": None,
-        "rank": None,
+        "rating": None,
         "status": None,
         "synced": False
     }
@@ -99,7 +99,7 @@ class Bangumi(_PluginBase):
             self._select_servers = config.get("select_servers")
             self._update_nfo = config.get("update_nfo")
             self._update_nfo_all_once = config.get("update_nfo_all_once")
-            self._sycn_subscribe_rank = config.get("sync_subscribe_rank")
+            self._sycn_subscribe_rating = config.get("sync_subscribe_rating")
             self._library_path = config.get("library_path")
             self._interval = config.get("interval")
         
@@ -114,7 +114,7 @@ class Bangumi(_PluginBase):
             test_info["title"] = "test"
             test_info["original_title"] = "test"
             test_info["subject_id"] = "test"
-            test_info["rank"] = "test"
+            test_info["rating"] = "test"
             test_info["status"] = "test"
             test_info["synced"] = False
 
@@ -150,8 +150,8 @@ class Bangumi(_PluginBase):
                 thread = threading.Thread(target=self.update_nfo_all_once)
                 thread.start()
             # 更新订阅页面评分
-            if self._sycn_subscribe_rank and not self._is_runing_update_rank:
-                thread = threading.Thread(target=self.update_subscribe_rank)
+            if self._sycn_subscribe_rating and not self._is_runing_update_rating:
+                thread = threading.Thread(target=self.update_subscribe_rating)
                 thread.start()
 
     def __update_config(self):
@@ -163,7 +163,7 @@ class Bangumi(_PluginBase):
             "select_servers": self._select_servers,
             "update_nfo": self._update_nfo,
             "update_nfo_all_once": self._update_nfo_all_once,
-            "sync_subscribe_rank": self._sycn_subscribe_rank,
+            "sync_subscribe_rating": self._sycn_subscribe_rating,
             "library_path": self._library_path,
             "interval": self._interval
         })
@@ -290,7 +290,7 @@ class Bangumi(_PluginBase):
                                     {
                                         'component': 'VSwitch',
                                         'props': {
-                                            'model': 'sync_subscribe_rank',
+                                            'model': 'sync_subscribe_rating',
                                             'label': '使用Bangumi评分更新订阅页面评分',
                                         }
                                     }
@@ -395,7 +395,7 @@ class Bangumi(_PluginBase):
             "select_servers": [],
             "update_nfo": False,
             "update_nfo_all_once": False,
-            "sync_subscribe_rank": False,
+            "sync_subscribe_rating": False,
             "library_path": "",
             "interval": "60"
         }
@@ -451,7 +451,7 @@ class Bangumi(_PluginBase):
                     if media.title in [subject["title"] for subject in self._media_info]: continue
                     media_info = self.get_bangumi_info(media_info)
                     logger.info(f'运行到这里正常')
-                    logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rank']}, 状态: {media_info['status']}")
+                    logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
                     self._media_info.append(media_info)
             else:
                 # 如果已存在于缓存中，跳过
@@ -459,7 +459,7 @@ class Bangumi(_PluginBase):
                 media_info["title"] = media.title
                 media_info["original_title"] = media.original_title
                 media_info = self.get_bangumi_info(media_info)
-                logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rank']}, 状态: {media_info['status']}")
+                logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
                 self._media_info.append(media_info)
         # 保存缓存
         self.save_data("mediainfo", self._media_info)
@@ -506,7 +506,7 @@ class Bangumi(_PluginBase):
         new_media_info["title"] = info['title']
         new_media_info["original_title"] = info['original_title']
         new_media_info["subject_id"] = None
-        new_media_info["rank"] = None
+        new_media_info["rating"] = None
         new_media_info["status"] = None
         new_media_info["synced"] = False
 
@@ -520,7 +520,7 @@ class Bangumi(_PluginBase):
             return new_media_info
         new_media_info["subject_id"] = subject_id
         # 获取评分
-        new_media_info['rank'] = self.get_rank(subject_id)
+        new_media_info['rating'] = self.get_rating(subject_id)
         # 检查收藏状态
         status = self.get_collection_status(subject_id)
         new_media_info["status"] = status
@@ -601,7 +601,7 @@ class Bangumi(_PluginBase):
             return None
     
     # 获取条目评分
-    def get_rank(self, subject_id: str):
+    def get_rating(self, subject_id: str):
         url = f"https://api.bgm.tv/subject/{subject_id}"
         headers = {
             "accept": "application/json",
@@ -614,7 +614,7 @@ class Bangumi(_PluginBase):
 
         if res.status_code == 200:
             try:
-                rank = res.json().get("rating").get("score")
+                rating = res.json().get("rating").get("score")
             except (AttributeError, KeyError, TypeError):
                 return None
             return res.json().get("rating").get("score") == 0 and 0 or res.json().get("rating").get("score")
@@ -651,21 +651,21 @@ class Bangumi(_PluginBase):
     # 更新NFO文件的评分
     def update_nfo(self, file_path: str, subject_id: str):
         # 获取评分
-        rank = self.get_rank(subject_id)
-        if rank == None: return False
+        rating = self.get_rating(subject_id)
+        if rating == None: return False
 
         # 更新NFO
         if not os.path.exists(file_path):
             return False
         with open(file_path, 'r') as file:
             content = file.read()
-        content = re.sub(r'<rating>.*?</rating>', f'<rating>{rank}</rating>', content)
+        content = re.sub(r'<rating>.*?</rating>', f'<rating>{rating}</rating>', content)
         if re.search(r'<rating>.*?</rating>', content) == None:
             logger.info(f"{file_path} 中没有rating字段")
             return False
         with open(file_path, 'w') as file:
             file.write(content)
-            logger.info(f"更新{file_path}的评分为{rank}")
+            logger.info(f"更新{file_path}的评分为{rating}")
             return True
     
     # 更新所有已入库的NFO文件
@@ -721,9 +721,9 @@ class Bangumi(_PluginBase):
         return title
     
     # 更新订阅页面评分
-    def update_subscribe_rank(self):
-        if self._is_runing_update_rank: return
-        self._is_runing_update_rank = True
+    def update_subscribe_rating(self):
+        if self._is_runing_update_rating: return
+        self._is_runing_update_rating = True
         logger.info("开始更新订阅页面评分")
         db = ScopedSession
         results = db.query(Subscribe).all()
@@ -736,14 +736,14 @@ class Bangumi(_PluginBase):
                 title = title + chinese_season
             subject_id = self.search_subject(title)
             if subject_id == None: continue
-            rank = self.get_rank(subject_id)
-            if rank == None: continue
+            rating = self.get_rating(subject_id)
+            if rating == None: continue
             # 更新订阅评分
-            subscribe.vote = rank
+            subscribe.vote = rating
         db.commit()
         db.close()
         logger.info("订阅页面评分更新完成")
-        self._is_runing_update_rank = False
+        self._is_runing_update_rating = False
 
     # 去除名字中的 "S01" 和 "E0X" ，并将 "S02" 之后并转换为中文 第二季等
     def name_season_convert(self, name : str) -> str:
