@@ -32,7 +32,7 @@ class BangumiInfo(Base):
 
     @staticmethod
     @db_update
-    def empty(db: Session, title: str):
+    def empty(db: Session):
         db.query(BangumiInfo).delete()
 
 

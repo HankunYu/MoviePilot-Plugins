@@ -107,20 +107,11 @@ class Bangumi(_PluginBase):
         if self._clear_cache:
             self.clear_cache()
             self._clear_cache = False
-            self._oper.empty("")
+            self._oper.empty()
             self.__update_config()
         if self._enabled:
 
             self.check_table()
-            test_info = self.mediainfo
-            test_info["title"] = "test"
-            test_info["original_title"] = "test"
-            test_info["subject_id"] = "test"
-            test_info["rating"] = "test"
-            test_info["status"] = "test"
-            test_info["synced"] = False
-
-            self._oper.add(**test_info)
             self.check_cache()
             self.login()
             logger.debug("初始化Bangumi插件")
@@ -155,6 +146,7 @@ class Bangumi(_PluginBase):
             if self._sycn_subscribe_rating and not self._is_runing_update_rating:
                 thread = threading.Thread(target=self.update_subscribe_rating)
                 thread.start()
+
     def check_table(self):
         """
         检查数据库是否存在

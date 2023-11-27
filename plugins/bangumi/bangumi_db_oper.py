@@ -25,11 +25,11 @@ class BangumiOper(DbOper):
             return True
         return False
 
-    def empty(self, title: str):
+    def empty(self):
         """
-        清空媒体服务器数据
+        清空 Bangumi 数据
         """
-        BangumiInfo.empty(self._db, title)
+        BangumiInfo.empty(self._db)
 
     def exists(self, **kwargs) -> Optional[BangumiInfo]:
         """
