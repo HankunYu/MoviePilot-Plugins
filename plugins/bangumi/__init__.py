@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.89"
+    plugin_version = "0.90"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -76,7 +76,6 @@ class Bangumi(_PluginBase):
     _is_runing_update_rating = False
     _is_runing_cache = False
     _bangumi_id = ""
-    # _media_info = []
     _max_thread = 100
     _cache_lock = threading.Lock()
     _sync_lock = threading.Lock()
@@ -124,7 +123,8 @@ class Bangumi(_PluginBase):
                     logger.error("定时任务执行间隔不是数字")
                     interval = 60
                 try:
-                    self._scheduler.add_job(self.check_all_librarys_for_sync, "interval", minutes=interval, name="Bangumi同步媒体库到已看")
+                    self._scheduler.add_job(self.check_all_librarys_for_sync, "interval", minutes=1, name="Bangumi同步媒体库到已看")
+                    logger.info(f"添加定时任务 同步媒体库到已看 成功，间隔 {interval} 分钟")
                 except Exception as e:
                     logger.error(f"添加定时任务 同步媒体库 失败: {e}")
 
@@ -551,24 +551,35 @@ class Bangumi(_PluginBase):
         return new_media_info
 
     # 同步番剧到 Bangumi 为已看
-    def sync_media_to_bangumi(self, info: mediainfo):
+    def sync_media_to_bangumi(self, info: BangumiInfo):
+        """
+        同步番剧到 Bangumi 为已看
+        """
+        media_info = self.mediainfo
+        media_info["title"] = info.title
+        media_info["original_title"] = info.original_title
+        media_info["subject_id"] = info.subject_id
+        media_info["rating"] = info.rating
+        media_info["status"] = info.status
+        media_info["synced"] = info.synced
+
         # 如果已同步，跳过
-        if info["synced"] == True: 
-            logger.info(f"{info['title']}已同步，跳过")
+        if media_info["synced"] == True: 
+            logger.info(f"{media_info['title']}已同步，跳过")
             return
         # 如果已收藏，跳过
-        if info["status"] != None:
-            logger.info(f"{info['title']}已收藏，跳过")
-            info["synced"] = True
-            self._oper.update_info(**info)
+        if media_info["status"] != None:
+            logger.info(f"{media_info['title']}已收藏，跳过")
+            media_info["synced"] = True
+            self._oper.update_info(**media_info)
             return
         # 添加收藏 为已看
-        if self.add_collections(info["subject_id"]):
-            info["synced"] = True
-            info["status"] = 3
-            if self._oper.update_info(**info): logger.info(f"{info['title']}收藏成功")
+        if self.add_collections(media_info["subject_id"]):
+            media_info["synced"] = True
+            media_info["status"] = 3
+            if self._oper.update_info(**media_info): logger.info(f"{media_info['title']}收藏成功")
         else:
-            logger.info(f"{info['title']}收藏失败")
+            logger.info(f"{media_info['title']}收藏失败")
     
     # 获取媒体库中的媒体 目标为数据库中的 MediaServerItem 表
     def get_medias_in_library(self):
