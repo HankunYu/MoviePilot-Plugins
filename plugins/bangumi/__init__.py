@@ -5,6 +5,8 @@ from app.core.event import eventmanager
 from app.core.config import settings
 from app.schemas.types import EventType
 from typing import Optional, Any, List, Dict, Tuple
+from app.db.systemconfig_oper import SystemConfigOper
+from app.schemas.types import SystemConfigKey
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -47,7 +49,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.3"
+    plugin_version = "1.0.4"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -87,8 +89,9 @@ class Bangumi(_PluginBase):
     downloadchain = None
     searchchain = None
     subscribechain = None
-
+    
     _oper = BangumiOper()
+    _info = BangumiInfo()
     mediainfo = {
         "title": None,
         "original_title": None,
@@ -98,7 +101,20 @@ class Bangumi(_PluginBase):
         "synced": False,
         "poster": None
     }
+
+    def check_version(self):
+        """
+        检查版本是否一致
+        """
+        if self.plugin_version == self._oper.plugin_version and self.plugin_version == self._info.plugin_version:
+            return True
+        return False
+    
     def init_plugin(self, config: dict = None):
+        # 检查版本
+        if not self.check_version():
+            logger.error("插件脚本版本不一致，可以考虑重建容器。MP不会自动更新除插件主脚本之外的文件")
+            return
         self.check_table()
         self.downloadchain = DownloadChain()
         self.searchchain = SearchChain()
@@ -354,6 +370,23 @@ class Bangumi(_PluginBase):
                                         }
                                     }
                                 ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VBtn',
+                                        'props': {
+                                            'text': '更新日志',
+                                            'href': 'https://github.com/HankunYu/MoviePilot-Plugins/blob/main/plugins/bangumi/README.md',
+                                            'target': '_blank',
+                                        }
+                                    }
+                                ]
                             }
                         ]
                     },
@@ -435,7 +468,7 @@ class Bangumi(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'flat',
-                                            'text': '插件只会缓存已经存在媒体库中的内容，不会显示收藏中的所有内容。少量条目因为 IMDB 标题与 Bangumi 标题不一致，会造成识别错误',
+                                            'text': '插件只会缓存已经存在媒体库中的内容，不会显示收藏中的所有内容。少量条目因为 TMDB 标题与 Bangumi 标题不一致，会造成识别错误，请自行添加识别词。',
                                         }
                                     }
                                 ]
@@ -459,6 +492,16 @@ class Bangumi(_PluginBase):
 
     # 插件详情页面
     def get_page(self) -> List[dict]:
+        if not self.check_version():
+            return [
+                {
+                    'component': 'div',
+                    'text': "插件脚本版本不一致，可以考虑重建容器。MP不会自动更新除插件主脚本之外的文件，相信很快会修复这个问题",
+                    'props': {
+                        'class': 'text-center'
+                    }
+                }
+            ]
         alert = self._is_runing_cache and "正在缓存媒体库数据..." or "未找到缓存数据，请先初始化插件"
         if self._oper.get_amount() == 0:
             return [
@@ -749,10 +792,30 @@ class Bangumi(_PluginBase):
         """
         刷新缓存
         """
-        self.clear_cache()
-        thread = threading.Thread(target=self.cache_library)
-        self._cache_thread = thread
-        thread.start()
+        # 更新媒体库中存在但没缓存的项目
+        if self._cache_thread and self._cache_thread.is_alive():
+            self._cache_thread.join()
+        else:
+            self.cache_library()
+        
+        # 更新媒体库条目的数据 评分、状态
+        for info in self._oper.get_all_bangumi():
+            mediainfo = self.mediainfo
+            mediainfo["title"] = info.title
+            mediainfo["original_title"] = info.original_title
+            mediainfo["subject_id"] = info.subject_id
+            mediainfo["rating"] = info.rating
+            mediainfo["status"] = info.status
+            mediainfo["synced"] = info.synced
+            mediainfo["poster"] = info.poster
+            # 获取所有媒体信息
+            new_info = self.get_bangumi_info(mediainfo)
+            if new_info == mediainfo:
+                continue
+            # 更新媒体信息
+            if not self._oper.update_info(**new_info):
+                logger.error(f"更新媒体信息失败: {new_info['title']}")
+        logger.info("更新缓存完成")
 
     def check_cache(self):
         """
@@ -799,13 +862,15 @@ class Bangumi(_PluginBase):
                         season_number = int(season)
                         # 第二季以上才需要加季数
                         if season_number > 1:
-                            chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"]
-                            chinese_season = " 第" + chinese_number[season_number] + "季"
-                            media_info['title']= media.title + chinese_season
+                            try:
+                                chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五"]
+                                chinese_season = " 第" + chinese_number[season_number] + "季"
+                                media_info['title']= media.title + chinese_season
+                                media_info['original_title']= media.original_title + chinese_season
+                            except IndexError:
+                                logger.error(f"第{season_number}季转换为中文失败")
                         else:
                             media_info["title"] = media.title
-
-                        media_info["original_title"] = media.original_title
                         # 如果已存在于缓存中，跳过
                         if self._oper.exists(title = media_info['title']):
                             # logger.info(f"{media_info['title']} 已存在于缓存中，跳过")
@@ -857,7 +922,7 @@ class Bangumi(_PluginBase):
         登录Bangumi，获取用户UID
         """
         if self._token == "":
-            logger.info("请配置Bangumi API Token")
+            logger.error("请配置Bangumi API Token")
             return
         url = "https://api.bgm.tv/v0/me"
         headers = {
@@ -906,7 +971,6 @@ class Bangumi(_PluginBase):
         new_media_info["synced"] = info["synced"]
         return new_media_info
 
-    # 同步番剧到 Bangumi 为已看
     def sync_media_to_bangumi(self, info: BangumiInfo):
         """
         同步番剧到 Bangumi 为已看
@@ -958,6 +1022,8 @@ class Bangumi(_PluginBase):
         获取名字对应的条目ID 将移除特殊字符后进行匹配
         """
         if name == None: return None
+        # 应用自定义识别词
+        name = self.title_convert(name, False)
         # 转义
         keyword = quote(name)
         url = f"https://api.bgm.tv/search/subject/{keyword}?type=2&responseGroup=small"
@@ -1181,8 +1247,12 @@ class Bangumi(_PluginBase):
         if match:
             season_number = int(match.group(1))
             if season_number >= 2:
-                chinese_number = ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
-                chinese_season = "第" + chinese_number[season_number - 1] + "季"
+                chinese_number = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+                try:
+                    chinese_season = "第" + chinese_number[season_number - 1] + "季"
+                except IndexError:
+                    logger.error(f"第{season_number}季转换为中文失败")
+                    chinese_season = "第" + str(season_number) + "季"
                 string = re.sub(r'S\d{2}', chinese_season, string)
 
                 # 去除 "E0X"
@@ -1259,6 +1329,8 @@ class Bangumi(_PluginBase):
         # 检查本地是否已经存在
         wish_list_not_exist = []
         for wish in wish_list:
+            # 应用自定义识别词
+            wish = self.title_convert(wish, True)
             if not self._oper.exists(title = wish):
                 wish_list_not_exist.append(wish)
         if len(wish_list_not_exist) == 0: return
@@ -1310,6 +1382,7 @@ class Bangumi(_PluginBase):
         mediainfo = self.mediainfo
         mediainfo["title"] = title
         mediainfo = self.get_bangumi_info(mediainfo)
+        mediainfo["synced"] = True
         if mediainfo['subject_id'] == None: return
         self._oper.add(**mediainfo)
 
@@ -1366,8 +1439,52 @@ class Bangumi(_PluginBase):
             else:
                 logger.error(f'{nfo_file} 不存在')
 
-        
+    def title_convert(self, title: str, bangumi_to_tmdb: bool) -> str:
+        """
+        预处理标题
+        bool 如果是 True 则是 Bangumi 转 TMDB，否则是 TMDB 转 Bangumi
+        """  
+        apply_words = []
+        old_title = title
+        words: List[str] = self.systemconfig.get(SystemConfigKey.CustomIdentifiers) or []
+        for word in words:
+            if not word:
+                continue
+            try:
+                if word.count(" => "):
+                    # 替换词
+                    strings = word.split(" => ")
+                    if bangumi_to_tmdb:
+                        title, message, state = self.__replace_regex(title, strings[0], strings[1])
+                    else:
+                        title, message, state = self.__replace_regex(title, strings[1], strings[0])
+                # 感觉用不到屏蔽词？
+                # else:
+                #     # 屏蔽词
+                #     title, message, state = self.__replace_regex(title, word, "")
+                if state:
+                    apply_words.append(word)
+                    logger.info(f'应用自定义识别词 {old_title} => {title}')
 
+            except Exception as err:
+                print(str(err))
+
+        return title
+    
+    @staticmethod
+    def __replace_regex(title: str, replaced: str, replace: str) -> Tuple[str, str, bool]:
+        """
+        正则替换
+        """
+        try:
+            if not re.findall(r'%s' % replaced, title):
+                return title, "", False
+            else:
+                return re.sub(r'%s' % replaced, r'%s' % replace, title), "", True
+        except Exception as err:
+            print(str(err))
+            return title, str(err), False
+        
     def stop_service(self):
         """
         退出插件

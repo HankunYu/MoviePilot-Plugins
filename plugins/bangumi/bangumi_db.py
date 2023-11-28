@@ -8,6 +8,7 @@ from app.db.models import Base, db_update
 
 
 class BangumiInfo(Base):
+    plugin_version = "1.0.4"
     """
     Bangumi 数据表
     """
