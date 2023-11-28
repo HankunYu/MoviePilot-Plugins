@@ -1478,6 +1478,7 @@ class Bangumi(_PluginBase):
             if not word:
                 continue
             try:
+                state = False
                 if word.count(" => "):
                     # 替换词
                     strings = word.split(" => ")
