@@ -993,11 +993,11 @@ class Bangumi(_PluginBase):
         if new_media_info["subject_id"] == None:
             return new_media_info
         # 获取海报
-        new_media_info["poster"] = self.get_poster(subject_id)
+        new_media_info["poster"] = self.get_poster(new_media_info["subject_id"])
         # 获取评分
-        new_media_info['rating'] = self.get_rating(subject_id)
+        new_media_info['rating'] = self.get_rating(new_media_info["subject_id"])
         # 检查收藏状态
-        status = self.get_collection_status(subject_id)
+        status = self.get_collection_status(new_media_info["subject_id"])
         new_media_info["status"] = status
         # copy是否已同步
         new_media_info["synced"] = info["synced"]
