@@ -15,6 +15,7 @@ from app.db.models.mediaserver import MediaServerItem
 from app.db.models.subscribe import Subscribe
 from app.db import db_query
 from app.db.models import Base, db_update
+from app.core.metainfo import MetaInfo
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -46,7 +47,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.135"
+    plugin_version = "0.136"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -68,7 +69,7 @@ class Bangumi(_PluginBase):
     _update_nfo = False
     _update_nfo_all_once = False
     _library_path = ""
-    _cron = ""
+    _enable_download_wish = False
     _clear_cache = False
 
     _is_runing_sync = False
@@ -82,6 +83,10 @@ class Bangumi(_PluginBase):
     _user_agent = "hankunyu/moviepilot_plugin (https://github.com/HankunYu/MoviePilot-Plugins)"
     _scheduler: Optional[BackgroundScheduler] = None
 
+    downloadchain = None
+    searchchain = None
+    subscribechain = None
+
     _oper = BangumiOper()
     mediainfo = {
         "title": None,
@@ -94,6 +99,11 @@ class Bangumi(_PluginBase):
     }
     def init_plugin(self, config: dict = None):
         self.check_table()
+        self.downloadchain = DownloadChain()
+        self.searchchain = SearchChain()
+        self.subscribechain = SubscribeChain()
+        self.stop_service()
+
         if config:
             self._enabled = config.get("enabled")
             self._clear_cache = config.get("clear_cache")
@@ -104,7 +114,7 @@ class Bangumi(_PluginBase):
             self._update_nfo_all_once = config.get("update_nfo_all_once")
             self._sycn_subscribe_rating = config.get("sync_subscribe_rating")
             self._library_path = config.get("library_path")
-            self._cron = config.get("cron")
+            self._enable_download_wish = config.get("enable_download_wish")
         
         # 清除缓存
         if self._clear_cache:
@@ -121,10 +131,25 @@ class Bangumi(_PluginBase):
                 try:
                     self._scheduler.add_job(self.check_all_librarys_for_sync, 
                                             "interval",
-                                            minutes=7200,
+                                            hours=1,
                                             name = "同步媒体库到Bangumi为已看")
                 except Exception as e:
                     logger.error(f"定时任务添加失败: {e}")
+            if self._enable_download_wish:
+                try:
+                    self._scheduler.add_job(self.download_wish, 
+                                            "interval",
+                                            minutes=30,
+                                            name = "自动下载Bangumi收藏中的想看")
+                except Exception as e:
+                    logger.error(f"定时任务添加失败: {e}")
+            try:
+                self._scheduler.add_job(self.refresh_cache, 
+                                        "interval",
+                                        days = 1,
+                                        name = "定时更新缓存")
+            except Exception as e:
+                logger.error(f"定时任务添加失败: {e}")
 
             # 运行一次同步到Bangumi
             if self._enable_sync and not self._is_runing_sync and not self._is_runing_cache:
@@ -180,7 +205,7 @@ class Bangumi(_PluginBase):
             "update_nfo_all_once": self._update_nfo_all_once,
             "sync_subscribe_rating": self._sycn_subscribe_rating,
             "library_path": self._library_path,
-            "cron": self._cron
+            "enable_download_wish": self._enable_download_wish,
         })
 
     def get_state(self) -> bool:
@@ -305,6 +330,22 @@ class Bangumi(_PluginBase):
                                     {
                                         'component': 'VSwitch',
                                         'props': {
+                                            'model': 'enable_download_wish',
+                                            'label': '自动下载/订阅 收藏中的"想看"',
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
                                             'model': 'clear_cache',
                                             'label': '清除缓存',
                                         }
@@ -356,7 +397,7 @@ class Bangumi(_PluginBase):
                                         'component': 'VTextarea',
                                         'props': {
                                             'model': 'library_path',
-                                            'label': '动漫媒体库路径',
+                                            'label': '动漫媒体库路径(用于处理已入库的nfo文件)',
                                             'placeholder': '如果有剧场版就包括电影路径。一行一个路径。',
                                             'rows': 3,
                                         }
@@ -369,20 +410,20 @@ class Bangumi(_PluginBase):
                         'component': 'VRow',
                         'content': [
                             {
-                                'component': 'VCol',
+                                'component': 'VAlert',
                                 'props': {
-                                    'cols': 12,
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VAlert',
-                                        'props': {
-                                            'type': 'info',
-                                            'variant': 'flat',
-                                            'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token\n第一次启用会扫描并缓存所有媒体库中的番剧，可能会花费较长时间，请耐心等待',
-                                        }
-                                    }
-                                ]
+                                    'type': 'info',
+                                    'variant': 'flat',
+                                    'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token；第一次启用会扫描并缓存所有媒体库中的番剧，可能会花费较长时间，请耐心等待',
+                                }
+                            },
+                            {
+                                'component': 'VAlert',
+                                'props': {
+                                    'type': 'info',
+                                    'variant': 'flat',
+                                    'text': '插件只会缓存已经存在媒体库中的内容，不会显示收藏中的所有内容',
+                                }
                             }
                         ]
                     }
@@ -398,14 +439,17 @@ class Bangumi(_PluginBase):
             "update_nfo_all_once": False,
             "sync_subscribe_rating": False,
             "library_path": "",
+            "enable_download_wish": False,
         }
 
+    # 插件详情页面
     def get_page(self) -> List[dict]:
+        alert = self._is_runing_cache and "正在缓存媒体库数据..." or "未找到缓存数据，请先初始化插件"
         if self._oper.get_amount() == 0:
             return [
                 {
                     'component': 'div',
-                    'text': '暂无数据',
+                    'text': alert,
                     'props': {
                         'class': 'text-center'
                     }
@@ -415,8 +459,9 @@ class Bangumi(_PluginBase):
         contents_wish = []
         contents_watched = []
         contents_watching = []
+        contents_stopped = []
         contents_dropped = []
-        status_list = ["想看", "看过", "在看", "抛弃"]
+        status_list = ["想看", "看过", "在看", "搁置", "抛弃"]
         value = "activeTab"
         for item in info:
             content = ({
@@ -483,6 +528,8 @@ class Bangumi(_PluginBase):
             elif item.status == "3":
                 contents_watching.append(content)
             elif item.status == "4":
+                contents_stopped.append(content)
+            elif item.status == "5":
                 contents_dropped.append(content)
         """
         # Tabs 不能与 VWindowItem 互动， 目测因为 v-model 值写死了？
@@ -545,7 +592,21 @@ class Bangumi(_PluginBase):
                             {
                                 'component': 'VTab',
                                 'props': {
-                                    'value': 'dropped',
+                                    'value': 'stopped',
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VLabel',
+                                        'props': {
+                                            'text': '搁置',
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VTab',
+                                'props': {
+                                    'value': 'stopped',
                                 },
                                 'content': [
                                     {
@@ -593,6 +654,14 @@ class Bangumi(_PluginBase):
                                 'component': 'VWindowItem',
                                 'props': {
                                     'class': 'grid gap-3 grid-info-card',
+                                    'value': 'stopped',
+                                },
+                                'content': contents_stopped
+                            },
+                            {
+                                'component': 'VWindowItem',
+                                'props': {
+                                    'class': 'grid gap-3 grid-info-card',
                                     'value': 'dropped',
                                 },
                                 'content': contents_dropped
@@ -603,10 +672,10 @@ class Bangumi(_PluginBase):
             }
         ]
         """
-        return [
-            {
-                'component': 'div',
-                'content': [
+        
+        pages = []
+        for status in status_list:
+            part = [
                     {
                         'component': 'VCardTitle',
                         'props': {
@@ -615,7 +684,7 @@ class Bangumi(_PluginBase):
                             {
                                 'component': 'VLabel',
                                 'props': {
-                                    'text': '想看',
+                                    'text': status,
                                     'class': 'text-h4'
                                 }
                             }
@@ -639,130 +708,7 @@ class Bangumi(_PluginBase):
                         'props': {
                             'class': 'grid gap-3 grid-info-card',
                         },
-                        'content': contents_wish
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 2,
-                            'class': 'border-opacity-0'
-                        }
-                    },
-                    {
-                        'component': 'VCardTitle',
-                        'props': {
-                        },
-                        'content':[
-                            {
-                                'component': 'VLabel',
-                                'props': {
-                                    'text': '在看',
-                                    'class': 'text-h4'
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 2,
-                        }
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 10,
-                            'class': 'border-opacity-0'
-                        }
-                    },
-                    {
-                        'component': 'div',
-                        'props': {
-                            'class': 'grid gap-3 grid-info-card',
-                        },
-                        'content': contents_watching
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 2,
-                            'class': 'border-opacity-0'
-                        }
-                    },
-                    {
-                        'component': 'VCardTitle',
-                        'props': {
-                        },
-                        'content':[
-                            {
-                                'component': 'VLabel',
-                                'props': {
-                                    'text': '看过',
-                                    'class': 'text-h4'
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 2,
-                        }
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 10,
-                            'class': 'border-opacity-0'
-                        }
-                    },
-                    {
-                        'component': 'div',
-                        'props': {
-                            'class': 'grid gap-3 grid-info-card',
-                        },
-                        'content': contents_watched
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 2,
-                            'class': 'border-opacity-0'
-                        }
-                    },
-                    {
-                        'component': 'VCardTitle',
-                        'props': {
-                        },
-                        'content':[
-                            {
-                                'component': 'VLabel',
-                                'props': {
-                                    'text': '抛弃',
-                                    'class': 'text-h4'
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 2,
-                        }
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 10,
-                            'class': 'border-opacity-0'
-                        }
-                    },
-                    {
-                        'component': 'div',
-                        'props': {
-                            'class': 'grid gap-3 grid-info-card',
-                        },
-                        'content': contents_dropped
+                        'content': status == "想看" and contents_wish or status == "看过" and contents_watched or status == "在看" and contents_watching or status == "搁置" and contents_stopped or contents_dropped
                     },
                     {
                         'component': 'VDivider',
@@ -772,10 +718,23 @@ class Bangumi(_PluginBase):
                         }
                     },
                 ]
+            pages.append(part)
+
+        return [
+            {
+                'component': 'div',
+                'content': pages
             }
         ]
 
-    
+    def refresh_cache(self):
+        """
+        刷新缓存
+        """
+        self.clear_cache()
+        thread = threading.Thread(target=self.cache_library)
+        thread.start()
+
     def check_cache(self):
         """
         检查缓存是否存在，不存在则初始化
@@ -784,6 +743,8 @@ class Bangumi(_PluginBase):
             logger.info("没有找到缓存，初始化列表")
             thread = threading.Thread(target=self.cache_library)
             thread.start()
+            return False
+        return True
     
     def clear_cache(self):
         """
@@ -1264,7 +1225,69 @@ class Bangumi(_PluginBase):
         else:
             return None
     
+    def dowload_wish(self):
+        if not self.check_cache() or self._is_runing_cache: return
+        wish_list = self.get_wish()
+        # 检查本地是否已经存在
+        wish_list_not_exist = []
+        for wish in wish_list:
+            if not self._oper.exists(title = wish):
+                wish_list_not_exist.append(wish)
+        if len(wish_list_not_exist) == 0: return
+        for wish in wish_list_not_exist:
+            self.download_by_title(wish)
 
+    def download_by_title(self, title: str):
+        """
+        通过标题下载
+        """
+        meta = MetaInfo(title = title)
+        mediainfo = self.chain.recognize_media(meta=meta)
+        if not mediainfo:
+            logger.warn(f"无法识别到媒体信息 {title}")
+            return
+        logger.info(f'开始搜索 {title}')
+        exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
+        if exist_flag:
+            logger.info(f'{mediainfo.title_year} 已存在')
+            return
+        contexts = self.searchchain.process(mediainfo=mediainfo, no_exists=no_exists)
+        if not contexts:
+            logger.warn(f'{mediainfo.title_year} 未搜索到资源')
+            # 添加订阅
+            self.subscribechain.add(title=mediainfo.title,
+                                    year=mediainfo.year,
+                                    mtype=mediainfo.type,
+                                    tmdbid=mediainfo.tmdb_id,
+                                    season=meta.begin_season,
+                                    exist_ok=True,
+                                    username="Bangumi 想看 订阅")
+            return
+        # 自动下载
+        downloads, lefts = self.downloadchain.batch_download(contexts=contexts, no_exists=no_exists,
+                                                                                 username="Bangumi 想看 下载")
+        if downloads and not lefts:
+            logger.info(f'{mediainfo.title_year} 下载完成')
+        else:
+            logger.info(f'{mediainfo.title_year} 未下载未完整，添加订阅 ...')
+            self.subscribechain.add(title=mediainfo.title,
+                                                        year=mediainfo.year,
+                                                        mtype=mediainfo.type,
+                                                        tmdbid=mediainfo.tmdb_id,
+                                                        season=meta.begin_season,
+                                                        exist_ok=True,
+                                                        username="Bangumi 想看 订阅")
+        # 新增项目到缓存 避免重复下载
+        mediainfo = self.mediainfo
+        mediainfo["title"] = title
+        mediainfo = self.get_bangumi_info(mediainfo)
+        if mediainfo['subject_id'] == None: return
+        self._oper.add(**mediainfo)
+
+        
+
+
+        
     @eventmanager.register(EventType.TransferComplete)
     def update_nfo_by_event(self, event):
         
