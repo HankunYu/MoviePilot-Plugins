@@ -892,7 +892,8 @@ class Bangumi(_PluginBase):
                                 chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五"]
                                 chinese_season = " 第" + chinese_number[season_number] + "季"
                                 media_info['title']= media.title + chinese_season
-                                media_info['original_title']= media.original_title + chinese_season
+                                if media.original_title != None:
+                                    media_info['original_title']= media.original_title + chinese_season
                             except IndexError:
                                 logger.error(f"第{season_number}季转换为中文失败")
                         else:
