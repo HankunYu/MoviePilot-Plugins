@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.133"
+    plugin_version = "0.134"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -417,7 +417,7 @@ class Bangumi(_PluginBase):
         contents_watching = []
         contents_dropped = []
         status_list = ["想看", "看过", "在看", "抛弃"]
-        value = "tab"
+        value = "activeTab"
         for item in info:
             content = ({
                 'component': 'VCard',
@@ -484,8 +484,8 @@ class Bangumi(_PluginBase):
                 contents_watching.append(content)
             elif item.status == "4":
                 contents_dropped.append(content)
-        """
-        Tabs 不能与 VWindowItem 互动， 目测因为 v-model 值写死了？
+
+        # Tabs 不能与 VWindowItem 互动， 目测因为 v-model 值写死了？
         return [
             {
                 'component': 'div',
@@ -494,6 +494,7 @@ class Bangumi(_PluginBase):
                         "component": "VTabs",
                         "props": {
                             "model-value": value,
+                            'v-model': value,
                             "grow": True,
                             "centered": True,
                             "class": "text-center"
@@ -502,7 +503,7 @@ class Bangumi(_PluginBase):
                             {
                                 'component': 'VTab',
                                 'props': {
-                                    'value': 1,
+                                    'value': 'wish',
                                 },
                                 'content': [
                                     {
@@ -516,7 +517,7 @@ class Bangumi(_PluginBase):
                             {
                                 'component': 'VTab',
                                 'props': {
-                                    'value': 2,
+                                    'value': 'watched',
                                 },
                                 'content': [
                                     {
@@ -530,7 +531,7 @@ class Bangumi(_PluginBase):
                             {
                                 'component': 'VTab',
                                 'props': {
-                                    'value': 3,
+                                    'value': 'watching',
                                 },
                                 'content': [
                                     {
@@ -544,7 +545,7 @@ class Bangumi(_PluginBase):
                             {
                                 'component': 'VTab',
                                 'props': {
-                                    'value': 4,
+                                    'value': 'dropped',
                                 },
                                 'content': [
                                     {
@@ -561,14 +562,14 @@ class Bangumi(_PluginBase):
                         'component': 'VWindow',
                         'props': {
                             "model-value": value,
-                            "show-arrows": True,
+                            'v-model': value,
                         },
                         'content': [
                             {
                                 'component': 'VWindowItem',
                                 'props': {
                                     'class': 'grid gap-3 grid-info-card',
-                                    'value': 1,
+                                    'value': 'wish',
                                 },
                                 'content': contents_wish
                             },
@@ -576,7 +577,7 @@ class Bangumi(_PluginBase):
                                 'component': 'VWindowItem',
                                 'props': {
                                     'class': 'grid gap-3 grid-info-card',
-                                    'value': 2,
+                                    'value': 'watched',
                                 },
                                 'content': contents_watched
                             },
@@ -584,7 +585,7 @@ class Bangumi(_PluginBase):
                                 'component': 'VWindowItem',
                                 'props': {
                                     'class': 'grid gap-3 grid-info-card',
-                                    'value': 3,
+                                    'value': 'watching',
                                 },
                                 'content': contents_watching
                             },
@@ -592,7 +593,7 @@ class Bangumi(_PluginBase):
                                 'component': 'VWindowItem',
                                 'props': {
                                     'class': 'grid gap-3 grid-info-card',
-                                    'value': 4,
+                                    'value': 'dropped',
                                 },
                                 'content': contents_dropped
                             },
@@ -745,6 +746,7 @@ class Bangumi(_PluginBase):
                 ]
             }
         ]
+        """
 
     
     def check_cache(self):
