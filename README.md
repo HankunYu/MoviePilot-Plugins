@@ -5,6 +5,8 @@ MoviePilot官方插件市场：https://raw.githubusercontent.com/jxxghp/MoviePil
 
 添加 https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/ 到 PLUGIN_MARKET
 
+请别使用版本0.x开头的插件，还在开发中...
+
 ---
 
 ### [Discord 消息推送插件](plugins/discord/README.md)
