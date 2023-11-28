@@ -895,6 +895,8 @@ class Bangumi(_PluginBase):
                                 media_info['title']= media.title + chinese_season
                                 if media.original_title != None:
                                     media_info['original_title']= media.original_title + chinese_season
+                                else:
+                                    media_info['original_title']= None
                             except IndexError:
                                 logger.error(f"第{season_number}季转换为中文失败")
                         else:
@@ -1071,19 +1073,23 @@ class Bangumi(_PluginBase):
             results = res.json().get("list")
             if results == None: return None
             for result in results:
-                clear_name = re.sub(r'[\W_]+', '',name)
-                result_name = re.sub(r'[\W_]+', '',result.get("name"))
-                result_name_cn = re.sub(r'[\W_]+', '',result.get("name_cn"))
-                if result_name == clear_name or result_name_cn == clear_name:
+                # 完全匹配
+                if result.get("name") == name or result.get("name_cn") == name:
                     return result.get("id")
-                else:
-                    # 尝试移除罗马字符
-                    pattern = re.compile(r'[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩIVX]')
-                    result_name = re.sub(pattern, '',result_name)
-                    result_name_cn = re.sub(pattern, '',result_name_cn)
-                    name = re.sub(pattern, '',name)
-                    if result_name == name or result_name_cn == name:
-                        return result.get("id")
+                # 使用自定义识别词搞这个
+                # # 尝试移除特殊字符匹配
+                # clear_name = re.sub(r'[\W_]+', '',name)
+                # result_name = re.sub(r'[\W_]+', '',result.get("name"))
+                # result_name_cn = re.sub(r'[\W_]+', '',result.get("name_cn"))
+                # if result_name == clear_name or result_name_cn == clear_name:
+                #     return result.get("id")
+                # # 尝试再移除罗马字符匹配
+                # pattern = re.compile(r'[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩIVX]')
+                # result_name = re.sub(pattern, '',result_name)
+                # result_name_cn = re.sub(pattern, '',result_name_cn)
+                # name = re.sub(pattern, '',name)
+                # if result_name == name or result_name_cn == name:
+                #     return result.get("id")
         else:
             return None
     
