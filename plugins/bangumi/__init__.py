@@ -389,7 +389,15 @@ class Bangumi(_PluginBase):
                                             'text': '更新日志',
                                             'href': 'https://github.com/HankunYu/MoviePilot-Plugins/blob/main/plugins/bangumi/README.md',
                                             'target': '_blank',
-                                        }
+                                        },
+                                        'content': [
+                                            {
+                                                'component': 'VLabel',
+                                                'props': {
+                                                    'text': '更新日志',
+                                                }
+                                            }
+                                        ]
                                     }
                                 ]
                             }
