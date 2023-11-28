@@ -47,7 +47,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0"
+    plugin_version = "1.0.1"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -71,6 +71,7 @@ class Bangumi(_PluginBase):
     _library_path = ""
     _enable_download_wish = False
     _clear_cache = False
+    _cache_thread = None
 
     _is_runing_sync = False
     _is_runing_update_nfo = False
@@ -750,6 +751,7 @@ class Bangumi(_PluginBase):
         """
         self.clear_cache()
         thread = threading.Thread(target=self.cache_library)
+        self._cache_thread = thread
         thread.start()
 
     def check_cache(self):
@@ -830,7 +832,10 @@ class Bangumi(_PluginBase):
         """
         同步全部媒体库到Bangumi
         """
-        if self._is_runing_sync or self._is_runing_cache: return
+        if self._is_runing_sync: return
+        # 等待缓存完成
+        if self._is_runing_cache:
+            self._cache_thread.join()
         self._is_runing_sync = True
         self._sync_lock.acquire()
         try:
@@ -1218,8 +1223,11 @@ class Bangumi(_PluginBase):
                 return None
             wish_list = []
             for item in data:
-                logger.info(item.get("subject").get("name_cn"))
-                wish_list.append(item.get("subject").get("name_cn"))
+                name = item.get("subject").get("name_cn")
+                if name == None:
+                    name = item.get("subject").get("name")
+                logger.info(f"获取到想看 {name}")
+                wish_list.append(name)
             return wish_list
         else:
             return None
@@ -1243,7 +1251,10 @@ class Bangumi(_PluginBase):
             return None
     
     def download_wish(self):
-        if not self.check_cache() or self._is_runing_cache: return
+        if not self.check_cache(): return
+        # 等待缓存完成
+        if self._is_runing_cache:
+            self._cache_thread.join()
         wish_list = self.get_wish()
         # 检查本地是否已经存在
         wish_list_not_exist = []
@@ -1252,6 +1263,7 @@ class Bangumi(_PluginBase):
                 wish_list_not_exist.append(wish)
         if len(wish_list_not_exist) == 0: return
         for wish in wish_list_not_exist:
+            logger.info(f"开始下载 {wish}")
             self.download_by_title(wish)
 
     def download_by_title(self, title: str):
