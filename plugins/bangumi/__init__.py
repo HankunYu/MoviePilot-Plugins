@@ -112,7 +112,12 @@ class Bangumi(_PluginBase):
     
     def init_plugin(self, config: dict = None):
         # 检查版本
-        if not self.check_version():
+        on_same_version = False
+        try:
+            on_same_version = self.check_version()
+        except Exception as e:
+            logger.error("插件脚本版本不一致，可以考虑重建容器。MP不会自动更新除插件主脚本之外的文件")
+        if not on_same_version:
             logger.error("插件脚本版本不一致，可以考虑重建容器。MP不会自动更新除插件主脚本之外的文件")
             return
         self.check_table()
@@ -492,7 +497,20 @@ class Bangumi(_PluginBase):
 
     # 插件详情页面
     def get_page(self) -> List[dict]:
-        if not self.check_version():
+        on_same_version = False
+        try:
+            on_same_version = self.check_version()
+        except Exception as e:
+            return [
+                {
+                    'component': 'div',
+                    'text': "插件脚本版本不一致，可以考虑重建容器。MP不会自动更新除插件主脚本之外的文件，相信很快会修复这个问题",
+                    'props': {
+                        'class': 'text-center'
+                    }
+                }
+            ]
+        if not on_same_version:
             return [
                 {
                     'component': 'div',
