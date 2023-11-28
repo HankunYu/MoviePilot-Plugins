@@ -901,6 +901,7 @@ class Bangumi(_PluginBase):
                                 logger.error(f"第{season_number}季转换为中文失败")
                         else:
                             media_info["title"] = media.title
+                            media_info['original_title']= media.original_title
                         # 如果已存在于缓存中，跳过
                         if self._oper.exists(title = media_info['title']):
                             # logger.info(f"{media_info['title']} 已存在于缓存中，跳过")
