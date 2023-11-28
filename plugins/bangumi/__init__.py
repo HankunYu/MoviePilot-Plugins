@@ -47,7 +47,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.2"
+    plugin_version = "1.0.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -834,7 +834,7 @@ class Bangumi(_PluginBase):
         """
         if self._is_runing_sync: return
         # 等待缓存完成
-        if self._is_runing_cache:
+        if self._cache_thread and self._cache_thread.is_alive():
             self._cache_thread.join()
         self._is_runing_sync = True
         self._sync_lock.acquire()
@@ -1253,7 +1253,7 @@ class Bangumi(_PluginBase):
     def download_wish(self):
         if not self.check_cache(): return
         # 等待缓存完成
-        if self._is_runing_cache:
+        if self._cache_thread and self._cache_thread.is_alive():
             self._cache_thread.join()
         wish_list = self.get_wish()
         # 检查本地是否已经存在
