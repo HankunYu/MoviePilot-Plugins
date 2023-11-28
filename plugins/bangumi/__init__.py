@@ -49,7 +49,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.4"
+    plugin_version = "1.0.5"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -1377,6 +1377,23 @@ class Bangumi(_PluginBase):
         通过标题下载
         """
         meta = MetaInfo(title = title)
+        # 识别季数
+        partten = re.compile(r'第([一二三四五六七八九十]{1})季')
+        chinese_to_number = {
+            "一": 1,
+            "二": 2,
+            "三": 3,
+            "四": 4,
+            "五": 5,
+            "六": 6,
+            "七": 7,
+            "八": 8,
+            "九": 9,
+            "十": 10
+        }
+        if partten.match(title):
+            season = chinese_to_number[partten.match(title).group(1)]
+            meta.begin_season = season
         mediainfo = self.chain.recognize_media(meta=meta)
         if not mediainfo:
             logger.warn(f"无法识别到媒体信息 {title}")
@@ -1416,8 +1433,8 @@ class Bangumi(_PluginBase):
         mediainfo = self.mediainfo
         mediainfo["title"] = title
         mediainfo = self.get_bangumi_info(mediainfo)
-        mediainfo["synced"] = True
-        if mediainfo['subject_id'] == None: return
+        if mediainfo["subject_id"] != None:
+            mediainfo["synced"] = True
         self._oper.add(**mediainfo)
 
         
