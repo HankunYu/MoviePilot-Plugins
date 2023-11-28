@@ -826,7 +826,7 @@ class Bangumi(_PluginBase):
             self.cache_library()
         
         # 更新媒体库条目的数据 评分、状态
-        for info in self._oper.get_all_bangumi():
+        for info in self._oper.get_all():
             mediainfo = self.mediainfo
             mediainfo["title"] = info.title
             mediainfo["original_title"] = info.original_title
@@ -976,21 +976,22 @@ class Bangumi(_PluginBase):
         new_media_info = self.mediainfo
         new_media_info["title"] = info['title']
         new_media_info["original_title"] = info['original_title']
-        new_media_info["subject_id"] = None
+        new_media_info["subject_id"] = info['subject_id']
         new_media_info["rating"] = None
         new_media_info["status"] = None
         new_media_info["synced"] = False
         new_media_info["poster"] = None
 
-        # 获取条目ID
-        subject_id = self.search_subject(new_media_info["title"])
-        # 如果没有找到条目ID，尝试使用原始名称
-        if subject_id == None:
-            subject_id = self.search_subject(new_media_info["original_title"])
+        if new_media_info["subject_id"] == None:
+            # 获取条目ID
+            subject_id = self.search_subject(new_media_info["title"])
+            # 如果没有找到条目ID，尝试使用原始名称
+            if subject_id == None:
+                subject_id = self.search_subject(new_media_info["original_title"])
+            new_media_info["subject_id"] = subject_id
         # 如果没有找到条目ID，跳过
-        if subject_id == None:
+        if new_media_info["subject_id"] == None:
             return new_media_info
-        new_media_info["subject_id"] = subject_id
         # 获取海报
         new_media_info["poster"] = self.get_poster(subject_id)
         # 获取评分
