@@ -46,7 +46,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.134"
+    plugin_version = "0.135"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -484,7 +484,7 @@ class Bangumi(_PluginBase):
                 contents_watching.append(content)
             elif item.status == "4":
                 contents_dropped.append(content)
-
+        """
         # Tabs 不能与 VWindowItem 互动， 目测因为 v-model 值写死了？
         return [
             {
@@ -628,6 +628,13 @@ class Bangumi(_PluginBase):
                         }
                     },
                     {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 10,
+                            'class': 'border-opacity-0'
+                        }
+                    },
+                    {
                         'component': 'div',
                         'props': {
                             'class': 'grid gap-3 grid-info-card',
@@ -659,6 +666,13 @@ class Bangumi(_PluginBase):
                         'component': 'VDivider',
                         'props': {
                             'thickness': 2,
+                        }
+                    },
+                    {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 10,
+                            'class': 'border-opacity-0'
                         }
                     },
                     {
@@ -696,6 +710,13 @@ class Bangumi(_PluginBase):
                         }
                     },
                     {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 10,
+                            'class': 'border-opacity-0'
+                        }
+                    },
+                    {
                         'component': 'div',
                         'props': {
                             'class': 'grid gap-3 grid-info-card',
@@ -730,6 +751,13 @@ class Bangumi(_PluginBase):
                         }
                     },
                     {
+                        'component': 'VDivider',
+                        'props': {
+                            'thickness': 10,
+                            'class': 'border-opacity-0'
+                        }
+                    },
+                    {
                         'component': 'div',
                         'props': {
                             'class': 'grid gap-3 grid-info-card',
@@ -746,7 +774,6 @@ class Bangumi(_PluginBase):
                 ]
             }
         ]
-        """
 
     
     def check_cache(self):
