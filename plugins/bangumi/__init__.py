@@ -47,7 +47,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.1"
+    plugin_version = "1.0.2"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -1224,7 +1224,7 @@ class Bangumi(_PluginBase):
             wish_list = []
             for item in data:
                 name = item.get("subject").get("name_cn")
-                if name == None:
+                if name == "":
                     name = item.get("subject").get("name")
                 logger.info(f"获取到想看 {name}")
                 wish_list.append(name)
