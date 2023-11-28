@@ -20,19 +20,10 @@
     "Bangumi": {
         "name": "Bangumi 同步",
         "description": "动漫资源引用Bangumi评分，同步订阅/库存番剧到Bangumi",
-        "version": "0.137",
+        "version": "1.0",
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/bangumi.jpg",
         "color": "#5378A4",
         "author": "hankun",
         "level": 1
     },
-    "CheckUpdate": {
-        "name": "插件更新检查",
-        "description": "手动检查一次所有插件是否有更新 - 开发Debug用",
-        "version": "0.4",
-        "icon": "download.png",
-        "color": "#66778E",
-        "author": "hankun",
-        "level": 1
-    }
 }

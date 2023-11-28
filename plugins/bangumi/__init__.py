@@ -47,7 +47,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "0.136"
+    plugin_version = "1.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -136,6 +136,8 @@ class Bangumi(_PluginBase):
                 except Exception as e:
                     logger.error(f"定时任务添加失败: {e}")
             if self._enable_download_wish:
+                thread = threading.Thread(target=self.download_wish)
+                thread.start()
                 try:
                     self._scheduler.add_job(self.download_wish, 
                                             "interval",
@@ -331,7 +333,7 @@ class Bangumi(_PluginBase):
                                         'component': 'VSwitch',
                                         'props': {
                                             'model': 'enable_download_wish',
-                                            'label': '自动下载/订阅 收藏中的"想看"',
+                                            'label': '自动下载/订阅收藏中的"想看"',
                                         }
                                     }
                                 ]
@@ -407,23 +409,35 @@ class Bangumi(_PluginBase):
                         ]
                     },
                     {
-                        'component': 'VCol',
+                        'component': 'VRow',
                         'content': [
                             {
-                                'component': 'VAlert',
-                                'props': {
-                                    'type': 'info',
-                                    'variant': 'flat',
-                                    'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token；第一次启用会扫描并缓存所有媒体库中的番剧，可能会花费较长时间，请耐心等待',
-                                }
-                            },
-                            {
-                                'component': 'VAlert',
-                                'props': {
-                                    'type': 'info',
-                                    'variant': 'flat',
-                                    'text': '插件只会缓存已经存在媒体库中的内容，不会显示收藏中的所有内容',
-                                }
+                                'component': 'VCol',
+                                'content': [
+                                    {
+                                        'component': 'VAlert',
+                                        'props': {
+                                            'type': 'info',
+                                            'variant': 'flat',
+                                            'text': '请到 https://next.bgm.tv/demo/access-token 申请 API Token；第一次启用会扫描并缓存所有媒体库中的番剧，可能会花费较长时间，请耐心等待',
+                                        }
+                                    },
+                                    {
+                                        'component': 'VDivider',
+                                        'props': {
+                                            'thickness': 2,
+                                            'class': 'border-opacity-0'
+                                        }
+                                    },
+                                    {
+                                        'component': 'VAlert',
+                                        'props': {
+                                            'type': 'info',
+                                            'variant': 'flat',
+                                            'text': '插件只会缓存已经存在媒体库中的内容，不会显示收藏中的所有内容。少量条目因为 IMDB 标题与 Bangumi 标题不一致，会造成识别错误',
+                                        }
+                                    }
+                                ]
                             }
                         ]
                     }
@@ -1268,7 +1282,7 @@ class Bangumi(_PluginBase):
             return
         # 自动下载
         downloads, lefts = self.downloadchain.batch_download(contexts=contexts, no_exists=no_exists,
-                                                                                 username="Bangumi 想看 下载")
+                                                                                 username="Bangumi想看")
         if downloads and not lefts:
             logger.info(f'{mediainfo.title_year} 下载完成')
         else:
@@ -1279,7 +1293,7 @@ class Bangumi(_PluginBase):
                                                         tmdbid=mediainfo.tmdb_id,
                                                         season=meta.begin_season,
                                                         exist_ok=True,
-                                                        username="Bangumi 想看 订阅")
+                                                        username="Bangumi想看")
         # 新增项目到缓存 避免重复下载
         mediainfo = self.mediainfo
         mediainfo["title"] = title
