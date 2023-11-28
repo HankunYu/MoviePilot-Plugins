@@ -395,6 +395,7 @@ class Bangumi(_PluginBase):
                                                 'component': 'VLabel',
                                                 'props': {
                                                     'text': '更新日志',
+                                                    'class': 'text-white'
                                                 }
                                             }
                                         ]
@@ -1478,7 +1479,6 @@ class Bangumi(_PluginBase):
             if not word:
                 continue
             try:
-                state = False
                 if word.count(" => "):
                     # 替换词
                     strings = word.split(" => ")
@@ -1490,9 +1490,9 @@ class Bangumi(_PluginBase):
                 # else:
                 #     # 屏蔽词
                 #     title, message, state = self.__replace_regex(title, word, "")
-                if state:
-                    apply_words.append(word)
-                    logger.info(f'应用自定义识别词 {old_title} => {title}')
+                    if state:
+                        apply_words.append(word)
+                        logger.info(f'应用自定义识别词 {old_title} 转为 {title}')
 
             except Exception as err:
                 print(str(err))
