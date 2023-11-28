@@ -407,7 +407,7 @@ class Bangumi(_PluginBase):
                         ]
                     },
                     {
-                        'component': 'VRow',
+                        'component': 'VCol',
                         'content': [
                             {
                                 'component': 'VAlert',
@@ -675,49 +675,52 @@ class Bangumi(_PluginBase):
         
         pages = []
         for status in status_list:
-            part = [
+            part ={
+                    'component': 'div',
+                    'content': [
                     {
-                        'component': 'VCardTitle',
-                        'props': {
-                        },
-                        'content':[
-                            {
-                                'component': 'VLabel',
-                                'props': {
-                                    'text': status,
-                                    'class': 'text-h4'
+                            'component': 'VCardTitle',
+                            'props': {
+                            },
+                            'content':[
+                                {
+                                    'component': 'VLabel',
+                                    'props': {
+                                        'text': status,
+                                        'class': 'text-h4'
+                                    }
                                 }
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 2,
-                        }
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 10,
-                            'class': 'border-opacity-0'
-                        }
-                    },
-                    {
-                        'component': 'div',
-                        'props': {
-                            'class': 'grid gap-3 grid-info-card',
+                            ]
                         },
-                        'content': status == "想看" and contents_wish or status == "看过" and contents_watched or status == "在看" and contents_watching or status == "搁置" and contents_stopped or contents_dropped
-                    },
-                    {
-                        'component': 'VDivider',
-                        'props': {
-                            'thickness': 2,
-                            'class': 'border-opacity-0'
+                        {
+                            'component': 'VDivider',
+                            'props': {
+                                'thickness': 2,
+                            }
+                        },
+                        {
+                            'component': 'VDivider',
+                            'props': {
+                                'thickness': 10,
+                                'class': 'border-opacity-0'
+                            }
+                        },
+                        {
+                            'component': 'div',
+                            'props': {
+                                'class': 'grid gap-3 grid-info-card',
+                            },
+                            'content': status == "想看" and contents_wish or status == "看过" and contents_watched or status == "在看" and contents_watching or status == "搁置" and contents_stopped or contents_dropped
+                        },
+                        {
+                            'component': 'VDivider',
+                            'props': {
+                                'thickness': 2,
+                                'class': 'border-opacity-0'
+                            }
                         }
-                    },
-                ]
+                    ]
+                }
             pages.append(part)
 
         return [
@@ -1225,7 +1228,7 @@ class Bangumi(_PluginBase):
         else:
             return None
     
-    def dowload_wish(self):
+    def download_wish(self):
         if not self.check_cache() or self._is_runing_cache: return
         wish_list = self.get_wish()
         # 检查本地是否已经存在
