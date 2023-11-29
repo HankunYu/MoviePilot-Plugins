@@ -192,10 +192,10 @@ class Bangumi(_PluginBase):
                 thread = threading.Thread(target=self.update_subscribe_rating)
                 thread.start()
 
-            # 启动定时任务
-            if self._scheduler.get_jobs():
-                self._scheduler.print_jobs()
-                self._scheduler.start()
+        # 启动定时任务
+        if self._scheduler.get_jobs():
+            self._scheduler.print_jobs()
+            self._scheduler.start()
         else:
             try:
                 if self._scheduler:
@@ -1518,7 +1518,7 @@ class Bangumi(_PluginBase):
 
         raw_data = __to_dict(event.event_data)
         targets_file = raw_data.get("transferinfo").get("file_list_new")
-        title = raw_data.get("mediainfo").get("title")
+        # title = raw_data.get("mediainfo").get("title")
 
         # logger.info(f"raw data: {raw_data}")
 
@@ -1529,6 +1529,8 @@ class Bangumi(_PluginBase):
             title = self.nfo_name_convert(file_name)
             subject_id = self.get_subject_id_by_title(title)
             if os.path.exists(nfo_file):
+                logger.info(f"开始更新 {file_name} 的NFO文件的评分")
+                logger.info(f"识别标题为 {title}")
                 self.update_nfo(nfo_file, subject_id)
             else:
                 logger.error(f'{nfo_file} 不存在')
