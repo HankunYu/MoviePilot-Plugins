@@ -827,7 +827,7 @@ class Bangumi(_PluginBase):
         
         # 更新媒体库条目的数据 评分、状态
         for info in self._oper.get_all():
-            mediainfo = self.mediainfo
+            mediainfo = self.mediainfo.copy()
             mediainfo["title"] = info.title
             mediainfo["original_title"] = info.original_title
             mediainfo["subject_id"] = info.subject_id
