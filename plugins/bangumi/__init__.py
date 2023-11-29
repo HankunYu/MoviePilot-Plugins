@@ -983,18 +983,19 @@ class Bangumi(_PluginBase):
         new_media_info["poster"] = None
         subject_id = info['subject_id']
         original_title = info['original_title']
+        if original_title != None:
+            new_media_info["original_title"] = original_title
         if subject_id == None:
             # 获取条目ID
             subject_id = self.search_subject(new_media_info["title"])
             # 如果没有找到条目ID，尝试使用原始名称
             if subject_id == None:
                 subject_id = self.search_subject(original_title)
+                logger.info(f"使用原始名称搜索条目ID: {original_title}")
             new_media_info["subject_id"] = subject_id
         # 如果没有找到条目ID，跳过
         if new_media_info["subject_id"] == None:
             return new_media_info
-        if original_title != None:
-            new_media_info["original_title"] = original_title
         # 获取海报
         new_media_info["poster"] = self.get_poster(subject_id)
         # 获取评分
@@ -1061,7 +1062,7 @@ class Bangumi(_PluginBase):
         name = self.title_convert(name, False)
         # 转义
         keyword = quote(name)
-        url = f"https://api.bgm.tv/search/subject/{keyword}?type=2&responseGroup=small"
+        url = f"https://api.bgm.tv/search/subject/{keyword}?type=2&responseGroup=small&max_results=25"
         headers = {
             "accept": "application/json",
             "User-Agent": self._user_agent
@@ -1081,20 +1082,8 @@ class Bangumi(_PluginBase):
                 # 完全匹配
                 if result.get("name") == name or result.get("name_cn") == name:
                     return result.get("id")
-                # 使用自定义识别词搞这个
-                # # 尝试移除特殊字符匹配
-                # clear_name = re.sub(r'[\W_]+', '',name)
-                # result_name = re.sub(r'[\W_]+', '',result.get("name"))
-                # result_name_cn = re.sub(r'[\W_]+', '',result.get("name_cn"))
-                # if result_name == clear_name or result_name_cn == clear_name:
-                #     return result.get("id")
-                # # 尝试再移除罗马字符匹配
-                # pattern = re.compile(r'[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩIVX]')
-                # result_name = re.sub(pattern, '',result_name)
-                # result_name_cn = re.sub(pattern, '',result_name_cn)
-                # name = re.sub(pattern, '',name)
-                # if result_name == name or result_name_cn == name:
-                #     return result.get("id")
+                
+            return None
         else:
             return None
     
