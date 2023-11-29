@@ -119,7 +119,7 @@ class BangumiOper(DbOper):
         """
         判断是否存在指定 Bangumi ID 的条目
         """
-        item = BangumiInfo.exists_by_title(self._db, subject_id)
+        item = BangumiInfo.exists_by_subject_id(self._db, subject_id)
         if not item:
             return False
         return True

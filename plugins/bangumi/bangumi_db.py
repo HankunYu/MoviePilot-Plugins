@@ -92,5 +92,5 @@ class BangumiInfo(Base):
     
     @staticmethod
     @db_query
-    def exists_by_title(db: Session, subject_id: str):
+    def exists_by_subject_id(db: Session, subject_id: str):
         return db.query(BangumiInfo).filter(BangumiInfo.subject_id == subject_id).first()
