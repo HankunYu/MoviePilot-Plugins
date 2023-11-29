@@ -971,41 +971,42 @@ class Bangumi(_PluginBase):
         获取Bangumi信息 需要传入 mediainfo
         """
         # 新建媒体信息
-        new_media_info = self.mediainfo
+        new_media_info = {
+            "title": None,
+            "original_title": None,
+            "subject_id": None,
+            "rating": None,
+            "status": None,
+            "synced": False,
+            "poster": None
+        }
         new_media_info["title"] = info['title']
-        new_media_info["original_title"] = None
-        new_media_info["subject_id"] = None
-        new_media_info["rating"] = None
-        new_media_info["status"] = None
+        new_media_info["original_title"] = info["original_title"]
+        new_media_info["subject_id"] = info["subject_id"]
+        new_media_info["rating"] = info["rating"]
+        new_media_info["status"] = info["status"]
         new_media_info["synced"] = False
-        new_media_info["poster"] = None
-        subject_id = info['subject_id']
-        original_title = info["original_title"]
+        new_media_info["poster"] = info["poster"]
+        original_title = new_media_info["original_title"]
         logger.info(f'debug {original_title}')
-        original_title = info['original_title']
-        logger.info(f'debug2 {original_title}')
-        if original_title != None:
-            new_media_info["original_title"] = original_title
-        if subject_id == None:
+        if new_media_info["subject_id"] == None:
             # 获取条目ID
-            subject_id = self.search_subject(new_media_info["title"])
+            new_media_info["subject_id"] = self.search_subject(new_media_info["title"])
             # 如果没有找到条目ID，尝试使用原始名称
-            if subject_id == None:
-                subject_id = self.search_subject(original_title)
+            if new_media_info["subject_id"] == None:
+                new_media_info["subject_id"] = self.search_subject(new_media_info["original_title"])
                 logger.info(f"使用原始名称搜索条目ID: {original_title}")
-            new_media_info["subject_id"] = subject_id
+            # new_media_info["subject_id"] = subject_id
         # 如果没有找到条目ID，跳过
         if new_media_info["subject_id"] == None:
             return new_media_info
         # 获取海报
-        new_media_info["poster"] = self.get_poster(subject_id)
+        new_media_info["poster"] = self.get_poster(new_media_info["subject_id"])
         # 获取评分
-        new_media_info['rating'] = self.get_rating(subject_id)
+        new_media_info['rating'] = self.get_rating(new_media_info["subject_id"])
         # 检查收藏状态
-        status = self.get_collection_status(subject_id)
+        status = self.get_collection_status(new_media_info["subject_id"])
         new_media_info["status"] = status
-        # copy是否已同步
-        new_media_info["synced"] = info["synced"]
         return new_media_info
 
     def sync_media_to_bangumi(self, info: BangumiInfo):
