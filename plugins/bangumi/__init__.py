@@ -181,7 +181,7 @@ class Bangumi(_PluginBase):
                 thread.start()
             
             # 更新全部NFO文件
-            if self._update_nfo_all_once and not self._is_runing_update_nfo and not self._is_runing_cache:
+            if self._update_nfo_all_once and not self._is_runing_update_nfo:
                 self._update_nfo_all_once = False
                 self.__update_config()
                 thread = threading.Thread(target=self.update_nfo_all_once)
@@ -1217,12 +1217,11 @@ class Bangumi(_PluginBase):
         if self._is_runing_update_nfo: 
             logger.info("已有更新NFO文件的任务正在运行")
             return
-        if self._is_runing_cache:
-            logger.info("正在运行缓存媒体库数据任务，请稍后再试")
-            return
+        if self._cache_thread and self._cache_thread.is_alive():
+            logger.info("正在运行缓存媒体库数据任务，排队中……")
+            self._cache_thread.join()
         logger.info("开始更新已入库的NFO文件")
         self._is_runing_update_nfo = True
-        threads = []
         paths = []
         for path in self._library_path.split('\n'):
             if os.path.exists(path): 
@@ -1331,6 +1330,7 @@ class Bangumi(_PluginBase):
         从缓存中获取条目ID
         """
         if title == None: return None
+        title = self.title_convert(title, False)
         return self._oper.get_subject_id(title = title)
     
     # 获取用户 Bangumi 上的 想看
