@@ -988,14 +988,13 @@ class Bangumi(_PluginBase):
         new_media_info["synced"] = False
         new_media_info["poster"] = info["poster"]
         original_title = new_media_info["original_title"]
-        logger.info(f'debug {original_title}')
         if new_media_info["subject_id"] == None:
             # 获取条目ID
             new_media_info["subject_id"] = self.search_subject(new_media_info["title"])
             # 如果没有找到条目ID，尝试使用原始名称
             if new_media_info["subject_id"] == None:
                 new_media_info["subject_id"] = self.search_subject(new_media_info["original_title"])
-                logger.info(f"使用原始名称搜索条目ID: {original_title}")
+                logger.info(f"标题未找到条目，尝试使用原始名称搜索条目ID: {original_title}")
             # new_media_info["subject_id"] = subject_id
         # 如果没有找到条目ID，跳过
         if new_media_info["subject_id"] == None:
@@ -1512,7 +1511,8 @@ class Bangumi(_PluginBase):
                     if state:
                         apply_words.append(word)
                         logger.info(f'应用自定义识别词 {old_title} 转为 {title}')
-
+                    else:
+                        logger.info(f'未应用自定义识别词 {title}')
             except Exception as err:
                 print(str(err))
 
