@@ -981,6 +981,9 @@ class Bangumi(_PluginBase):
         new_media_info["poster"] = None
         subject_id = info['subject_id']
         original_title = info["original_title"]
+        logger.info(f'debug {original_title}')
+        original_title = info['original_title']
+        logger.info(f'debug2 {original_title}')
         if original_title != None:
             new_media_info["original_title"] = original_title
         if subject_id == None:
