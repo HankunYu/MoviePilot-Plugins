@@ -1330,7 +1330,8 @@ class Bangumi(_PluginBase):
         从缓存中获取条目ID
         """
         if title == None: return None
-        title = self.title_convert(title, False)
+        # 好像没必要转
+        # title = self.title_convert(title, False)
         return self._oper.get_subject_id(title = title)
     
     # 获取用户 Bangumi 上的 想看
