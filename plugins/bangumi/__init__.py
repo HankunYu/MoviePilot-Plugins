@@ -1393,13 +1393,13 @@ class Bangumi(_PluginBase):
         wish_list_not_exist = []
         for wish in wish_list:
             # 应用自定义识别词
-            wish = self.title_convert(wish['name'], True)
-            if not self._oper.exists(title = wish['name']):
-                wish_list_not_exist.append(wish['name'])
+            wish_name = self.title_convert(wish['name'], True)
+            if not self._oper.exists(title = wish_name):
+                wish_list_not_exist.append(wish_name)
 
             if not self._oper.get_exist_by_subject_id(subject_id = wish['subject_id']):
                 info = {
-                    "title": wish['name'],
+                    "title": wish_name,
                     "original_title": None,
                     "subject_id": wish['subject_id'],
                     "rating": self.get_rating(wish['subject_id']),
