@@ -896,16 +896,21 @@ class Bangumi(_PluginBase):
                                 media_info['original_title']= media.original_title
                             except IndexError:
                                 logger.error(f"第{season_number}季转换为中文失败")
+                            # 如果已存在于缓存中，跳过
+                            if self._oper.exists(title = media_info['title']):
+                                continue
+                            media_info = self.get_bangumi_info(media_info)
+                            logger.info(f"添加 {media_info['title']} 到缓存中, 原文标题: {media_info['original_title']}, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
+                            self._oper.add(**media_info)
                         else:
                             media_info["title"] = media.title
                             media_info['original_title']= media.original_title
-                        # 如果已存在于缓存中，跳过
-                        if self._oper.exists(title = media_info['title']):
-                            # logger.info(f"{media_info['title']} 已存在于缓存中，跳过")
-                            continue
-                        media_info = self.get_bangumi_info(media_info)
-                        logger.info(f"添加 {media_info['title']} 到缓存中, 原文标题: {media_info['original_title']}, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
-                        self._oper.add(**media_info)
+                            # 如果已存在于缓存中，跳过
+                            if self._oper.exists(title = media_info['title']):
+                                continue
+                            media_info = self.get_bangumi_info(media_info)
+                            logger.info(f"添加 {media_info['title']} 到缓存中, 原文标题: {media_info['original_title']}, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
+                            self._oper.add(**media_info)
                 else:
                     # 如果已存在于缓存中，跳过
                     if self._oper.exists(title = media.title): 
