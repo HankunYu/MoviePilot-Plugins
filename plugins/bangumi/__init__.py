@@ -893,10 +893,7 @@ class Bangumi(_PluginBase):
                                 chinese_number = ["零","一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五"]
                                 chinese_season = " 第" + chinese_number[season_number] + "季"
                                 media_info['title']= media.title + chinese_season
-                                if media.original_title != None:
-                                    media_info['original_title']= media.original_title + chinese_season
-                                else:
-                                    media_info['original_title']= None
+                                media_info['original_title']= media.original_title
                             except IndexError:
                                 logger.error(f"第{season_number}季转换为中文失败")
                         else:
@@ -907,7 +904,7 @@ class Bangumi(_PluginBase):
                             # logger.info(f"{media_info['title']} 已存在于缓存中，跳过")
                             continue
                         media_info = self.get_bangumi_info(media_info)
-                        logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
+                        logger.info(f"添加 {media_info['title']} 到缓存中, 原文标题: {media_info['original_title']}, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
                         self._oper.add(**media_info)
                 else:
                     # 如果已存在于缓存中，跳过
@@ -916,8 +913,9 @@ class Bangumi(_PluginBase):
                         continue
                     media_info["title"] = media.title
                     media_info["original_title"] = media.original_title
+                    logger.info(f'test {media_info["original_title"]}')
                     media_info = self.get_bangumi_info(media_info)
-                    logger.info(f"添加 {media_info['title']} 到缓存中, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
+                    logger.info(f"添加 {media_info['title']} 到缓存中, 原文标题: {media_info['original_title']}, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
                     self._oper.add(**media_info)
             logger.info("媒体库数据缓存完成")
         finally:
@@ -982,7 +980,7 @@ class Bangumi(_PluginBase):
         new_media_info["synced"] = False
         new_media_info["poster"] = None
         subject_id = info['subject_id']
-        original_title = info['original_title']
+        original_title = info["original_title"]
         if original_title != None:
             new_media_info["original_title"] = original_title
         if subject_id == None:
