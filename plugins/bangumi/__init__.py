@@ -49,7 +49,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.5"
+    plugin_version = "1.0.6"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -936,7 +936,6 @@ class Bangumi(_PluginBase):
                         continue
                     media_info["title"] = media.title
                     media_info["original_title"] = media.original_title
-                    logger.info(f'test {media_info["original_title"]}')
                     media_info = self.get_bangumi_info(media_info)
                     logger.info(f"添加 {media_info['title']} 到缓存中, 原文标题: {media_info['original_title']}, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
                     self._oper.add(**media_info)
@@ -1085,6 +1084,8 @@ class Bangumi(_PluginBase):
         if name == None: return None
         # 应用自定义识别词
         title = self.title_convert(name, False)
+        # 很重要！！！ 找了半个小时的bug
+        title = title.strip()
         logger.info(f"搜索条目: {title}")
         # 转义
         keyword = quote(title)
@@ -1106,7 +1107,7 @@ class Bangumi(_PluginBase):
             if results == None: return None
             for result in results:
                 # 完全匹配
-                logger.info(f'比较 {result.get("name")} 和 {title} 以及原文名称 {result.get("name_cn")}')
+                # logger.info(f'比较 {result.get("name")} 和 {title} 以及原文名称 {result.get("name_cn")}')
                 if result.get("name") == title or result.get("name_cn") == title:
                     return result.get("id")
                 
