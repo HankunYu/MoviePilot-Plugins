@@ -8,7 +8,7 @@ from app.db.models import Base, db_update
 
 
 class BangumiInfo(Base):
-    plugin_version = "1.0.6"
+    plugin_version = "1.0.7"
     """
     Bangumi 数据表
     """
@@ -89,3 +89,8 @@ class BangumiInfo(Base):
     @db_query
     def get_dropped(db: Session):
         return db.query(BangumiInfo).filter(BangumiInfo.status == 4).all()
+    
+    @staticmethod
+    @db_query
+    def exists_by_title(db: Session, subject_id: str):
+        return db.query(BangumiInfo).filter(BangumiInfo.subject_id == subject_id).first()

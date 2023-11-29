@@ -49,7 +49,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.6"
+    plugin_version = "1.0.7"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -1347,13 +1347,20 @@ class Bangumi(_PluginBase):
                 data = res.json().get("data")
             except (AttributeError, KeyError, TypeError):
                 return None
+            wish_item = {
+                "name": None,
+                "subject_id": None
+            }
             wish_list = []
             for item in data:
                 name = item.get("subject").get("name_cn")
+                subject_id = item.get("subject").get("id")
                 if name == "":
                     name = item.get("subject").get("name")
                 logger.info(f"获取到想看 {name}")
-                wish_list.append(name)
+                wish_item["name"] = name
+                wish_item["subject_id"] = subject_id
+                wish_list.append(wish_item.copy())
             return wish_list
         else:
             return None
@@ -1386,10 +1393,23 @@ class Bangumi(_PluginBase):
         wish_list_not_exist = []
         for wish in wish_list:
             # 应用自定义识别词
-            wish = self.title_convert(wish, True)
-            if not self._oper.exists(title = wish):
-                wish_list_not_exist.append(wish)
+            wish = self.title_convert(wish['name'], True)
+            if not self._oper.exists(title = wish['name']):
+                wish_list_not_exist.append(wish['name'])
+
+            if not self._oper.get_exist_by_subject_id(subject_id = wish['subject_id']):
+                info = {
+                    "title": wish['name'],
+                    "original_title": None,
+                    "subject_id": wish['subject_id'],
+                    "rating": self.get_rating(wish['subject_id']),
+                    "status": 1,
+                    "synced": True,
+                    "poster": self.get_poster(wish['subject_id'])
+                }
+                self._oper.add(**info)
         if len(wish_list_not_exist) == 0: return
+        
         for wish in wish_list_not_exist:
             logger.info(f"开始下载 {wish}")
             self.download_by_title(wish)
@@ -1452,12 +1472,12 @@ class Bangumi(_PluginBase):
                                                         exist_ok=True,
                                                         username="Bangumi想看")
         # 新增项目到缓存 避免重复下载
-        mediainfo = self.mediainfo
-        mediainfo["title"] = title
-        mediainfo = self.get_bangumi_info(mediainfo)
-        if mediainfo["subject_id"] != None:
-            mediainfo["synced"] = True
-        self._oper.add(**mediainfo)
+        # mediainfo = self.mediainfo
+        # mediainfo["title"] = title
+        # mediainfo = self.get_bangumi_info(mediainfo)
+        # if mediainfo["subject_id"] != None:
+        #     mediainfo["synced"] = True
+        # self._oper.add(**mediainfo)
 
         
 

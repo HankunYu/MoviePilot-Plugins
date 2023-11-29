@@ -9,7 +9,7 @@ from plugins.bangumi.bangumi_db import BangumiInfo
 
 class BangumiOper(DbOper):
 
-    plugin_version = "1.0.6"
+    plugin_version = "1.0.7"
     """
     媒体服务器数据管理
     """
@@ -114,4 +114,13 @@ class BangumiOper(DbOper):
         获取所有 Bangumi 上 已同步 的条目
         """
         return BangumiInfo.get_synced(self._db)
+    
+    def get_exist_by_subject_id(self, subject_id: str) -> bool:
+        """
+        判断是否存在指定 Bangumi ID 的条目
+        """
+        item = BangumiInfo.exists_by_title(self._db, subject_id)
+        if not item:
+            return False
+        return True
     
