@@ -899,16 +899,34 @@ class Bangumi(_PluginBase):
                             # 如果已存在于缓存中，跳过
                             if self._oper.exists(title = media_info['title']):
                                 continue
-                            media_info = self.get_bangumi_info(media_info)
+                            info={
+                                'title': media_info['title'],
+                                'original_title': media_info['original_title'],
+                                'subject_id': None,
+                                'rating': None,
+                                'status': None,
+                                'synced': False,
+                                'poster': None
+                            }
+                            media_info = self.get_bangumi_info(info)
                             logger.info(f"添加 {media_info['title']} 到缓存中, 原文标题: {media_info['original_title']}, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
                             self._oper.add(**media_info)
                         else:
                             media_info["title"] = media.title
                             media_info['original_title']= media.original_title
+                            info={
+                                'title': media.title,
+                                'original_title': media.original_title,
+                                'subject_id': None,
+                                'rating': None,
+                                'status': None,
+                                'synced': False,
+                                'poster': None
+                            }
                             # 如果已存在于缓存中，跳过
                             if self._oper.exists(title = media_info['title']):
                                 continue
-                            media_info = self.get_bangumi_info(media_info)
+                            media_info = self.get_bangumi_info(info)
                             logger.info(f"添加 {media_info['title']} 到缓存中, 原文标题: {media_info['original_title']}, 条目ID: {media_info['subject_id']}, 评分: {media_info['rating']}, 状态: {media_info['status']}")
                             self._oper.add(**media_info)
                 else:
@@ -993,9 +1011,11 @@ class Bangumi(_PluginBase):
         new_media_info["synced"] = False
         new_media_info["poster"] = info["poster"]
         original_title = new_media_info["original_title"]
+        title = new_media_info["title"]
         if new_media_info["subject_id"] == None:
             # 获取条目ID
             new_media_info["subject_id"] = self.search_subject(new_media_info["title"])
+            logger.info(f"标题未找到条目，尝试使用名称搜索条目ID: {title}")
             # 如果没有找到条目ID，尝试使用原始名称
             if new_media_info["subject_id"] == None:
                 new_media_info["subject_id"] = self.search_subject(new_media_info["original_title"])
@@ -1066,6 +1086,7 @@ class Bangumi(_PluginBase):
         if name == None: return None
         # 应用自定义识别词
         name = self.title_convert(name, False)
+        logger.info(f"搜索条目: {name}")
         # 转义
         keyword = quote(name)
         url = f"https://api.bgm.tv/search/subject/{keyword}?type=2&responseGroup=small&max_results=25"
