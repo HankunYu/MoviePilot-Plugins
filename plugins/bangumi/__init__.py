@@ -1526,10 +1526,11 @@ class Bangumi(_PluginBase):
         for media_name in targets_file:
             file_name, file_ext = os.path.splitext(media_name)
             nfo_file = file_name + ".nfo"
-            title = self.nfo_name_convert(file_name)
+            clear_file_name = os.path.basename(file_name)
+            title = self.nfo_name_convert(clear_file_name)
             subject_id = self.get_subject_id_by_title(title)
             if os.path.exists(nfo_file):
-                logger.info(f"开始更新 {file_name} 的NFO文件的评分")
+                logger.info(f"开始更新 {file_name} 文件的评分")
                 logger.info(f"识别标题为 {title}")
                 self.update_nfo(nfo_file, subject_id)
             else:
