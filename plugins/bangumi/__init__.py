@@ -1015,7 +1015,6 @@ class Bangumi(_PluginBase):
         if new_media_info["subject_id"] == None:
             # 获取条目ID
             new_media_info["subject_id"] = self.search_subject(new_media_info["title"])
-            logger.info(f"标题未找到条目，尝试使用名称搜索条目ID: {title}")
             # 如果没有找到条目ID，尝试使用原始名称
             if new_media_info["subject_id"] == None:
                 new_media_info["subject_id"] = self.search_subject(new_media_info["original_title"])
@@ -1085,10 +1084,10 @@ class Bangumi(_PluginBase):
         """
         if name == None: return None
         # 应用自定义识别词
-        name = self.title_convert(name, False)
-        logger.info(f"搜索条目: {name}")
+        title = self.title_convert(name, False)
+        logger.info(f"搜索条目: {title}")
         # 转义
-        keyword = quote(name)
+        keyword = quote(title)
         url = f"https://api.bgm.tv/search/subject/{keyword}?type=2&responseGroup=small&max_results=25"
         headers = {
             "accept": "application/json",
@@ -1107,7 +1106,8 @@ class Bangumi(_PluginBase):
             if results == None: return None
             for result in results:
                 # 完全匹配
-                if result.get("name") == name or result.get("name_cn") == name:
+                logger.info(f'比较 {result.get("name")} 和 {title} 以及原文名称 {result.get("name_cn")}')
+                if result.get("name") == title or result.get("name_cn") == title:
                     return result.get("id")
                 
             return None
@@ -1537,8 +1537,8 @@ class Bangumi(_PluginBase):
                     if state:
                         apply_words.append(word)
                         logger.info(f'应用自定义识别词 {old_title} 转为 {title}')
-                    else:
-                        logger.info(f'未应用自定义识别词 {title}')
+                    # else:
+                    #     logger.info(f'未应用自定义识别词 {title}')
             except Exception as err:
                 print(str(err))
 
