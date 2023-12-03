@@ -17,7 +17,7 @@ class BDRemuxer(_PluginBase):
     # 插件描述
     plugin_desc = "自动提取BDMV文件夹中的视频流和音频流，合并为MKV文件"
     # 插件图标
-    plugin_icon = "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/discord.png"
+    plugin_icon = ""
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
