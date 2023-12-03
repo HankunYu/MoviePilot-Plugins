@@ -25,5 +25,14 @@
         "color": "#5378A4",
         "author": "hankun",
         "level": 1
+    },
+    "BDRemuxer": {
+        "name": "BD Remuxer",
+        "description": "自动提取BDMV文件夹中的视频流和音频流，合并为MKV文件",
+        "version": "0.1",
+        "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/bangumi.jpg",
+        "color": "#5378A4",
+        "author": "hankun",
+        "level": 1
     }
 }
