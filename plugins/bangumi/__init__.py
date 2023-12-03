@@ -876,7 +876,15 @@ class Bangumi(_PluginBase):
             
             logger.info(f"共找到 {len(results)} 条媒体")
             for media in results:
-                media_info = self.mediainfo.copy()
+                media_info = {
+                    "title": None,
+                    "original_title": None,
+                    "subject_id": None,
+                    "rating": None,
+                    "status": None,
+                    "synced": False,
+                    "poster": None
+                }
                 try:
                     season_list = json.loads(media.seasoninfo)
                 except (AttributeError, KeyError, TypeError):
