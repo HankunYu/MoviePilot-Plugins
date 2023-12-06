@@ -125,7 +125,8 @@ class Bangumi(_PluginBase):
         self.searchchain = SearchChain()
         self.subscribechain = SubscribeChain()
         self.stop_service()
-
+        self._scheduler = BackgroundScheduler(timezone=settings.TZ)
+        
         if config:
             self._enabled = config.get("enabled")
             self._clear_cache = config.get("clear_cache")
@@ -147,7 +148,7 @@ class Bangumi(_PluginBase):
             self.check_cache()
             self.login()
             logger.info("初始化Bangumi插件完成")
-            self._scheduler = BackgroundScheduler(timezone=settings.TZ)
+            
             # 定时任务
             if self._enable_sync:
                 try:
@@ -193,6 +194,7 @@ class Bangumi(_PluginBase):
                 thread.start()
 
         # 启动定时任务
+        
         if self._scheduler.get_jobs():
             self._scheduler.print_jobs()
             self._scheduler.start()
