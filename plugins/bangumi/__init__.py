@@ -515,7 +515,7 @@ class Bangumi(_PluginBase):
             return [
                 {
                     'component': 'div',
-                    'text': "插件脚本版本不一致，可以考虑重建容器。MP不会自动更新除插件主脚本之外的文件，相信很快会修复这个问题",
+                    'text': "插件脚本更新未完整，请尝试卸载本插件重启MP后重新安装。",
                     'props': {
                         'class': 'text-center'
                     }
@@ -525,7 +525,7 @@ class Bangumi(_PluginBase):
             return [
                 {
                     'component': 'div',
-                    'text': "插件脚本版本不一致，可以考虑重建容器。MP不会自动更新除插件主脚本之外的文件，相信很快会修复这个问题",
+                    'text': "插件脚本更新未完整，请尝试卸载本插件重启MP后重新安装。",
                     'props': {
                         'class': 'text-center'
                     }
