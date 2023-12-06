@@ -9,7 +9,7 @@ from plugins.bangumi.bangumi_db import BangumiInfo
 
 class BangumiOper(DbOper):
 
-    plugin_version = "1.0.7"
+    plugin_version = "1.0.8"
     """
     媒体服务器数据管理
     """
