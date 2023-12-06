@@ -16,7 +16,7 @@ from app.chain.subscribe import SubscribeChain
 from app.db.models.mediaserver import MediaServerItem
 from app.db.models.subscribe import Subscribe
 from app.db import db_query
-from app.db.models import Base, db_update
+from app.db import Base, db_update
 from app.core.metainfo import MetaInfo
 
 from sqlalchemy import or_
