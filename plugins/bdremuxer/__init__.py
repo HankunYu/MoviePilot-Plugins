@@ -41,36 +41,11 @@ class BDRemuxer(_PluginBase):
         if config:
             self._enabled = config.get("enabled")
         if self._enabled:
-            if not self.check_env():
-                if not self.install_env():
-                    self._enabled = False
-                    logger.error("BD Remuxer 插件初始化失败，无法安装ffmpeg")
-                    return
             logger.info("BD Remuxer 插件初始化完成")
 
     def get_state(self) -> bool:
         return self._enabled
     
-    # 检查环境是否配置ffmpeg
-    def check_env(self) -> bool:
-        try:
-            subprocess.check_output(['ffmpeg', '-version'])
-            return True
-        except OSError:
-            return False
-        
-    def install_env(self) -> bool:
-        system = SystemUtils().platform
-        try:
-            if system == 'Windows':
-                subprocess.check_output(['choco', 'install', 'ffmpeg'])
-            elif system == 'Linux':
-                subprocess.check_output(['apt-get', 'install', 'ffmpeg'])
-            elif system == 'Darwin':
-                subprocess.check_output(['brew', 'install', 'ffmpeg'])
-            return True
-        except OSError:
-            return False
         
         
     @staticmethod
@@ -121,7 +96,7 @@ class BDRemuxer(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'flat',
-                                            'text': '自用插件，不稳定，不保证可用性，需要环境配置',
+                                            'text': '自用插件，不稳定，不保证可用性',
                                         }
                                     }
                                 ]
@@ -267,6 +242,17 @@ class BDRemuxer(_PluginBase):
             else:
                 return str(_event)
         
+        raw_data = __to_dict(event.event_data)
+        targets_file = raw_data.get("transferinfo").get("file_list_new")
+
+        # 检查是否存在BDMV文件夹
+        bd_path = os.path.dirname(targets_file[0])
+        if not os.path.exists(bd_path + '/BDMV'):
+            return
+        # 提取流程
+        self.extract(bd_path)
+        
+
 
 
     def stop_service(self):
