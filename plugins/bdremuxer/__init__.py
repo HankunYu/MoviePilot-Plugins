@@ -1,7 +1,7 @@
 import subprocess
 import os
-import ffmpeg
 from pyparsebluray import mpls
+import ffmpeg
 
 # MoviePilot library
 from app.log import logger
@@ -21,7 +21,7 @@ class BDRemuxer(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.2"
+    plugin_version = "0.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
