@@ -8,7 +8,7 @@ from app.utils.system import SystemUtils
 from typing import Any, List, Dict, Tuple
 import subprocess
 import os
-
+import shutil
 try:
     from pyparsebluray import mpls
 except:
@@ -30,7 +30,7 @@ class BDRemuxer(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.5"
+    plugin_version = "1.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -44,11 +44,13 @@ class BDRemuxer(_PluginBase):
 
     # 私有属性
     _enabled = False
+    _delete = False
 
 
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
+            self._delete = config.get("delete")
         if self._enabled:
             logger.info("BD Remuxer 插件初始化完成")
 
@@ -91,6 +93,22 @@ class BDRemuxer(_PluginBase):
                                         }
                                     }
                                 ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'delete',
+                                            'label': '删除原始文件',
+                                        }
+                                    }
+                                ]
                             }
                         ]
                     },
@@ -105,7 +123,7 @@ class BDRemuxer(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'flat',
-                                            'text': '自用插件，不稳定，不保证可用性',
+                                            'text': '自用插件，可能不稳定',
                                         }
                                     }
                                 ]
@@ -116,23 +134,27 @@ class BDRemuxer(_PluginBase):
             }
         ], {
             "enabled": False,
+            "delete": False
         }
 
     def get_page(self) -> List[dict]:
         pass
     
-    def extract(self,bd_path : str) -> Tuple[bool, str]:
+    def extract(self,bd_path : str):
         output_name = os.path.basename(bd_path) + ".mkv"
         output_name = os.path.join(bd_path, output_name)
         bd_path = bd_path + '/BDMV'
         if not os.path.exists(bd_path):
-            return False, '失败。输入路径不存在BDMV文件夹'
+            logger.info('失败。输入路径不存在BDMV文件夹')
+            return
         mpls_path = bd_path + '/PLAYLIST/'
         if not os.path.exists(mpls_path):
-            return False, '失败。找不到mpls文件'
+            logger.info('失败。找不到PLAYLIST文件夹')
+            return
         file_paths = self.get_all_m2ts(mpls_path)
         if not file_paths:
-            return False, '失败。mpls中找不到播放列表'
+            logger.info('失败。找不到m2ts文件')
+            return
         
         filelist_string = '\n'.join([f"file '{file}'" for file in file_paths])
         # 将filelist_string写入filelist.txt
@@ -166,7 +188,6 @@ class BDRemuxer(_PluginBase):
             else:
                 subtitle_codec.append('copy')
         
-        # return True, 'test'
         # 整理参数作为字典
         dict = {  }
         for i in range(len(audio_codec)):
@@ -194,8 +215,14 @@ class BDRemuxer(_PluginBase):
             )
         except ffmpeg.Error as e:
             logger.error(e.stderr)
-            return False, '失败。'
-        return True, '成功。'
+            logger.info('失败。')
+            return
+        # 删除原始文件
+        if self._delete:
+            shutil.rmtree(bd_path)
+            logger.info('成功提取BDMV。并删除原始文件。')
+        else:
+            logger.info('成功提取BDMV。')
     
 
     def get_all_m2ts(self,mpls_path) -> list:
