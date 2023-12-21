@@ -19,7 +19,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.1"
+    plugin_version = "1.3.2"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -413,9 +413,11 @@ class Discord(_PluginBase):
                 lines =  msg.split('，')
                 converted_text = '  '
                 if(_type == self._subscribe):
-                    url += '/subscribe-tv'
+                    if(url != None):
+                        url += '/subscribe-tv'
                 elif(_type == self._organize):
-                    url += '/history'
+                    if(url != None):
+                        url += '/history'
                 # 遍历每行内容
                 for line in lines:
                     # 将每行内容按冒号分割为字段名称和值
