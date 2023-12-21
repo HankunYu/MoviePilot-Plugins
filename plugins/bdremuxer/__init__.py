@@ -12,7 +12,8 @@ import os
 try:
     from pyparsebluray import mpls
 except:
-    SystemUtils.execute(f"pip install -r {os.path.dirname(__file__)}/requirements.txt")
+    subprocess.run(["pip3", "install", "pyparsebluray"])
+    subprocess.run(["pip3", "install", "ffmpeg-python"])
     
 try:
     import ffmpeg
@@ -29,7 +30,7 @@ class BDRemuxer(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.4"
+    plugin_version = "0.5"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
