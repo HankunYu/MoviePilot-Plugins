@@ -9,6 +9,7 @@ from typing import Any, List, Dict, Tuple
 import subprocess
 import os
 import shutil
+import threading
 try:
     from pyparsebluray import mpls
 except:
@@ -30,7 +31,7 @@ class BDRemuxer(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0.1"
+    plugin_version = "1.0.2"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -57,13 +58,14 @@ class BDRemuxer(_PluginBase):
         if self._enabled:
             logger.info("BD Remuxer 插件初始化完成")
             if self._run_once:
-                self.extract(self._path)
-                update_config = {
+                thread = threading.Thread(target=self.extract, args=(self._path,))
+                thread.start()
+                self.update_config({
                     "enabled": self._enabled,
                     "delete": self._delete,
                     "run_once": False,
                     "path": self._path
-                }
+                })
 
     def get_state(self) -> bool:
         return self._enabled
@@ -206,6 +208,7 @@ class BDRemuxer(_PluginBase):
         
         filelist_string = '\n'.join([f"file '{file}'" for file in file_paths])
         # 将filelist_string写入filelist.txt
+        logger.info('搜索到需要提取的m2ts文件: ' + filelist_string)
         with open('/tmp/filelist.txt', 'w') as file:
             file.write(filelist_string)
             
@@ -335,7 +338,8 @@ class BDRemuxer(_PluginBase):
             logger.warn('失败。找不到BDMV文件夹: bd_path')
             return
         # 提取流程
-        self.extract(bd_path)
+        thread = threading.Thread(target=self.extract, args=(bd_path,))
+        thread.start()
         
 
 
