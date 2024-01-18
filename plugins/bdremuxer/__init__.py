@@ -30,7 +30,7 @@ class BDRemuxer(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0"
+    plugin_version = "1.0.1"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -45,14 +45,25 @@ class BDRemuxer(_PluginBase):
     # 私有属性
     _enabled = False
     _delete = False
-
+    _run_once = False
+    _path = ""
 
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
             self._delete = config.get("delete")
+            self._run_once = config.get("run_once")
+            self._path = config.get("path")
         if self._enabled:
             logger.info("BD Remuxer 插件初始化完成")
+            if self._run_once:
+                self.extract(self._path)
+                update_config = {
+                    "enabled": self._enabled,
+                    "delete": self._delete,
+                    "run_once": False,
+                    "path": self._path
+                }
 
     def get_state(self) -> bool:
         return self._enabled
@@ -117,6 +128,40 @@ class BDRemuxer(_PluginBase):
                         'content': [
                             {
                                 'component': 'VCol',
+                                'props': {
+                                    'cols': 12
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VTextarea',
+                                        'props': {
+                                            'model': 'path',
+                                            'label': '手动指定BDMV文件夹路径',
+                                            'rows': 1,
+                                            'placeholder': '路径指向BDMV父文件夹',
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'content': [
+                                     {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'run_once',
+                                            'label': '提取指定目录BDMV',
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
                                 'content': [
                                     {
                                         'component': 'VAlert',
@@ -134,13 +179,16 @@ class BDRemuxer(_PluginBase):
             }
         ], {
             "enabled": False,
-            "delete": False
+            "delete": False,
+            "path": "",
+            "run_once": False,
         }
 
     def get_page(self) -> List[dict]:
         pass
     
     def extract(self,bd_path : str):
+        logger.info('开始提取BDMV。')
         output_name = os.path.basename(bd_path) + ".mkv"
         output_name = os.path.join(bd_path, output_name)
         bd_path = bd_path + '/BDMV'
@@ -284,6 +332,7 @@ class BDRemuxer(_PluginBase):
         # 检查是否存在BDMV文件夹
         bd_path = os.path.dirname(targets_file[0])
         if not os.path.exists(bd_path + '/BDMV'):
+            logger.warn('失败。找不到BDMV文件夹: bd_path')
             return
         # 提取流程
         self.extract(bd_path)
