@@ -31,7 +31,7 @@ class BDRemuxer(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0.4"
+    plugin_version = "1.0.5"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -288,6 +288,7 @@ class BDRemuxer(_PluginBase):
             if os.path.isfile(os.path.join(mpls_path, file)) and file.endswith('.mpls'):
                 if file == '00000.mpls': continue # 跳过00000.mpls
                 files.append(os.path.join(mpls_path, file))
+        files.sort()
         for file in files:
             with open(file, 'rb') as mpls_file:
                 header = mpls.load_movie_playlist(mpls_file)
