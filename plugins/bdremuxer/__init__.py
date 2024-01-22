@@ -31,7 +31,7 @@ class BDRemuxer(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0.8"
+    plugin_version = "1.0.9"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -305,13 +305,36 @@ class BDRemuxer(_PluginBase):
 
     @eventmanager.register(EventType.TransferComplete)
     def remuxer(self, event):
-        logger.info('收到传输完成事件。')
         if not self._enabled:
             return
-        logger.info(event)
-        target_path = event.get("transferinfo").get("target_path")
-        logger.info('transferinfo:' + event.get("transferinfo"))
-        logger.info(target_path)
+        def __to_dict(_event):
+            """
+            递归将对象转换为字典
+            """
+            if isinstance(_event, dict):
+                for k, v in _event.items():
+                    _event[k] = __to_dict(v)
+                return _event
+            elif isinstance(_event, list):
+                for i in range(len(_event)):
+                    _event[i] = __to_dict(_event[i])
+                return _event
+            elif isinstance(_event, tuple):
+                return tuple(__to_dict(list(_event)))
+            elif isinstance(_event, set):
+                return set(__to_dict(list(_event)))
+            elif hasattr(_event, 'to_dict'):
+                return __to_dict(_event.to_dict())
+            elif hasattr(_event, '__dict__'):
+                return __to_dict(_event.__dict__)
+            elif isinstance(_event, (int, float, str, bool, type(None))):
+                return _event
+            else:
+                return str(_event)
+            
+        raw_data = __to_dict(event.event_data)
+        target_file = raw_data.get("transferinfo").get("file_list_new")[0]
+        target_path = os.path.dirname(target_file)
 
         # 检查是否存在BDMV文件夹
         bd_path = os.path.dirname(target_path)
