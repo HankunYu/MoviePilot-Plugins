@@ -31,7 +31,7 @@ class BDRemuxer(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0.9"
+    plugin_version = "1.1.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -339,7 +339,7 @@ class BDRemuxer(_PluginBase):
         # 检查是否存在BDMV文件夹
         bd_path = os.path.dirname(target_path)
         if not os.path.exists(bd_path + '/BDMV'):
-            logger.warn('失败。找不到BDMV文件夹: bd_path')
+            logger.warn('失败。找不到BDMV文件夹: ' + bd_path)
             return
         # 提取流程
         thread = threading.Thread(target=self.extract, args=(bd_path,))
