@@ -31,7 +31,7 @@ class BDRemuxer(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0.6"
+    plugin_version = "1.0.7"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -304,7 +304,10 @@ class BDRemuxer(_PluginBase):
         return play_items
 
     @eventmanager.register(EventType.TransferComplete)
-    def remux(self, event):
+    def remuxer(self, event):
+        logger.info('收到传输完成事件。')
+        if not self._enabled:
+            return
         target_path = event.get("transferinfo").target_path
         logger.info('transferinfo:' + event.get("transferinfo"))
         logger.info(target_path)
