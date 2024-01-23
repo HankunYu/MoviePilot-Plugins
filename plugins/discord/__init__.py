@@ -1,5 +1,7 @@
 #import discord
 from enum import Enum
+import asyncio
+import discord_bot, tokenes
 
 # MoviePilot library
 from app.log import logger
@@ -19,7 +21,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.2"
+    plugin_version = "1.3.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -44,6 +46,7 @@ class Discord(_PluginBase):
     _site_message: str = "站点消息"
     _media_server: str = "媒体服务器通知"
     _manual: str = "手动处理通知"
+    _bot_token: str = None
     _all_types: List[str] = [_download, _subscribe, _organize, _site_message, _media_server, _manual]
     _select_types: List[str] = []
 
@@ -54,11 +57,16 @@ class Discord(_PluginBase):
             self._webhook_url = config.get("webhook_url")
             self._debug_enabled = config.get("debug_enabled")
             self._site_url = config.get("site_url")
+            self._bot_token = config.get("bot_token")
             self._select_types = config.get("select_types")
 
             if(self._site_url and not self._site_url.startswith("http")):
                 self._site_url = "http://" + self._site_url
-        
+            if(self._enabled and self._bot_token):
+                tokenes.bot_token = self._bot_token
+                asyncio.run(discord_bot.run_bot())
+                logger.info("Discord bot 启动成功")
+                
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
 
     def get_state(self) -> bool:
@@ -153,6 +161,23 @@ class Discord(_PluginBase):
                                 'component': 'VCol',
                                 'content': [
                                     {
+                                        'component': 'VTextField',
+                                         'props': {
+                                            'model': 'bot_token',
+                                            'label': 'Discord bot token（可选)'
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'content': [
+                                    {
                                         'component': 'VSelect',
                                         'props': {
                                             'chips': True,
@@ -173,6 +198,7 @@ class Discord(_PluginBase):
             "debug_enabled": False,
             "webhook_url": "",
             "site_url": "",
+            "bot_token": "",
             "select_types": []
         }
 
