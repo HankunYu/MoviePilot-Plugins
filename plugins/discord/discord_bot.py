@@ -17,7 +17,7 @@ async def load_extensions():
     for filename in os.listdir(directory):
         logger.info(f"Loading {filename}")  
         if filename.endswith(".py"):
-            await client.load_extension(f"cogs.{filename[:-3]}")
+            await client.load_extension(f"{filename[:-3]}")
 
 async def run_bot():
     async with client:
