@@ -20,6 +20,8 @@ async def load_extensions():
 
 async def run_bot():
     async with client:
-        await load_extensions()
-        await client.start(tokenes.bot_token)
-
+        try:
+            await load_extensions()
+            await client.start(tokenes.bot_token)
+        except:
+            logger.error("Bot 启动失败")
