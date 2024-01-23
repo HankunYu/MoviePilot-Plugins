@@ -13,7 +13,7 @@ client = commands.Bot(command_prefix='$', intents=intents)
 
 # Load cogs
 async def load_extensions():
-    await client.load_extension(f"cogs.moviepilot_cog")
+    await client.load_extension("plugins.discord.cogs.moviepilot_cog")
 
 async def run_bot():
     async with client:
