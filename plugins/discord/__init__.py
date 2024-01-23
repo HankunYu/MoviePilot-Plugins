@@ -22,7 +22,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.18"
+    plugin_version = "1.3.19"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -66,10 +66,13 @@ class Discord(_PluginBase):
             if(self._enabled and self._bot_token):
                 tokenes.bot_token = self._bot_token
                 tokenes.gpt_token = self._gpt_token
-                asyncio.run(discord_bot.run_bot())
+                asyncio.run(self.bot_start()
                 logger.info("Discord bot 启动中...")
                 
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
+
+    async def bot_start(self):
+        await discord_bot.run_bot()
 
     def get_state(self) -> bool:
         return self._enabled
