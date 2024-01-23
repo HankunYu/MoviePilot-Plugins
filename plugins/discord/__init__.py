@@ -4,6 +4,8 @@ import asyncio, threading
 import plugins.discord.discord_bot as discord_bot
 import plugins.discord.tokenes as tokenes
 
+from plugins.discord.cogs.moviepilot_cog import MPCog
+
 # MoviePilot library
 from app.log import logger
 from app.plugins import _PluginBase
@@ -22,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.22"
+    plugin_version = "1.3.23"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -63,7 +65,9 @@ class Discord(_PluginBase):
 
             if(self._site_url and not self._site_url.startswith("http")):
                 self._site_url = "http://" + self._site_url
+            # 启动discord bot
             if(self._enabled and self._bot_token):
+                cog = MPCog(discord_bot.client)
                 tokenes.bot_token = self._bot_token
                 tokenes.gpt_token = self._gpt_token
                 asyncio.run(self.bot_start())
