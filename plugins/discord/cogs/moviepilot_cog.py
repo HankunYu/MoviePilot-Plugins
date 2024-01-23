@@ -1,7 +1,7 @@
 import discord, sys, re
 from discord import app_commands
 from discord.ext import commands
-sys.path.append("..") 
+from app.log import logger
 import plugins.discord.gpt as gpt
 
 class MPCog(commands.Cog):
@@ -14,11 +14,11 @@ class MPCog(commands.Cog):
     # 监听ready事件，bot准备好后打印登录信息
     @commands.Cog.listener()
     async def on_ready(self):
-        print(f'bot 登录成功 - {self.bot.user}')
+        logger.info(f'bot 登录成功 - {self.bot.user}')
         game = discord.Game("看电影中...")
         await self.bot.change_presence(status=discord.Status.idle, activity=game)
         slash = await self.bot.tree.sync()
-        print(f"已载入 {len(slash)} 个指令")
+        logger.info(f"已载入 {len(slash)} 个指令")
 
     # 监听mention事件，使用gpt生成回复
     @commands.Cog.listener()
@@ -31,7 +31,6 @@ class MPCog(commands.Cog):
             self.on_conversion = True
             self.current_channel = message.channel
             reply = gpt.generate_reply(msg)
-            print('reply: ', reply)
             if reply != None:
                 await message.channel.send(reply)
             else:
