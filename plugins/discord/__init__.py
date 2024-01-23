@@ -22,7 +22,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.5"
+    plugin_version = "1.3.6"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
