@@ -2,7 +2,7 @@ import discord, sys, re
 from discord import app_commands
 from discord.ext import commands
 sys.path.append("..") 
-import gpt
+import plugins.discord.gpt as gpt
 
 class MPCog(commands.Cog):
     on_conversion = False

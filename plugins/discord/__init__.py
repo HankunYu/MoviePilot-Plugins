@@ -1,7 +1,8 @@
 #import discord
 from enum import Enum
 import asyncio
-import discord_bot, tokenes
+import plugins.discord.discord_bot as discord_bot
+import plugins.discord.tokenes as tokenes
 
 # MoviePilot library
 from app.log import logger
@@ -21,7 +22,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.3"
+    plugin_version = "1.3.4"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页

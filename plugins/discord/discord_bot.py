@@ -1,4 +1,4 @@
-import discord, gpt, re, discord.webhook, asyncio, cogs.moviepilot_cog as moviepilot_cog, os
+import discord, gpt, re, discord.webhook, asyncio, os
 from discord import app_commands
 from discord.ext import commands
 import tokenes
