@@ -1,7 +1,7 @@
-import discord, re, discord.webhook, asyncio, os
-from discord import app_commands
+import discord, discord.webhook, asyncio, os
 from discord.ext import commands
 import plugins.discord.tokenes as tokenes
+from app.log import logger
 """
 bot 本体.
 """
@@ -13,7 +13,10 @@ client = commands.Bot(command_prefix='$', intents=intents)
 
 # Load cogs
 async def load_extensions():
-    await client.load_extension("plugins.discord.cogs.moviepilot_cog")
+    for filename in os.listdir(os.getcwd() + "/cogs"):
+        logger.info(f"Loading {filename}")  
+        if filename.endswith(".py"):
+            await client.load_extension(f"cogs.{filename[:-3]}")
 
 async def run_bot():
     async with client:

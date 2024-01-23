@@ -22,7 +22,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.10"
+    plugin_version = "1.3.11"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -65,9 +65,7 @@ class Discord(_PluginBase):
                 self._site_url = "http://" + self._site_url
             if(self._enabled and self._bot_token):
                 tokenes.bot_token = self._bot_token
-                # asyncio.run(discord_bot.run_bot())
-                current_file_path = os.path.abspath(__file__)
-                logger.info(f"current_file_path: {current_file_path}")
+                asyncio.run(discord_bot.run_bot())
                 logger.info("Discord bot 启动成功")
                 
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
