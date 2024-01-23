@@ -2,7 +2,10 @@ import discord, sys, re
 from discord import app_commands
 from discord.ext import commands
 from app.log import logger
-import plugins.discord.gpt as gpt
+try:
+    import plugins.discord.gpt as gpt
+except:
+    logger.error("GPT模块载入失败")
 
 class MPCog(commands.Cog):
     on_conversion = False
