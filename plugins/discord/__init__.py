@@ -51,8 +51,6 @@ class Discord(_PluginBase):
     _all_types: List[str] = [_download, _subscribe, _organize, _site_message, _media_server, _manual]
     _select_types: List[str] = []
 
-    bot_thread = None
-
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
@@ -66,11 +64,8 @@ class Discord(_PluginBase):
                 self._site_url = "http://" + self._site_url
             if(self._enabled and self._bot_token):
                 tokenes.bot_token = self._bot_token
-                if(self.bot_thread != None):
-                    self.bot_thread.join()
-                self.bot_thread = threading.Thread(target=discord_bot.run_bot())
-                self.bot_thread.start()
-                logger.info("Discord bot 启动成功")
+                asyncio.run(discord_bot.run_bot())
+                logger.info("Discord bot 启动中...")
                 
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
 
