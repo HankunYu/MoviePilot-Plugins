@@ -1,5 +1,5 @@
 import openai
-import tokenes
+import plugins.discord.tokenes as tokenes
 openai.api_key = tokenes.gpt_token
 chat_history = [
             {"role": "system", "content": "你是一个智能助手,请用中文回复我"}

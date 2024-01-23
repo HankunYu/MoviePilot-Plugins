@@ -1,7 +1,7 @@
 import discord, re, discord.webhook, asyncio, os
 from discord import app_commands
 from discord.ext import commands
-import tokenes
+import plugins.discord.tokenes as tokenes
 """
 bot 本体.
 """
