@@ -13,6 +13,7 @@ client = commands.Bot(command_prefix='$', intents=intents)
 
 # Load cogs
 async def load_extensions():
+    logger.error(os.path.abspath(__file__))
     directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cogs")
     for filename in os.listdir(directory):
         logger.info(f"Loading {filename}")  
@@ -25,4 +26,4 @@ async def run_bot():
             await load_extensions()
             await client.start(tokenes.bot_token)
         except Exception as e:
-            logger.error(f"Bot 启动失败: + {e}")
+            logger.error(f"Bot 启动失败: {e}")
