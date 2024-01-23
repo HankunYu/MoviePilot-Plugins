@@ -23,5 +23,5 @@ async def run_bot():
         try:
             await load_extensions()
             await client.start(tokenes.bot_token)
-        except:
-            logger.error(f"Bot 启动失败 + {tokenes.bot_token}")
+        except Exception as e:
+            logger.error(f"Bot 启动失败: + {e}")
