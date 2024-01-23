@@ -13,7 +13,8 @@ client = commands.Bot(command_prefix='$', intents=intents)
 
 # Load cogs
 async def load_extensions():
-    for filename in os.listdir(os.getcwd() + "/cogs"):
+    directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cogs")
+    for filename in os.listdir(directory):
         logger.info(f"Loading {filename}")  
         if filename.endswith(".py"):
             await client.load_extension(f"cogs.{filename[:-3]}")
