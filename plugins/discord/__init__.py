@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.30"
+    plugin_version = "1.3.31"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -54,6 +54,8 @@ class Discord(_PluginBase):
     _all_types: List[str] = [_download, _subscribe, _organize, _site_message, _media_server, _manual]
     _select_types: List[str] = []
 
+    bot_thread = None
+
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled")
@@ -70,13 +72,14 @@ class Discord(_PluginBase):
                 cog = MPCog(discord_bot.client)
                 tokenes.bot_token = self._bot_token
                 tokenes.gpt_token = self._gpt_token
-                bot = asyncio.get_event_loop()
-                bot.run_until_complete(discord_bot.run_bot())
+                self.bot_thread = threading.Thread(target=self.bot_start)
+                self.bot_thread.start()
+                
                 
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
 
-    async def bot_start(self):
-        await discord_bot.run_bot()
+    def bot_start(self):
+        asyncio.run(discord_bot.run_bot())
 
     def get_state(self) -> bool:
         return self._enabled
