@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.28"
+    plugin_version = "1.3.29"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -70,7 +70,7 @@ class Discord(_PluginBase):
                 cog = MPCog(discord_bot.client)
                 tokenes.bot_token = self._bot_token
                 tokenes.gpt_token = self._gpt_token
-                asyncio.run(self.bot_start())
+                bot = asyncio.run_coroutine_threadsafe(discord_bot.client.start(tokenes.bot_token), discord_bot.client.loop)
                 
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
 
