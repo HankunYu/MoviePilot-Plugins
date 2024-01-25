@@ -20,7 +20,7 @@ async def load_extensions():
             logger.info(f"Loading {filename[:-3]}")
             try:
                 await client.load_extension(f"{directory}/{filename[:-3]}")
-            except client.load_extension.ExtensionNotFound as e:
+            except Exception as e:
                 logger.error(f"Failed to load {filename[:-3]}: {e}")
 
 async def run_bot():
