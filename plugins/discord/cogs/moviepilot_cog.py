@@ -1,11 +1,11 @@
 import discord, sys, re
 from discord import app_commands
 from discord.ext import commands
-from app.log import logger
-try:
-    import plugins.discord.gpt as gpt
-except:
-    logger.error("GPT模块载入失败")
+# from app.log import logger
+# try:
+#     import plugins.discord.gpt as gpt
+# except:
+#     logger.error("GPT模块载入失败")
 
 class MPCog(commands.Cog):
     on_conversion = False
@@ -33,7 +33,8 @@ class MPCog(commands.Cog):
             msg  = re.sub(r'<.*?>', '', message.content)
             self.on_conversion = True
             self.current_channel = message.channel
-            reply = gpt.generate_reply(msg)
+            # reply = gpt.generate_reply(msg)
+            reply = "啊好像哪里出错了...这不应该，你再试试？不行就算了。"
             if reply != None:
                 await message.channel.send(reply)
             else:
@@ -51,7 +52,7 @@ class MPCog(commands.Cog):
 
     @app_commands.command()
     async def clear(self, interaction: discord.Interaction):
-        gpt.clear_chat_history()
+        # gpt.clear_chat_history()
         await interaction.response.send_message("对话记录已经清除")
 
     @app_commands.command(description="自动搜索并下载电影")
