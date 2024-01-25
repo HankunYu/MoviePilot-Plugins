@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.32"
+    plugin_version = "1.3.33"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -74,6 +74,10 @@ class Discord(_PluginBase):
                 tokenes.gpt_token = self._gpt_token
                 self.bot_thread = threading.Thread(target=self.bot_start)
                 self.bot_thread.start()
+            else:
+                if(self.bot_thread and self._enabled == False):
+                    discord_bot.stop()
+                    self.bot_thread = None
                 
                 
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
@@ -545,4 +549,7 @@ class Discord(_PluginBase):
         """
         退出插件
         """
+        if(self.bot_thread):
+            discord_bot.stop()
+            self.bot_thread = None
         pass
