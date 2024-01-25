@@ -19,7 +19,7 @@ async def load_extensions():
         if filename.endswith(".py"):
             logger.info(f"Loading {filename[:-3]}")
             try:
-                await client.load_extension(f"{filename[:-3]}")
+                await client.load_extension(f"{directory}/{filename[:-3]}")
             except client.load_extension.ExtensionNotFound as e:
                 logger.error(f"Failed to load {filename[:-3]}: {e}")
 
