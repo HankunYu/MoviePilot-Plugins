@@ -168,7 +168,7 @@ class MPCog(commands.Cog):
                 fields.append(peers)
 
                 for field in fields:
-                    embed.add_field(name=field[0], value=field[1], inline=True)
+                    embed.add_field(name=field["name"], value=field["value"], inline=True)
                 
                 view = DownloadView(context, self.downloadchain)
                 await interaction.followup.send(embed=embed, view=view)
