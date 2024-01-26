@@ -141,7 +141,7 @@ class MPCog(commands.Cog):
             await interaction.followup.send("没有找到资源 " + title)
         else:
             for context in contexts:
-                torrent = context.torrent
+                torrent = context.torrent_info
                 embed = discord.Embed(title=torrent.title, 
                                       description=torrent.description,
                                       url=torrent.page_url)
