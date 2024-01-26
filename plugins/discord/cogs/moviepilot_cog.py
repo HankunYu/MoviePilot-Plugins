@@ -175,6 +175,7 @@ class MPCog(commands.Cog):
 
 class DownloadView(discord.ui.View):
     context = None
+    downloadchain = None
     def __init__(self, context: Context, downloadchain: DownloadChain):
         super().__init__(timeout=180)
         self.context = context
@@ -185,6 +186,7 @@ class DownloadView(discord.ui.View):
 
 class SubscribeView(discord.ui.View):
     context = None
+    subscribechain = None
     def __init__(self, context: Context, subscribechain: SubscribeChain):
         super().__init__(timeout=180)
         self.context = context

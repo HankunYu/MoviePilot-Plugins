@@ -4,6 +4,7 @@ import plugins.discord.tokenes as tokenes
 import plugins.discord.cogs.moviepilot_cog as moviepilot_cog
 from app.log import logger
 
+is_running = False
 on_conversion = False
 current_channel = None
 intents = discord.Intents.all()
@@ -29,9 +30,10 @@ async def run_bot():
     async with client:
         await load_extensions()
         
-        if not client.is_ready():
+        if not is_running:
             try:
                 await client.start(tokenes.bot_token)
+                is_running = True
             except Exception as e:
                 logger.error(f"Discord bot 启动失败: {e}")
 
