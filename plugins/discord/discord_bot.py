@@ -38,6 +38,6 @@ async def run_bot():
         except Exception as e:
             logger.error(f"Discord bot 启动失败: {e}")
 
-def stop():
+async def stop():
     logger.info("Discord bot 停止中...")
-    client.close()
+    await client.close()
