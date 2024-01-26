@@ -68,7 +68,7 @@ class MPCog(commands.Cog):
 
         # 搜索
         meta = MetaInfo(title=title)
-        mediainfo = self.chain.recognize_media(meta=meta)
+        mediainfo = self.searchchain.recognize_media(meta=meta)
         if not mediainfo:
             await interaction.followup.send_message("无法识别到媒体信息 " + title)
             return
@@ -100,7 +100,7 @@ class MPCog(commands.Cog):
         await interaction.response.send_message("正在订阅 " + title)
         # 搜索
         meta = MetaInfo(title=title)
-        mediainfo = self.chain.recognize_media(meta=meta)
+        mediainfo = self.searchchain.recognize_media(meta=meta)
         if not mediainfo:
             await interaction.followup.send_message("无法识别到媒体信息 " + title)
             return
@@ -127,7 +127,7 @@ class MPCog(commands.Cog):
 
         # 搜索
         meta = MetaInfo(title=title)
-        mediainfo = self.chain.recognize_media(meta=meta)
+        mediainfo = self.searchchain.recognize_media(meta=meta)
         if not mediainfo:
             await interaction.followup.send_message("无法识别到媒体信息 " + title)
             return
