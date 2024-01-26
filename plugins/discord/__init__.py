@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.53"
+    plugin_version = "1.3.54"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -72,8 +72,11 @@ class Discord(_PluginBase):
                 self._site_url = "http://" + self._site_url
             # 启动discord bot
             if(self._enabled and self._bot_token):
-                self.bot_thread = threading.Thread(target=self.bot_start)
-                self.bot_thread.start()
+                if tokenes.is_bot_running == False:
+                    self.bot_thread = threading.Thread(target=self.bot_start)
+                    self.bot_thread.start()
+                else:
+                    asyncio.run(discord_bot.load_extensions())
             else:
                 if(self.bot_thread and self._enabled == False):
                     asyncio.run(discord_bot.stop())

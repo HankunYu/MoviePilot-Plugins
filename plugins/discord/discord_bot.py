@@ -1,10 +1,8 @@
 import discord, discord.webhook, asyncio, os
 from discord.ext import commands
 import plugins.discord.tokenes as tokenes
-import plugins.discord.cogs.moviepilot_cog as moviepilot_cog
 from app.log import logger
 
-is_running = False
 on_conversion = False
 current_channel = None
 intents = discord.Intents.all()
@@ -26,17 +24,16 @@ async def unload_extensions():
 
 # Run bot
 async def run_bot():
-    global is_running
     logger.info("Discord bot 启动中...")
     async with client:
         await load_extensions()
         
-        if is_running:
+        if tokenes.is_bot_running:
             logger.info("Discord bot 已启动")
         else:
             try:
                 await client.start(tokenes.bot_token)
-                is_running = True
+                tokenes.is_bot_running = True
             except Exception as e:
                 logger.error(f"Discord bot 启动失败: {e}")
 

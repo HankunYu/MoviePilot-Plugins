@@ -1,5 +1,5 @@
-from openai import OpenAI
 import plugins.discord.tokenes as tokenes
+from openai import OpenAI
 from app.log import logger
 
 class GPT():
