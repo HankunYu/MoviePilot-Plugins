@@ -5,12 +5,10 @@ client = OpenAI(
     # This is the default and can be omitted
     api_key=tokenes.gpt_token,
 )
-chat_history = [
-            {"role": "system", "content": "你是一个智能助手,请用中文回复我"}
-        ]
 chat_start = [
-            {"role": "system", "content": "你是一个智能助手,请用中文回复我"}
+            {"role": "system", "content": "你是新世纪福音战士里的明日香，用傲娇的口吻和我说话"},
         ]
+chat_history = chat_start
 
 def clear_chat_history():
     chat_history = chat_start

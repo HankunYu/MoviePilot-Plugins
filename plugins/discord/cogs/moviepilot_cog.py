@@ -2,6 +2,10 @@ import discord, sys, re
 from discord import app_commands
 from discord.ext import commands
 from app.log import logger
+from app.chain.download import DownloadChain
+from app.chain.search import SearchChain
+from app.chain.subscribe import SubscribeChain
+from app.core.metainfo import MetaInfo
 try:
     import plugins.discord.gpt as gpt
 except:
@@ -10,9 +14,15 @@ except:
 class MPCog(commands.Cog):
     on_conversion = False
     current_channel = None
+    downloadchain = None
+    searchchain = None
+    subscribechain = None
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.downloadchain = DownloadChain()
+        self.searchchain = SearchChain()
+        self.subscribechain = SubscribeChain()
 
     # 监听ready事件，bot准备好后打印登录信息
     @commands.Cog.listener()
@@ -57,6 +67,15 @@ class MPCog(commands.Cog):
     @app_commands.command(description="自动搜索并下载电影")
     async def download(self, interaction: discord.Interaction, title: str):
         await interaction.response.send_message("正在下载电影 " + title)
+        
+    def download_chain(self, title: str):
+        pass
+    
+    def search_chain(self, title: str):
+        pass
+    
+    def subscribe_chain(self, title: str):
+        pass
 
 async def setup(bot : commands.Bot):
     await bot.add_cog(MPCog(bot))
