@@ -31,7 +31,9 @@ async def run_bot():
     async with client:
         await load_extensions()
         
-        if not is_running:
+        if is_running:
+            logger.info("Discord bot 已启动")
+        else:
             try:
                 await client.start(tokenes.bot_token)
                 is_running = True
