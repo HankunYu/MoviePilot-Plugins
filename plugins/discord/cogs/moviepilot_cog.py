@@ -7,7 +7,7 @@ from app.chain.search import SearchChain
 from app.chain.subscribe import SubscribeChain
 from app.core.context import MediaInfo, TorrentInfo, Context
 from app.core.metainfo import MetaInfo
-import plugins.discord.gpt as gpt
+from plugins.discord.gpt import GPT
 
 class MPCog(commands.Cog):
     on_conversion = False
@@ -15,12 +15,14 @@ class MPCog(commands.Cog):
     downloadchain = None
     searchchain = None
     subscribechain = None
+    gpt = None
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.downloadchain = DownloadChain()
         self.searchchain = SearchChain()
         self.subscribechain = SubscribeChain()
+        self.gpt = GPT()
 
     # 监听ready事件，bot准备好后打印登录信息
     @commands.Cog.listener()
@@ -41,7 +43,7 @@ class MPCog(commands.Cog):
             msg  = re.sub(r'<.*?>', '', message.content)
             self.on_conversion = True
             self.current_channel = message.channel
-            reply = gpt.generate_reply(msg)
+            reply = self.gpt.generate_reply(msg)
             if reply != None:
                 await message.channel.send(reply)
             else:
@@ -59,7 +61,7 @@ class MPCog(commands.Cog):
 
     @app_commands.command()
     async def clear(self, interaction: discord.Interaction):
-        gpt.clear_chat_history()
+        self.gpt.clear_chat_history()
         await interaction.response.send_message("对话记录已经清除")
 
     @app_commands.command(description="自动搜索并下载电影")
@@ -169,6 +171,7 @@ class MPCog(commands.Cog):
 
                 for field in fields:
                     embed.add_field(name=field["name"], value=field["value"], inline=True)
+                    embed.set_image(url=context.MediaInfo.poster_path)
                 
                 view = DownloadView(context, self.downloadchain)
                 await interaction.followup.send(embed=embed, view=view)
