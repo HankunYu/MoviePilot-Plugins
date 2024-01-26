@@ -9,7 +9,7 @@ class GPT():
             ]
     chat_history = chat_start
     def __init__(self):
-        self.client = OpenAI(token=tokenes.gpt_token)
+        self.client = OpenAI(api_key=tokenes.gpt_token)
         logger.info("GPT-3.5 初始化完成")
 
     def clear_chat_history(self):
