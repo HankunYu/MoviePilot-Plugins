@@ -8,10 +8,10 @@ class GPT():
                 {"role": "system", "content": "你是新世纪福音战士里的明日香，用傲娇的口吻和我说话，多使用颜文字。"},
             ]
     chat_history = chat_start
-    def __init__(self, token = None):
+    def __init__(self, token = None, user = None):
         gpt_token = token
         if(gpt_token == None):
-            logger.error("未设置OpenAI token")
+            logger.error(f"未设置OpenAI token, user: {user}")
             return
         self.client = OpenAI(api_key=gpt_token)
         logger.info("GPT-3.5 初始化完成")

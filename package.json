@@ -2,7 +2,7 @@
     "Discord": {
         "name": "Discord 消息推送",
         "description": "添加discord消息推送",
-        "version": "1.3.55",
+        "version": "1.3.56",
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/discord.png",
         "color": "#3B5E8E",
         "author": "hankun",
