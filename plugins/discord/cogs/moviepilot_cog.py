@@ -179,6 +179,7 @@ class DownloadView(discord.ui.View):
     def __init__(self, context: Context, downloadchain: DownloadChain):
         super().__init__(timeout=180)
         self.context = context
+        self.downloadchain = downloadchain
 
     @discord.ui.button(label="下载", style = discord.ButtonStyle.blurple)
     async def download(self, button: discord.ui.Button, interaction: discord.Interaction):
@@ -190,6 +191,7 @@ class SubscribeView(discord.ui.View):
     def __init__(self, context: Context, subscribechain: SubscribeChain):
         super().__init__(timeout=180)
         self.context = context
+        self.subscribechain = subscribechain
 
     @discord.ui.button(label="订阅", style = discord.ButtonStyle.blurple)
     async def subscribe(self, button: discord.ui.Button, interaction: discord.Interaction):
