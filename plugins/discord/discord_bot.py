@@ -30,9 +30,13 @@ async def run_bot():
     async with client:
         try:
             await load_extensions()
+        except Exception as e:
+            logger.error(f"Cog 加载失败: {e}")
+        
+        try:
             await client.start(tokenes.bot_token)
         except Exception as e:
-            logger.error(f"Bot 启动失败: {e}")
+            logger.error(f"Discord bot 启动失败: {e}")
 
 def stop():
     logger.info("Discord bot 停止中...")
