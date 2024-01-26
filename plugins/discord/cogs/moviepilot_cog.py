@@ -23,7 +23,8 @@ class MPCog(commands.Cog):
         self.downloadchain = DownloadChain()
         self.searchchain = SearchChain()
         self.subscribechain = SubscribeChain()
-        self.gpt = GPT(token=tokenes.gpt_token, user="Discord Bot")
+        logger.error(f'GPT token: {tokenes.gpt_token}, bot token: {tokenes.bot_token}')
+        self.gpt = GPT(token=tokenes.gpt_token)
 
     # 监听ready事件，bot准备好后打印登录信息
     @commands.Cog.listener()
