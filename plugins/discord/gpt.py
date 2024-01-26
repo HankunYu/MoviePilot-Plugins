@@ -1,19 +1,19 @@
-import plugins.discord.tokenes as tokenes
 from openai import OpenAI
 from app.log import logger
 
 class GPT():
     client = None
+    gpt_token = None
     chat_start = [
                 {"role": "system", "content": "你是新世纪福音战士里的明日香，用傲娇的口吻和我说话，多使用颜文字。"},
             ]
     chat_history = chat_start
-    def __init__(self):
-        logger.info(f"token: {tokenes.gpt_token}")
-        if(tokenes.gpt_token == None):
+    def __init__(self, token = None):
+        gpt_token = token
+        if(gpt_token == None):
             logger.error("未设置OpenAI token")
             return
-        self.client = OpenAI(api_key=tokenes.gpt_token)
+        self.client = OpenAI(api_key=gpt_token)
         logger.info("GPT-3.5 初始化完成")
 
     def clear_chat_history(self):
@@ -21,8 +21,8 @@ class GPT():
 
     # 生成回复,并添加到chat_history
     def generate_reply(self,message):
-        if(tokenes.gpt_token == None):
-            return f"未设置OpenAI token {tokenes.gpt_token}"
+        if(self.gpt_token == None):
+            return f"未设置OpenAI token"
         # chat_history 添加用户输入
         self.chat_history.append({"role": "user", "content": message})
 
