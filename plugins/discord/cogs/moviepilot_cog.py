@@ -171,7 +171,8 @@ class MPCog(commands.Cog):
 
                 for field in fields:
                     embed.add_field(name=field["name"], value=field["value"], inline=True)
-                    embed.set_image(url=context.MediaInfo.poster_path)
+                    if context.media_info.poster_path:
+                        embed.set_image(url=context.media_info.poster_path)
                 
                 view = DownloadView(context, self.downloadchain)
                 await interaction.followup.send(embed=embed, view=view)
