@@ -1,12 +1,15 @@
 from openai import OpenAI
 import plugins.discord.tokenes as tokenes
+from app.log import logger
 
-client = OpenAI(
-    # This is the default and can be omitted
-    api_key=tokenes.gpt_token,
-)
+if tokenes.gpt_token == None:
+    logger.error("未设置OpenAI token")
+else:
+    client = OpenAI(
+        api_key=tokenes.gpt_token,
+    )
 chat_start = [
-            {"role": "system", "content": "你是新世纪福音战士里的明日香，用傲娇的口吻和我说话"},
+            {"role": "system", "content": "你是新世纪福音战士里的明日香，用傲娇的口吻和我说话，多使用颜文字。"},
         ]
 chat_history = chat_start
 
