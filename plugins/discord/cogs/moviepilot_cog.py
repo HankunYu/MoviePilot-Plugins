@@ -65,19 +65,80 @@ class MPCog(commands.Cog):
     @app_commands.command(description="自动搜索并下载电影")
     async def download(self, interaction: discord.Interaction, title: str):
         await interaction.response.send_message("正在下载电影 " + title)
+
+        # 搜索
+        meta = MetaInfo(title=title)
+        mediainfo = self.chain.recognize_media(meta=meta)
+        if not mediainfo:
+            await interaction.followup.send_message("无法识别到媒体信息 " + title)
+            return
+        exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
+        if exist_flag:
+            await interaction.followup.send_message(f'{mediainfo.title_year} 已存在')
+            return
+        
+        contexts = self.searchchain.process(mediainfo = mediainfo, no_exists=no_exists)
+        if len(contexts) == 0:
+            await interaction.followup.send_message("没有找到资源 " + title)
+         # 自动下载
+        downloads, lefts = self.downloadchain.batch_download(contexts=contexts, no_exists=no_exists,
+                                                                                 username="Discord Bot")
+        if downloads and not lefts:
+            await interaction.followup.send_message(f'{mediainfo.title_year} 下载完成')
+        else:
+            await interaction.followup.send_message(f'{mediainfo.title_year} 下载未完整，开始订阅')
+            self.subscribechain.add(title=mediainfo.title,
+                                                        year=mediainfo.year,
+                                                        mtype=mediainfo.type,
+                                                        tmdbid=mediainfo.tmdb_id,
+                                                        season=meta.begin_season,
+                                                        exist_ok=True,
+                                                        username="Discord Bot")
     
-    @app_commands.command(description="自动搜索并下载电影")
+    @app_commands.command(description="订阅电影")
     async def subscribe(self, interaction: discord.Interaction, title: str):
         await interaction.response.send_message("正在订阅 " + title)
+        # 搜索
+        meta = MetaInfo(title=title)
+        mediainfo = self.chain.recognize_media(meta=meta)
+        if not mediainfo:
+            await interaction.followup.send_message("无法识别到媒体信息 " + title)
+            return
+        exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
+        if exist_flag:
+            await interaction.followup.send_message(f'{mediainfo.title_year} 已存在')
+            return
+
+         # 订阅
+        self.subscribechain.add(title=mediainfo.title,
+                                                    year=mediainfo.year,
+                                                    mtype=mediainfo.type,
+                                                    tmdbid=mediainfo.tmdb_id,
+                                                    season=meta.begin_season,
+                                                    exist_ok=True,
+                                                    username="Discord Bot")
         
+        await interaction.followup.send_message(f'已订阅 {mediainfo.title_year}')
+
 
     @app_commands.command(description="搜索电影")
     async def search(self, interaction: discord.Interaction, title: str):
         await interaction.response.send_message("正在搜索电影 " + title)
-        mediaInfo = MediaInfo(title = title)
-        contexts = self.searchchain.process(mediainfo = mediaInfo)
+
+        # 搜索
+        meta = MetaInfo(title=title)
+        mediainfo = self.chain.recognize_media(meta=meta)
+        if not mediainfo:
+            await interaction.followup.send_message("无法识别到媒体信息 " + title)
+            return
+        exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
+        if exist_flag:
+            await interaction.followup.send_message(f'{mediainfo.title_year} 已存在')
+            return
+        
+        contexts = self.searchchain.process(mediainfo = mediainfo, no_exists=no_exists)
         if len(contexts) == 0:
-            await interaction.response.send_message("没有找到资源 " + title)
+            await interaction.followup.send_message("没有找到资源 " + title)
         else:
             for context in contexts:
                 torrent = context.torrent
@@ -110,7 +171,7 @@ class MPCog(commands.Cog):
                     embed.add_field(name=field[0], value=field[1], inline=True)
                 
                 view = DownloadView(context, self.downloadchain)
-                await interaction.response.send_message(embed=embed, view=view)
+                await interaction.followup.send_message(embed=embed, view=view)
 
 class DownloadView(discord.ui.View):
     context = None

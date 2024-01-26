@@ -7,6 +7,6 @@
 
 ### Todo
 
-- [ ] 添加discord bot支持
-- [ ] 支持使用GPT聊天以及交互
+- [X] 添加discord bot支持
+- [X] 支持使用GPT聊天以及交互
 - [ ] 支持从discord直接发送命令

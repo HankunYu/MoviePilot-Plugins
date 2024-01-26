@@ -19,6 +19,8 @@ def clear_chat_history():
     
 # 生成回复,并添加到chat_history
 def generate_reply(message):
+    if(tokenes.gpt_token == None):
+        return "未设置OpenAI token"
     # chat_history 添加用户输入
     chat_history.append({"role": "user", "content": message})
 
