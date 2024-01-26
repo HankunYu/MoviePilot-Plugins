@@ -26,6 +26,7 @@ async def unload_extensions():
 
 # Run bot
 async def run_bot():
+    global is_running
     logger.info("Discord bot 启动中...")
     async with client:
         await load_extensions()
