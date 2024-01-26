@@ -152,7 +152,7 @@ class MPCog(commands.Cog):
                 }
                 torrent_size = {
                     "name": "种子大小",
-                    "value": torrent.size
+                    "value": str(round(torrent.size / 1024 / 1024 / 1024, 2)) + " GB"
                 }
                 seeders = {
                     "name": "做种数",
