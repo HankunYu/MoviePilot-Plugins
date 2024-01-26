@@ -26,10 +26,11 @@ async def run_bot():
         except Exception as e:
             logger.error(f"Cog 加载失败: {e}")
         
-        try:
-            await client.start(tokenes.bot_token)
-        except Exception as e:
-            logger.error(f"Discord bot 启动失败: {e}")
+        if not client.is_ready():
+            try:
+                await client.start(tokenes.bot_token)
+            except Exception as e:
+                logger.error(f"Discord bot 启动失败: {e}")
 
     
 async def stop():

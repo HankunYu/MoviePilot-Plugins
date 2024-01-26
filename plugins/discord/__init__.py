@@ -77,7 +77,6 @@ class Discord(_PluginBase):
             else:
                 if(self.bot_thread and self._enabled == False):
                     asyncio.run(discord_bot.stop())
-                    self.bot_thread = None
                 
                 
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
@@ -551,5 +550,4 @@ class Discord(_PluginBase):
         """
         if(self.bot_thread):
             asyncio.run(discord_bot.stop())
-            self.bot_thread = None
         pass
