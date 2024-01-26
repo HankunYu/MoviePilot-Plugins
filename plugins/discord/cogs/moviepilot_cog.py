@@ -70,23 +70,23 @@ class MPCog(commands.Cog):
         meta = MetaInfo(title=title)
         mediainfo = self.searchchain.recognize_media(meta=meta)
         if not mediainfo:
-            await interaction.followup.send_message("无法识别到媒体信息 " + title)
+            await interaction.followup.send("无法识别到媒体信息 " + title)
             return
         exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
         if exist_flag:
-            await interaction.followup.send_message(f'{mediainfo.title_year} 已存在')
+            await interaction.followup.send(f'{mediainfo.title_year} 已存在')
             return
         
         contexts = self.searchchain.process(mediainfo = mediainfo, no_exists=no_exists)
         if len(contexts) == 0:
-            await interaction.followup.send_message("没有找到资源 " + title)
+            await interaction.followup.send("没有找到资源 " + title)
          # 自动下载
         downloads, lefts = self.downloadchain.batch_download(contexts=contexts, no_exists=no_exists,
                                                                                  username="Discord Bot")
         if downloads and not lefts:
-            await interaction.followup.send_message(f'{mediainfo.title_year} 下载完成')
+            await interaction.followup.send(f'{mediainfo.title_year} 下载完成')
         else:
-            await interaction.followup.send_message(f'{mediainfo.title_year} 下载未完整，开始订阅')
+            await interaction.followup.send(f'{mediainfo.title_year} 下载未完整，开始订阅')
             self.subscribechain.add(title=mediainfo.title,
                                                         year=mediainfo.year,
                                                         mtype=mediainfo.type,
@@ -102,11 +102,11 @@ class MPCog(commands.Cog):
         meta = MetaInfo(title=title)
         mediainfo = self.searchchain.recognize_media(meta=meta)
         if not mediainfo:
-            await interaction.followup.send_message("无法识别到媒体信息 " + title)
+            await interaction.followup.send("无法识别到媒体信息 " + title)
             return
         exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
         if exist_flag:
-            await interaction.followup.send_message(f'{mediainfo.title_year} 已存在')
+            await interaction.followup.send(f'{mediainfo.title_year} 已存在')
             return
 
          # 订阅
@@ -118,7 +118,7 @@ class MPCog(commands.Cog):
                                                     exist_ok=True,
                                                     username="Discord Bot")
         
-        await interaction.followup.send_message(f'已订阅 {mediainfo.title_year}')
+        await interaction.followup.send(f'已订阅 {mediainfo.title_year}')
 
 
     @app_commands.command(description="搜索电影")
@@ -129,16 +129,16 @@ class MPCog(commands.Cog):
         meta = MetaInfo(title=title)
         mediainfo = self.searchchain.recognize_media(meta=meta)
         if not mediainfo:
-            await interaction.followup.send_message("无法识别到媒体信息 " + title)
+            await interaction.followup.send("无法识别到媒体信息 " + title)
             return
         exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
         if exist_flag:
-            await interaction.followup.send_message(f'{mediainfo.title_year} 已存在')
+            await interaction.followup.send(f'{mediainfo.title_year} 已存在')
             return
         
         contexts = self.searchchain.process(mediainfo = mediainfo, no_exists=no_exists)
         if len(contexts) == 0:
-            await interaction.followup.send_message("没有找到资源 " + title)
+            await interaction.followup.send("没有找到资源 " + title)
         else:
             for context in contexts:
                 torrent = context.torrent
@@ -171,7 +171,7 @@ class MPCog(commands.Cog):
                     embed.add_field(name=field[0], value=field[1], inline=True)
                 
                 view = DownloadView(context, self.downloadchain)
-                await interaction.followup.send_message(embed=embed, view=view)
+                await interaction.followup.send(embed=embed, view=view)
 
 class DownloadView(discord.ui.View):
     context = None
