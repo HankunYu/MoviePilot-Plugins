@@ -72,7 +72,7 @@ class MPCog(commands.Cog):
 
         # 搜索
         meta = MetaInfo(title=title)
-        medias: Optional[List[MediaInfo]] = self.search_medias(meta=meta)
+        medias: Optional[List[MediaInfo]] = self.searchchain.search_medias(meta=meta)
         if not medias:
             await interaction.followup.send("无法识别到媒体信息 " + title)
             return
@@ -221,8 +221,6 @@ class MPCog(commands.Cog):
 
                 for field in fields:
                     embed.add_field(name=field["name"], value=field["value"], inline=True)
-                if context.media_info.poster_path:
-                    embed.set_image(url=context.media_info.poster_path)
                 
                 view = DownloadView(context)
                 await interaction.followup.send(embed=embed, view=view)
