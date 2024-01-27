@@ -1,4 +1,5 @@
 import discord, sys, re
+from typing import Optional, List, Tuple
 from discord import app_commands
 from discord.ext import commands
 from app.log import logger
@@ -71,32 +72,67 @@ class MPCog(commands.Cog):
 
         # 搜索
         meta = MetaInfo(title=title)
-        mediainfo = self.searchchain.recognize_media(meta=meta)
-        if not mediainfo:
+        medias: Optional[List[MediaInfo]] = self.search_medias(meta=meta)
+        if not medias:
             await interaction.followup.send("无法识别到媒体信息 " + title)
             return
-        exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
-        if exist_flag:
-            await interaction.followup.send(f'{mediainfo.title_year} 已存在')
-            return
+        if len(medias) > 0:
+            for media in medias:
+                fields = []
+                media_title = {
+                    "name": "标题",
+                    "value": media.title
+                }
+                release_date = {
+                    "name": "发布日期",
+                    "value": media.release_date
+                }
+                vote_average = {
+                    "name": "评分",
+                    "value": media.vote_average
+                }
+                fields.append(media_title)
+                fields.append(release_date)
+                fields.append(vote_average)
+                embed = discord.Embed(title=media.title,
+                                      description=media.tmdb_info,
+                                      url=media.homepage)
+                for field in fields:
+                    embed.add_field(name=field["name"], value=field["value"], inline=True)
+                if media.poster_path:
+                    embed.set_image(url=media.poster_path)
+                await interaction.followup.send(embed=embed)
+                
         
-        contexts = self.searchchain.process(mediainfo = mediainfo, no_exists=no_exists)
-        if len(contexts) == 0:
-            await interaction.followup.send("没有找到资源 " + title)
-         # 自动下载
-        downloads, lefts = self.downloadchain.batch_download(contexts=contexts, no_exists=no_exists,
-                                                                                 username="Discord Bot")
-        if downloads and not lefts:
-            await interaction.followup.send(f'{mediainfo.title_year} 下载完成')
         else:
-            await interaction.followup.send(f'{mediainfo.title_year} 下载未完整，开始订阅')
-            self.subscribechain.add(title=mediainfo.title,
-                                                        year=mediainfo.year,
-                                                        mtype=mediainfo.type,
-                                                        tmdbid=mediainfo.tmdb_id,
-                                                        season=meta.begin_season,
-                                                        exist_ok=True,
-                                                        username="Discord Bot")
+            return
+            mediainfo = self.searchchain.recognize_media(meta=meta)
+            if not mediainfo:
+                await interaction.followup.send("无法识别到媒体信息 " + title)
+                return
+
+            exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
+            if exist_flag:
+                await interaction.followup.send(f'{mediainfo.title_year} 已存在')
+                return
+            
+            contexts = self.searchchain.process(mediainfo = mediainfo, no_exists=no_exists)
+            if len(contexts) == 0:
+                await interaction.followup.send("没有找到资源 " + title)
+            # 自动下载
+            downloads, lefts = self.downloadchain.batch_download(contexts=contexts, no_exists=no_exists,
+                                                                                    username="Discord Bot")
+            if downloads and not lefts:
+                await interaction.followup.send(f'{mediainfo.title_year} 下载完成')
+            else:
+                await interaction.followup.send(f'{mediainfo.title_year} 下载未完整，开始订阅')
+                self.subscribechain.add(title=mediainfo.title,
+                                                            year=mediainfo.year,
+                                                            mtype=mediainfo.type,
+                                                            tmdbid=mediainfo.tmdb_id,
+                                                            season=meta.begin_season,
+                                                            exist_ok=True,
+                                                            username="Discord Bot")
     
     @app_commands.command(description="订阅电影")
     async def subscribe(self, interaction: discord.Interaction, title: str):
@@ -143,6 +179,8 @@ class MPCog(commands.Cog):
         contexts = self.searchchain.process(mediainfo = mediainfo, no_exists=no_exists)
         if len(contexts) == 0:
             await interaction.followup.send("没有找到资源 " + title)
+            game = discord.Game("看电影中...")
+            await self.bot.change_presence(status=discord.Status.idle, activity=game)
         else:
             for context in contexts:
                 torrent = context.torrent_info
@@ -166,24 +204,31 @@ class MPCog(commands.Cog):
                     "name": "下载数",
                     "value": torrent.peers
                 }
-                dicts = torrent.to_dict()
+                release_date = {
+                    "name": "发布日期",
+                    "value": torrent.pubdate
+                }
                 free = {
-                    "name": "免费",
-                    "value": dicts["volume_factor"]
+                    "name": "促销",
+                    "value": torrent.volume_factor
                 }
                 fields.append(site_name)
                 fields.append(torrent_size)
+                fields.append(release_date)
                 fields.append(seeders)
                 fields.append(peers)
                 fields.append(free)
 
                 for field in fields:
                     embed.add_field(name=field["name"], value=field["value"], inline=True)
-                    if context.media_info.poster_path:
-                        embed.set_image(url=context.media_info.poster_path)
+                if context.media_info.poster_path:
+                    embed.set_image(url=context.media_info.poster_path)
                 
                 view = DownloadView(context)
                 await interaction.followup.send(embed=embed, view=view)
+                
+            game = discord.Game("看电影中...")
+            await self.bot.change_presence(status=discord.Status.idle, activity=game)
 
 class DownloadView(discord.ui.View):
     context = None
@@ -196,6 +241,7 @@ class DownloadView(discord.ui.View):
     @discord.ui.button(label="下载", style = discord.ButtonStyle.blurple)
     async def download(self, button: discord.ui.Button, interaction: discord.Interaction):
         self.downloadchain.download_single(self.context)
+        await interaction.response.send_message(f"添加下载任务 {self.context.torrent_info.title} 成功")
 
 class SubscribeView(discord.ui.View):
     context = None
