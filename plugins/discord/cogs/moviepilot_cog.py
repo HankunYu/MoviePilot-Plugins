@@ -175,16 +175,16 @@ class MPCog(commands.Cog):
                     if context.media_info.poster_path:
                         embed.set_image(url=context.media_info.poster_path)
                 
-                view = DownloadView(context, self.downloadchain)
+                view = DownloadView(context)
                 await interaction.followup.send(embed=embed, view=view)
 
 class DownloadView(discord.ui.View):
     context = None
     downloadchain = None
-    def __init__(self, context: Context, downloadchain: DownloadChain):
+    def __init__(self, context: Context):
         super().__init__(timeout=180)
         self.context = context
-        self.downloadchain = downloadchain
+        self.downloadchain = DownloadChain()
 
     @discord.ui.button(label="下载", style = discord.ButtonStyle.blurple)
     async def download(self, button: discord.ui.Button, interaction: discord.Interaction):
@@ -193,10 +193,10 @@ class DownloadView(discord.ui.View):
 class SubscribeView(discord.ui.View):
     context = None
     subscribechain = None
-    def __init__(self, context: Context, subscribechain: SubscribeChain):
+    def __init__(self, context: Context):
         super().__init__(timeout=180)
         self.context = context
-        self.subscribechain = subscribechain
+        self.subscribechain = SubscribeChain()
 
     @discord.ui.button(label="订阅", style = discord.ButtonStyle.blurple)
     async def subscribe(self, button: discord.ui.Button, interaction: discord.Interaction):
