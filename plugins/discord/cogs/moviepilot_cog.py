@@ -170,7 +170,7 @@ class MPCog(commands.Cog):
                     embed.set_image(url=media.backdrop_path)
                 # 组合上下文
                 context = Context(media_info=media, meta_info=meta)
-                view = SubscribeChain(context)
+                view = SubscribeView(context)
                 await interaction.followup.send(embed=embed, view=view)
                 
                 
