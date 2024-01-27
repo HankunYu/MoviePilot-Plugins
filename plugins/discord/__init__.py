@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.71"
+    plugin_version = "1.3.72"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -85,11 +85,11 @@ class Discord(_PluginBase):
                 if(self.bot_thread and self._enabled == False):
                     self.loop.stop()
                     self.bot_thread = None
-                
+                    tokenes.is_bot_running = False                
                 
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
 
-    def run_it_forever(loop):
+    def run_it_forever(self,loop):
         loop.run_forever()
 
     def get_state(self) -> bool:
@@ -559,4 +559,5 @@ class Discord(_PluginBase):
         if(self.bot_thread):
             self.loop.stop()
             self.bot_thread = None
+            tokenes.is_bot_running = False
         pass
