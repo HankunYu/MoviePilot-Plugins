@@ -49,7 +49,7 @@ class MPCog(commands.Cog):
                 await message.channel.send(reply)
             else:
                 await message.channel.send("啊好像哪里出错了...这不应该，你再试试？不行就算了。")
-            game = discord.Game("模仿GPT-3.5中...")
+            game = discord.Game("模仿明日香中...")
             await self.bot.change_presence(status=discord.Status.online, activity=game)
 
     # slash command
@@ -60,7 +60,7 @@ class MPCog(commands.Cog):
         await self.bot.change_presence(status=discord.Status.idle, activity=game)
         await interaction.response.send_message("^^")
 
-    @app_commands.command()
+    @app_commands.command(description="清除对话记录")
     async def clear(self, interaction: discord.Interaction):
         self.gpt.clear_chat_history()
         await interaction.response.send_message("对话记录已经清除")
@@ -127,7 +127,8 @@ class MPCog(commands.Cog):
     @app_commands.command(description="搜索电影")
     async def search(self, interaction: discord.Interaction, title: str):
         await interaction.response.send_message("正在搜索电影 " + title)
-
+        game = discord.Game("搜索电影中...")
+        await self.bot.change_presence(status=discord.Status.online, activity=game)
         # 搜索
         meta = MetaInfo(title=title)
         mediainfo = self.searchchain.recognize_media(meta=meta)
@@ -165,10 +166,16 @@ class MPCog(commands.Cog):
                     "name": "下载数",
                     "value": torrent.peers
                 }
+                dicts = torrent.to_dict()
+                free = {
+                    "name": "免费",
+                    "value": dicts["volume_factor"]
+                }
                 fields.append(site_name)
                 fields.append(torrent_size)
                 fields.append(seeders)
                 fields.append(peers)
+                fields.append(free)
 
                 for field in fields:
                     embed.add_field(name=field["name"], value=field["value"], inline=True)
@@ -188,7 +195,7 @@ class DownloadView(discord.ui.View):
 
     @discord.ui.button(label="下载", style = discord.ButtonStyle.blurple)
     async def download(self, button: discord.ui.Button, interaction: discord.Interaction):
-        self.downloadchain.dowload_single(self.context)
+        self.downloadchain.download_single(self.context)
 
 class SubscribeView(discord.ui.View):
     context = None
