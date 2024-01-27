@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.66"
+    plugin_version = "1.3.67"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -77,7 +77,7 @@ class Discord(_PluginBase):
             if(self._enabled and self._bot_token):
                 if not self.bot_thread:
                     self.loop = asyncio.get_event_loop()
-                    self.loop.create_task(self.bot_start())
+                    self.loop.create_task(discord_bot.run_bot())
                     self.bot_thread = threading.Thread(target=self.run_it_forever, args=(self.loop,))
                     self.bot_thread.start()
             else:
@@ -91,8 +91,6 @@ class Discord(_PluginBase):
 
     def run_it_forever(loop):
         loop.run_forever()
-    def bot_start(self):
-        asyncio.run(discord_bot.run_bot())
 
     def get_state(self) -> bool:
         return self._enabled
