@@ -100,8 +100,8 @@ class MPCog(commands.Cog):
                                       url=media.homepage)
                 for field in fields:
                     embed.add_field(name=field["name"], value=field["value"], inline=True)
-                if media.poster_path:
-                    embed.set_image(url=media.poster_path)
+                if media.backdrop_path:
+                    embed.set_image(url=media.backdrop_path)
                 # 组合上下文
                 context = Context(media_info=media, meta_info=meta)
                 view = DownloadView(context)
@@ -136,27 +136,55 @@ class MPCog(commands.Cog):
     @app_commands.command(description="订阅电影")
     async def subscribe(self, interaction: discord.Interaction, title: str):
         await interaction.response.send_message("正在订阅 " + title)
-        # 搜索
+         # 搜索
         meta = MetaInfo(title=title)
-        mediainfo = self.searchchain.recognize_media(meta=meta)
-        if not mediainfo:
+        medias: Optional[List[MediaInfo]] = self.searchchain.search_medias(meta=meta)
+        if not medias:
             await interaction.followup.send("无法识别到媒体信息 " + title)
             return
-        exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
-        if exist_flag:
-            await interaction.followup.send(f'{mediainfo.title_year} 已存在')
-            return
-
-         # 订阅
-        self.subscribechain.add(title=mediainfo.title,
-                                                    year=mediainfo.year,
-                                                    mtype=mediainfo.type,
-                                                    tmdbid=mediainfo.tmdb_id,
-                                                    season=meta.begin_season,
-                                                    exist_ok=True,
-                                                    username="Discord Bot")
-        
-        await interaction.followup.send(f'已订阅 {mediainfo.title_year}')
+        # 如果找到多个结果，返回结果列表，让用户选择下载
+        if len(medias) > 0:
+            for media in medias:
+                fields = []
+                media_title = {
+                    "name": "标题",
+                    "value": media.title
+                }
+                release_date = {
+                    "name": "发布日期",
+                    "value": media.release_date
+                }
+                vote_average = {
+                    "name": "评分",
+                    "value": media.vote_average
+                }
+                fields.append(media_title)
+                fields.append(release_date)
+                fields.append(vote_average)
+                embed = discord.Embed(title=media.title,
+                                      description=media.tmdb_info["overview"],
+                                      url=media.homepage)
+                for field in fields:
+                    embed.add_field(name=field["name"], value=field["value"], inline=True)
+                if media.backdrop_path:
+                    embed.set_image(url=media.backdrop_path)
+                # 组合上下文
+                context = Context(media_info=media, meta_info=meta)
+                view = SubscribeChain(context)
+                await interaction.followup.send(embed=embed, view=view)
+                
+                
+        # 如果只找到一个结果，直接订阅
+        else:
+            mediainfo = medias[0]
+            await interaction.followup.send(f'{mediainfo.title_year} 添加订阅')
+            self.subscribechain.add(title=mediainfo.title,
+                                                        year=mediainfo.year,
+                                                        mtype=mediainfo.type,
+                                                        tmdbid=mediainfo.tmdb_id,
+                                                        season=meta.begin_season,
+                                                        exist_ok=True,
+                                                        username="Discord Bot")
 
 
     @app_commands.command(description="搜索种子，选择下载")
@@ -249,18 +277,19 @@ class DownloadView(discord.ui.View):
             meta = self.context.meta_info
             exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
             if exist_flag:
-                await interaction.followup.send(f'{mediainfo.title_year} 已存在')
+                await interaction.response.send(f'{mediainfo.title_year} 已存在')
                 return
             contexts = self.searchchain.process(mediainfo = mediainfo, no_exists=no_exists)
             if len(contexts) == 0:
-                await interaction.followup.send("没有找到资源 " + mediainfo.title_year)
+                await interaction.response.send("没有找到资源 " + mediainfo.title_year)
+                return
             # 自动下载
             downloads, lefts = self.downloadchain.batch_download(contexts=contexts, no_exists=no_exists,
                                                                                     username="Discord Bot")
             if downloads and not lefts:
-                await interaction.followup.send(f'{mediainfo.title_year} 添加下载')
+                await interaction.response.send(f'{mediainfo.title_year} 添加下载')
             else:
-                await interaction.followup.send(f'{mediainfo.title_year} 下载未完整，开始订阅')
+                await interaction.response.send(f'{mediainfo.title_year} 下载未完整，开始订阅')
                 self.subscribechain.add(title=mediainfo.title,
                                                             year=mediainfo.year,
                                                             mtype=mediainfo.type,
@@ -279,7 +308,15 @@ class SubscribeView(discord.ui.View):
 
     @discord.ui.button(label="订阅", style = discord.ButtonStyle.blurple)
     async def subscribe(self, button: discord.ui.Button, interaction: discord.Interaction):
-        self.subscribechain.add(self.context, username = "Discord Bot")
-
+        mediainfo = self.context.media_info
+        meta = self.context.meta_info
+        self.subscribechain.add(title=mediainfo.title,
+                                year=mediainfo.year,
+                                mtype=mediainfo.type,
+                                tmdbid=mediainfo.tmdb_id,
+                                season=meta.begin_season,
+                                exist_ok=True,
+                                username="Discord Bot")
+        await interaction.response.send_message(f"已添加订阅 {mediainfo.title_year}")
 async def setup(bot : commands.Bot):
     await bot.add_cog(MPCog(bot))
