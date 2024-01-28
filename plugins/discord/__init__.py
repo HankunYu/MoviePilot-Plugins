@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.75"
+    plugin_version = "1.3.76"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -83,7 +83,7 @@ class Discord(_PluginBase):
             else:
                 # 如果插件被禁用，停止discord bot
                 if(self.bot_thread and self._enabled == False):
-                    asyncio.run_coroutine_threadsafe(discord_bot.stop(), self.loop)
+                    asyncio.run(discord_bot.stop())
                     self.loop.stop()
                     self.bot_thread = None
                     tokenes.is_bot_running = False                
@@ -558,7 +558,7 @@ class Discord(_PluginBase):
         退出插件
         """
         if(self.bot_thread):
-            asyncio.run_coroutine_threadsafe(discord_bot.stop(), self.loop)
+            asyncio.run(discord_bot.stop())
             self.loop.stop()
             self.bot_thread = None
             tokenes.is_bot_running = False
