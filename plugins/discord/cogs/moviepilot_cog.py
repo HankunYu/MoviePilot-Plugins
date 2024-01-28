@@ -277,19 +277,19 @@ class DownloadView(discord.ui.View):
             meta = self.context.meta_info
             exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
             if exist_flag:
-                await interaction.response.send(f'{mediainfo.title_year} 已存在')
+                await interaction.response.send_message(f'{mediainfo.title_year} 已存在')
                 return
             contexts = self.searchchain.process(mediainfo = mediainfo, no_exists=no_exists)
             if len(contexts) == 0:
-                await interaction.response.send("没有找到资源 " + mediainfo.title_year)
+                await interaction.response.send_message("没有找到资源 " + mediainfo.title_year)
                 return
             # 自动下载
             downloads, lefts = self.downloadchain.batch_download(contexts=contexts, no_exists=no_exists,
                                                                                     username="Discord Bot")
             if downloads and not lefts:
-                await interaction.response.send(f'{mediainfo.title_year} 添加下载')
+                await interaction.response.send_message(f'{mediainfo.title_year} 添加下载')
             else:
-                await interaction.response.send(f'{mediainfo.title_year} 下载未完整，开始订阅')
+                await interaction.response.send_message(f'{mediainfo.title_year} 下载未完整，开始订阅')
                 self.subscribechain.add(title=mediainfo.title,
                                                             year=mediainfo.year,
                                                             mtype=mediainfo.type,
