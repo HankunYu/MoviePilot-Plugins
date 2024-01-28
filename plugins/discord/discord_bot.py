@@ -30,11 +30,12 @@ async def run_bot():
         else:
             try:
                 logger.info("Discord bot 启动中...")
+                tokenes.is_bot_running = True
                 await load_extensions()
                 await client.start(tokenes.bot_token)
-                tokenes.is_bot_running = True
             except Exception as e:
                 logger.error(f"Discord bot 启动失败: {e}")
+                tokenes.is_bot_running = False
 
     
 async def stop():
