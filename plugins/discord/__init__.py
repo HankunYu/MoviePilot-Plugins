@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.79"
+    plugin_version = "1.3.80"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -80,12 +80,13 @@ class Discord(_PluginBase):
                     self.loop.create_task(discord_bot.run_bot())
                     self.bot_thread = threading.Thread(target=self.run_it_forever, args=(self.loop,))
                     self.bot_thread.start()
-                    logger.info(f"测试 is bot running: {tokenes.is_bot_running}")
             else:
                 # 如果插件被禁用，停止discord bot
                 logger.info(f"is bot running: {tokenes.is_bot_running}")
                 if(self.bot_thread and self._enabled == False):
-                    asyncio.run(discord_bot.stop())
+                    self.loop.create_task(discord_bot.stop())
+                    stop_thread = threading.Thread(target=self.run_it_forever, args=(self.loop,)).start()
+                    stop_thread.join()
                     self.loop.stop()
                     self.bot_thread = None
                 
@@ -560,7 +561,9 @@ class Discord(_PluginBase):
         """
         if(self.bot_thread):
             logger.info(f"is bot running: {tokenes.is_bot_running}")
-            asyncio.run(discord_bot.stop())
+            self.loop.create_task(discord_bot.stop())
+            stop_thread = threading.Thread(target=self.run_it_forever, args=(self.loop,)).start()
+            stop_thread.join()
             self.loop.stop()
             self.bot_thread = None
         pass
