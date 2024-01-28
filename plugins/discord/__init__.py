@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.76"
+    plugin_version = "1.3.77"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -86,7 +86,6 @@ class Discord(_PluginBase):
                     asyncio.run(discord_bot.stop())
                     self.loop.stop()
                     self.bot_thread = None
-                    tokenes.is_bot_running = False                
                 
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
 
@@ -561,5 +560,4 @@ class Discord(_PluginBase):
             asyncio.run(discord_bot.stop())
             self.loop.stop()
             self.bot_thread = None
-            tokenes.is_bot_running = False
         pass

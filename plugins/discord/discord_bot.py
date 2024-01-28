@@ -38,6 +38,7 @@ async def run_bot():
 
     
 async def stop():
+    logger.info(f"is bot running: {tokenes.is_bot_running}")
     if tokenes.is_bot_running == True:
         logger.info("Discord bot 停止中...")
         async with client:
@@ -46,3 +47,5 @@ async def stop():
                 await client.close()
             except Exception as e:
                 logger.error(f"Discord bot 停止失败: {e}")
+    else:
+        logger.info("Discord bot 未运行")
