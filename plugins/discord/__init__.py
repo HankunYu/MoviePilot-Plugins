@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.86"
+    plugin_version = "1.3.87"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -78,20 +78,21 @@ class Discord(_PluginBase):
                 if not self.bot_thread:
                     self.loop = asyncio.new_event_loop()
                     self.loop.create_task(discord_bot.run_bot())
-                    self.bot_thread = threading.Thread(target=self.run_it_forever, args=(self.loop,))
+                    self.bot_thread = threading.Thread(target=self.run_bot_thread, args=(self.loop,))
                     self.bot_thread.start()
             else:
                 # 如果插件被禁用，停止discord bot
                 logger.info(f"is bot running: {tokenes.is_bot_running}")
                 if(self.bot_thread and self._enabled == False):
-                    asyncio.run_coroutine_threadsafe(discord_bot.stop(), self.loop)
-                    # self.loop.stop()
+                    future =asyncio.run_coroutine_threadsafe(discord_bot.stop(), self.loop)
+                    logger.info(f"{future.result()}")
+                    self.loop.stop()
                     self.bot_thread = None
                 
         logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
 
-    def run_it_forever(self,loop):
-        loop.run_until_complete()
+    def run_bot_thread(self,loop):
+        loop.run_forever()
 
     def get_state(self) -> bool:
         return self._enabled
@@ -559,7 +560,8 @@ class Discord(_PluginBase):
         """
         if(self.bot_thread):
             logger.info(f"is bot running: {tokenes.is_bot_running}")
-            asyncio.run_coroutine_threadsafe(discord_bot.stop(), self.loop)
-            # self.loop.stop()
+            future =asyncio.run_coroutine_threadsafe(discord_bot.stop(), self.loop)
+            logger.info(f"{future.result()}")
+            self.loop.stop()
             self.bot_thread = None
         pass
