@@ -24,7 +24,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.80"
+    plugin_version = "1.3.81"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -85,7 +85,8 @@ class Discord(_PluginBase):
                 logger.info(f"is bot running: {tokenes.is_bot_running}")
                 if(self.bot_thread and self._enabled == False):
                     self.loop.create_task(discord_bot.stop())
-                    stop_thread = threading.Thread(target=self.run_it_forever, args=(self.loop,)).start()
+                    stop_thread = threading.Thread(target=self.run_it_forever, args=(self.loop,))
+                    stop_thread.start()
                     stop_thread.join()
                     self.loop.stop()
                     self.bot_thread = None
@@ -562,7 +563,8 @@ class Discord(_PluginBase):
         if(self.bot_thread):
             logger.info(f"is bot running: {tokenes.is_bot_running}")
             self.loop.create_task(discord_bot.stop())
-            stop_thread = threading.Thread(target=self.run_it_forever, args=(self.loop,)).start()
+            stop_thread = threading.Thread(target=self.run_it_forever, args=(self.loop,))
+            stop_thread.start()
             stop_thread.join()
             self.loop.stop()
             self.bot_thread = None
