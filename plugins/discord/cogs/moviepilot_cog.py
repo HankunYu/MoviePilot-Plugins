@@ -259,11 +259,13 @@ class DownloadView(discord.ui.View):
     context = None
     downloadchain = None
     subscribechain = None
+    searchchain = None
     def __init__(self, context: Context):
         super().__init__(timeout=180)
         self.context = context
         self.subscribechain = SubscribeChain()
         self.downloadchain = DownloadChain()
+        self.searchchain = SearchChain()
 
     @discord.ui.button(label="下载", style = discord.ButtonStyle.blurple)
     async def download(self, button: discord.ui.Button, interaction: discord.Interaction):
