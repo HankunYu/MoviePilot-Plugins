@@ -14,7 +14,7 @@ class GPT():
             logger.error(f"未设置OpenAI token")
             return
         self.client = OpenAI(api_key=self.gpt_token)
-        logger.info("GPT-3.5 初始化完成")
+        logger.info("GPT 初始化完成")
 
     def clear_chat_history(self):
         self.chat_history = self.chat_start

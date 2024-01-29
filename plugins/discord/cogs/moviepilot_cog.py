@@ -50,7 +50,7 @@ class MPCog(commands.Cog):
                 await message.channel.send(reply)
             else:
                 await message.channel.send("啊好像哪里出错了...这不应该，你再试试？不行就算了。")
-            game = discord.Game("模仿明日香中...")
+            game = discord.Game("模仿ChatGPT中...")
             await self.bot.change_presence(status=discord.Status.online, activity=game)
 
     # slash command
@@ -68,15 +68,21 @@ class MPCog(commands.Cog):
 
     @app_commands.command(description="下载电影，如果找到多个结果，返回结果列表，让用户选择下载")
     async def download(self, interaction: discord.Interaction, title: str):
-        await interaction.response.send_message("正在下载电影 " + title)
-
+        await interaction.response.send_message("正在搜索电影信息 " + title)
+        
+        game = discord.Game("努力搜索中...")
+        await self.bot.change_presence(status=discord.Status.online, activity=game)
         # 搜索
         meta = MetaInfo(title=title)
         medias: Optional[List[MediaInfo]] = self.searchchain.search_medias(meta=meta)
         if not medias:
             await interaction.followup.send("无法识别到媒体信息 " + title)
+            game = discord.Game("看电影中...")
+            await self.bot.change_presence(status=discord.Status.online, activity=game)
             return
         # 如果找到多个结果，返回结果列表，让用户选择下载
+        game = discord.Game("看电影中...")
+        await self.bot.change_presence(status=discord.Status.idle, activity=game)
         if len(medias) > 0:
             for media in medias:
                 fields = []
@@ -107,9 +113,8 @@ class MPCog(commands.Cog):
                 view = DownloadView(context)
                 await interaction.followup.send(embed=embed, view=view)
                 
-                
         # 如果只找到一个结果，直接下载
-        else:
+        if len(medias) == 1:
             mediainfo = medias[0]
             exist_flag, no_exists = self.downloadchain.get_no_exists_info(meta=meta, mediainfo=mediainfo)
             if exist_flag:
@@ -135,13 +140,19 @@ class MPCog(commands.Cog):
     
     @app_commands.command(description="订阅电影")
     async def subscribe(self, interaction: discord.Interaction, title: str):
-        await interaction.response.send_message("正在订阅 " + title)
+        await interaction.response.send_message("正在搜索电影体信息 " + title)
+        game = discord.Game("努力搜索中...")
+        await self.bot.change_presence(status=discord.Status.online, activity=game)
          # 搜索
         meta = MetaInfo(title=title)
         medias: Optional[List[MediaInfo]] = self.searchchain.search_medias(meta=meta)
         if not medias:
             await interaction.followup.send("无法识别到媒体信息 " + title)
+            game = discord.Game("看电影中...")
+            await self.bot.change_presence(status=discord.Status.idle, activity=game)
             return
+        await interaction.followup.send("无法识别到媒体信息 " + title)
+        game = discord.Game("看电影中...")
         # 如果找到多个结果，返回结果列表，让用户选择下载
         if len(medias) > 0:
             for media in medias:
@@ -190,7 +201,7 @@ class MPCog(commands.Cog):
     @app_commands.command(description="搜索种子，选择下载")
     async def search(self, interaction: discord.Interaction, title: str):
         await interaction.response.send_message("正在搜索电影 " + title)
-        game = discord.Game("搜索电影中...")
+        game = discord.Game("努力搜索中...")
         await self.bot.change_presence(status=discord.Status.online, activity=game)
         # 搜索
         meta = MetaInfo(title=title)
