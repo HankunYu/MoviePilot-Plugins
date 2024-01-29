@@ -1,4 +1,4 @@
-import discord, discord.webhook, asyncio, os
+import discord, discord.webhook, asyncio, os, sys
 from discord.ext import commands
 import plugins.discord.tokenes as tokenes
 from app.log import logger
@@ -38,12 +38,7 @@ async def run_bot():
                 await client.start(tokenes.bot_token)
             except Exception as e:
                 logger.error(f"Discord bot 启动失败: {e}")
-                try:
-                    tokenes.is_bot_running = True
-                    await client.connect(reconnect=True)
-                except Exception as e:
-                    logger.error(f"Discord bot 重连失败: {e}")
-                    tokenes.is_bot_running = False
+                tokenes.is_bot_running = False
 
     
 async def stop():
@@ -54,6 +49,7 @@ async def stop():
             try:
                 tokenes.is_bot_running = False
                 await unload_extensions()
+                sys.exit(0)
             except Exception as e:
                 logger.error(f"Discord bot 停止失败: {e}")
     else:
