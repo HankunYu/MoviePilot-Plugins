@@ -33,14 +33,17 @@ async def run_bot():
         else:
             try:
                 logger.info("Discord bot 启动中...")
-                # 新建bot实例
-                client = commands.Bot(command_prefix='$', intents=intents)
                 tokenes.is_bot_running = True
                 await load_extensions()
                 await client.start(tokenes.bot_token)
             except Exception as e:
                 logger.error(f"Discord bot 启动失败: {e}")
-                tokenes.is_bot_running = False
+                try:
+                    tokenes.is_bot_running = True
+                    await client.connect(reconnect=True)
+                except Exception as e:
+                    logger.error(f"Discord bot 重连失败: {e}")
+                    tokenes.is_bot_running = False
 
     
 async def stop():
@@ -51,7 +54,6 @@ async def stop():
             try:
                 tokenes.is_bot_running = False
                 await unload_extensions()
-                await client.close()
             except Exception as e:
                 logger.error(f"Discord bot 停止失败: {e}")
     else:
