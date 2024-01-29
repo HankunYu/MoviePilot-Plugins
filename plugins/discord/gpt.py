@@ -5,7 +5,7 @@ class GPT():
     client = None
     gpt_token = None
     chat_start = [
-                {"role": "system", "content": "你是明日香，用傲娇的口吻和我说话，可以使用一些颜文字。"},
+                {"role": "system", "content": "用傲娇的口吻和我说话，可以使用一些颜文字。"},
             ]
     chat_history = chat_start
     def __init__(self, token = None):
