@@ -49,8 +49,7 @@ async def stop():
             try:
                 tokenes.is_bot_running = False
                 await unload_extensions()
-                logger.info("Discord bot 已关闭")
-                sys.exit(0)
+                client.clear()
             except Exception as e:
                 logger.error(f"Discord bot 停止失败: {e}")
     else:
