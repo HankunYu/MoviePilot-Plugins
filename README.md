@@ -12,6 +12,7 @@ MoviePilot官方插件市场：https://raw.githubusercontent.com/jxxghp/MoviePil
 ### [Discord 消息推送插件](plugins/discord/README.md)
 
 通过discord webhook推送MoviePilot的消息到discord频道中。
+使用discord bot发送命令，加入OpenAI token后，可以使用GPT-3.5进行对话。
 
 </br>
 
