@@ -49,7 +49,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.8"
+    plugin_version = "1.0.9"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -236,6 +236,7 @@ class Bangumi(_PluginBase):
 
     def get_state(self) -> bool:
         return self._enabled
+
     
     @staticmethod
     def get_command() -> List[Dict[str, Any]]:
@@ -1207,8 +1208,25 @@ class Bangumi(_PluginBase):
         # 获取评分
         rating = self.get_rating(subject_id)
         if rating == None: return False
-
+        # 更新番剧评分
+        self.update_tvshow_nfo(file_path, rating)
         # 更新NFO
+        if not os.path.exists(file_path):
+            return False
+        with open(file_path, 'r') as file:
+            content = file.read()
+        content = re.sub(r'<rating>.*?</rating>', f'<rating>{rating}</rating>', content)
+        if re.search(r'<rating>.*?</rating>', content) == None:
+            logger.info(f"{file_path} 中没有rating字段")
+            return False
+        with open(file_path, 'w') as file:
+            file.write(content)
+            logger.info(f"更新{file_path}的评分为{rating}")
+            return True
+    
+    # 更新tvshow.nfo文件的评分
+    def update_tvshow_nfo(self, file_path: str, rating: str):
+        file_path = os.path.join(os.path.dirname(file_path), "tvshow.nfo")
         if not os.path.exists(file_path):
             return False
         with open(file_path, 'r') as file:
