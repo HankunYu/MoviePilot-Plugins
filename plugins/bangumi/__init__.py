@@ -49,7 +49,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.9"
+    plugin_version = "1.0.10"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -117,9 +117,9 @@ class Bangumi(_PluginBase):
             on_same_version = self.check_version()
         except Exception as e:
             logger.error("插件脚本版本不一致，可以考虑重建容器。MP不会自动更新除插件主脚本之外的文件")
-        if not on_same_version:
-            logger.error("插件脚本版本不一致，可以考虑重建容器。MP不会自动更新除插件主脚本之外的文件")
-            return
+        # if not on_same_version:
+        #     logger.error("插件脚本版本不一致，可以考虑重建容器。MP不会自动更新除插件主脚本之外的文件")
+        #     return
         self.check_table()
         self.downloadchain = DownloadChain()
         self.searchchain = SearchChain()
