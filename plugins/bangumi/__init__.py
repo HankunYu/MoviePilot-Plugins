@@ -49,7 +49,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.11"
+    plugin_version = "1.0.12"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -106,6 +106,7 @@ class Bangumi(_PluginBase):
         """
         检查版本是否一致
         """
+        return True
         if self.plugin_version == self._oper.plugin_version and self.plugin_version == self._info.plugin_version:
             return True
         return False
