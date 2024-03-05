@@ -27,7 +27,7 @@ class TorrentRemover_V2(_PluginBase):
     # 插件图标
     plugin_icon = "delete.jpg"
     # 插件版本
-    plugin_version = "1.2.1"
+    plugin_version = "1.2.2"
     # 插件作者
     plugin_author = "jxxghp"
     # 作者主页
@@ -785,6 +785,8 @@ class TorrentRemover_V2(_PluginBase):
             logger.error(f"Not found torrents with tags: {tags}")
             return []
         logger.info(f"自动删种任务 总共获取种子数 {len(torrents)}")
+        totoal_torrents, error_flag = downloader_obj.get_torrents()
+        logger.info(f"测试能获得的种子总数 {len(totoal_torrents)}")
         # 处理种子
         for torrent in torrents:
             if downloader == "qbittorrent":

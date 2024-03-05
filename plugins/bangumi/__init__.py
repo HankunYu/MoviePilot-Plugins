@@ -49,7 +49,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.13"
+    plugin_version = "1.0.14"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -1305,10 +1305,11 @@ class Bangumi(_PluginBase):
         for subscribe in results:
             # 取得Bangumi评分
             title = subscribe.name
-            if(subscribe.season > 1 and subscribe.season <= 10):
-                chinese_number = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
-                chinese_season = " 第" + chinese_number[subscribe.season - 1] + "季"
-                title = title + chinese_season
+            if subscribe.season != None:
+                if(subscribe.season > 1 and subscribe.season <= 10):
+                    chinese_number = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+                    chinese_season = " 第" + chinese_number[subscribe.season - 1] + "季"
+                    title = title + chinese_season
             subject_id = self.search_subject(title)
             if subject_id == None: continue
             rating = self.get_rating(subject_id)
