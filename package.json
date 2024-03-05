@@ -20,7 +20,7 @@
     "Bangumi": {
         "name": "Bangumi 同步",
         "description": "动漫资源引用Bangumi评分，同步订阅/库存番剧到Bangumi",
-        "version": "1.0.12",
+        "version": "1.0.13",
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/bangumi.jpg",
         "color": "#5378A4",
         "author": "hankun",
@@ -38,7 +38,7 @@
     "TorrentRemover_V2": {
         "name": "自动删种 改版测试用",
         "description": "官方插件的改版，测试用",
-        "version": "1.1.0",
+        "version": "1.2.1",
         "icon": "delete.jpg",
         "author": "jxxghp",
         "level": 2    }

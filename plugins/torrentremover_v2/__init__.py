@@ -21,13 +21,13 @@ lock = threading.Lock()
 
 class TorrentRemover_V2(_PluginBase):
     # 插件名称
-    plugin_name = "自动删种"
+    plugin_name = "自动删种 改版测试用"
     # 插件描述
-    plugin_desc = "自动删除下载器中的下载任务。"
+    plugin_desc = "自用，为了测试官方插件失效问题。"
     # 插件图标
     plugin_icon = "delete.jpg"
     # 插件版本
-    plugin_version = "1.2"
+    plugin_version = "1.2.1"
     # 插件作者
     plugin_author = "jxxghp"
     # 作者主页
@@ -784,6 +784,7 @@ class TorrentRemover_V2(_PluginBase):
         if error_flag:
             logger.error(f"Not found torrents with tags: {tags}")
             return []
+        logger.info(f"自动删种任务 总共获取种子数 {len(torrents)}")
         # 处理种子
         for torrent in torrents:
             if downloader == "qbittorrent":
