@@ -34,13 +34,5 @@
         "color": "#5378A4",
         "author": "hankun",
         "level": 1
-    },
-    "TorrentRemover_V2": {
-        "name": "自动删种 改版测试用",
-        "description": "官方插件的改版，测试用",
-        "version": "1.2.4",
-        "icon": "delete.jpg",
-        "author": "jxxghp",
-        "level": 2    
     }
 }
