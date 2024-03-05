@@ -27,7 +27,7 @@ class TorrentRemover_V2(_PluginBase):
     # 插件图标
     plugin_icon = "delete.jpg"
     # 插件版本
-    plugin_version = "1.2.2"
+    plugin_version = "1.2.3"
     # 插件作者
     plugin_author = "jxxghp"
     # 作者主页
@@ -779,6 +779,7 @@ class TorrentRemover_V2(_PluginBase):
             tags = []
         if self._mponly:
             tags.extend(settings.TORRENT_TAG)
+            logger.info(f"自动删种任务 仅处理MoviePilot任务, tag为：{tags}")
         # 查询种子
         torrents, error_flag = downloader_obj.get_torrents(tags=tags or None)
         if error_flag:
