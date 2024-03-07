@@ -49,7 +49,7 @@ class Bangumi(_PluginBase):
     # 主题色
     plugin_color = "#5378A4"
     # 插件版本
-    plugin_version = "1.0.14"
+    plugin_version = "1.0.15"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -1581,6 +1581,8 @@ class Bangumi(_PluginBase):
                 if word.count(" => "):
                     # 替换词
                     strings = word.split(" => ")
+                    if strings[1] == "":
+                        continue
                     if bangumi_to_tmdb:
                         title, message, state = self.__replace_regex(title, strings[0], strings[1])
                     else:
