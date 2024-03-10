@@ -26,31 +26,31 @@ async def unload_extensions():
 
 # Run bot
 async def run_bot():
-    async with client:
-        if tokenes.is_bot_running:
-            logger.info("Discord bot 已启动")
+    if tokenes.is_bot_running:
+        try:
             await load_extensions()
-        else:
-            try:
-                logger.info("Discord bot 启动中...")
-                tokenes.is_bot_running = True
-                await load_extensions()
-                await client.start(tokenes.bot_token)
-            except Exception as e:
-                logger.error(f"Discord bot 启动失败: {e}")
-                tokenes.is_bot_running = False
+        except Exception as e:
+            logger.error(f"Discord bot 已启动")
+    else:
+        try:
+            logger.info("Discord bot 启动中...")
+            tokenes.is_bot_running = True
+            await load_extensions()
+            await client.start(tokenes.bot_token)
+        except Exception as e:
+            logger.error(f"Discord bot 启动失败: {e}")
+            tokenes.is_bot_running = False
 
     
 async def stop():
     logger.info(f"is bot running: {tokenes.is_bot_running}")
     if tokenes.is_bot_running == True:
         logger.info("Discord bot 停止中...")
-        async with client:
-            try:
-                tokenes.is_bot_running = True
-                # await unload_extensions()
-                # client.clear()
-            except Exception as e:
-                logger.error(f"Discord bot 停止失败: {e}")
+        try:
+            await unload_extensions()
+            tokenes.is_bot_running = False
+            # client.clear()
+        except Exception as e:
+            logger.error(f"Discord bot 停止失败: {e}")
     else:
         logger.info("Discord bot 未运行")
