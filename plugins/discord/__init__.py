@@ -1,10 +1,6 @@
 #import discord
 from enum import Enum
 import asyncio, threading
-import plugins.discord.discord_bot as discord_bot
-import plugins.discord.tokenes as tokenes
-
-from plugins.discord.cogs.moviepilot_cog import MPCog
 
 # MoviePilot library
 from app.log import logger
@@ -13,6 +9,14 @@ from app.core.event import eventmanager
 from app.schemas.types import EventType
 from typing import Any, List, Dict, Tuple
 from app.utils.http import RequestUtils
+
+try:
+    import plugins.discord.discord_bot as discord_bot
+    import plugins.discord.tokenes as tokenes
+    from plugins.discord.cogs.moviepilot_cog import MPCog
+except ImportError as e:
+    logger.error(f"ImportError: {e}")
+    
 
 class Discord(_PluginBase):
     # 插件名称
@@ -24,7 +28,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.4.1"
+    plugin_version = "1.4.2"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
