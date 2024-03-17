@@ -1,6 +1,10 @@
-from openai import OpenAI
+    
 from app.log import logger
 
+try:
+    from openai import OpenAI
+except ImportError:
+    logger.error("OpenAI导入失败")
 class GPT():
     client = None
     gpt_token = None
