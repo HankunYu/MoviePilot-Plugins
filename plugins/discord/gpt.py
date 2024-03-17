@@ -5,6 +5,12 @@ try:
     from openai import OpenAI
 except ImportError:
     logger.error("OpenAI导入失败")
+    
+try:
+    import openai
+    logger.info("openai导入成功,版本: " + openai.__version__)
+except ImportError:
+    logger.error("openai导入失败")
 class GPT():
     client = None
     gpt_token = None
@@ -34,8 +40,6 @@ class GPT():
             model="gpt-3.5-turbo",
             messages = self.chat_history,
             )
-        # print(chat)
-        print(chat.choices[0].message.content)
         # chat_history 添加助手回复
         self.chat_history.append({"role": "assistant", "content": chat.choices[0].message.content})
 
