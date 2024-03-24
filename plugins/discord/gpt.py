@@ -3,6 +3,7 @@ from app.log import logger
 import openai
 class GPT():
     openai_version_low = openai.__version__ == "0.27.10"
+    logger.info(f"OpenAI 版本: {openai.__version__} {openai_version_low}")
     client = None
     gpt_token = None
     chat_start = [
