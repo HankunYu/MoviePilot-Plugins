@@ -177,10 +177,10 @@ def sort_comments(comment_data):
     # 按照从 p 字段提取的时间进行排序
     return sorted(comments, key=extract_time)
 
-def generate_danmu_ass(comment_ID, file_path, width=1920, height=1080, fontface='Arial', fontsize=50, alpha=0.8):
+def generate_danmu_ass(comment_ID, file_path, width=1920, height=1080, fontface='Arial', fontsize=50, alpha=0.8, duration=6):
   comments = sort_comments(get_comments(comment_ID))
   output = os.path.splitext(file_path)[0] + '.danmu.ass'
-  convert_comments_to_ass(comments, output, width, height, fontface, fontsize, alpha)
+  convert_comments_to_ass(comments, output, width, height, fontface, fontsize, alpha, duration)
 
 # sub1 为弹幕字幕，sub2 为原生字幕
 def combine_sub_ass(sub1, sub2) -> bool:
