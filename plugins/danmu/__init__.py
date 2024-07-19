@@ -17,7 +17,7 @@ from plugins.danmu import danmu_generator as generator
 
 class Danmu(_PluginBase):
     # 插件名称
-    plugin_name = "弹幕刮削 - 还在开发 请勿使用 以免炸库"
+    plugin_name = "弹幕刮削"
     # 插件描述
     plugin_desc = "使用弹弹play平台生成弹幕的字幕文件，实现弹幕播放。还在开发 请勿使用 以免炸库"
     # 插件图标
@@ -25,7 +25,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.0.2"
+    plugin_version = "0.0.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -301,7 +301,9 @@ class Danmu(_PluginBase):
         threading_list = []
         max_thread = 10
         if self._path:
+            logger.info("开始全局弹幕刮削")
             for path in self._path.split('\n'):
+                logger.info(f"刮削路径：{self._path}" + '存在' + os.path.exists(path))
                 if os.path.exists(path):
                     for root, dirs, files in os.walk(path):
                         for file in files:
