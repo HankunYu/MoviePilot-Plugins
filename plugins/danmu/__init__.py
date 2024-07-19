@@ -19,13 +19,13 @@ class Danmu(_PluginBase):
     # 插件名称
     plugin_name = "弹幕刮削"
     # 插件描述
-    plugin_desc = "使用弹弹play平台生成弹幕的字幕文件，实现弹幕播放。还在开发 请勿使用 以免炸库"
+    plugin_desc = "使用弹弹play平台生成弹幕的字幕文件，实现弹幕播放。"
     # 插件图标
     plugin_icon =  "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/danmu.png"
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.0.4"
+    plugin_version = "1.0.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -271,7 +271,7 @@ class Danmu(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'flat',
-                                            'text': '自用插件，可能不稳定',
+                                            'text': '此插件会根据情况生成两种弹幕字幕文件，均为ass格式。.danmu为刮削出来的纯弹幕，.withDanmu为原生字幕与弹幕合并后的文件。如果没有外挂字幕只有内嵌字幕会自动提取内嵌字幕生成.withDanmu文件。弹幕来源为 弹弹play 提供的多站合并资源以及 https://github.com/m13253/danmaku2ass 提供的思路。第一次使用可以去 设置->服务 手动启动全局刮削',
                                         }
                                     }
                                 ]
