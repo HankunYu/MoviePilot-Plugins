@@ -1,3 +1,4 @@
+import chardet
 import requests, os, re, hashlib
 import subprocess, json
 from app.log import logger
@@ -28,10 +29,11 @@ def get_video_duration(file_path):
 
         # 尝试以utf-8解码
         try:
-            stderr = stderr.decode('utf-8')
+            # 尝试使用 'ignore' 模式忽略解码错误
+            stderr = stderr.decode('utf-8', errors='ignore')
         except UnicodeDecodeError as e:
-            logger.warning(f"utf-8 解码失败：{e}. 尝试使用默认解码。")
-            stderr = stderr.decode()
+            logger.warning(f"utf-8 解码失败：{e}. 尝试使用替换模式。")
+            stderr = stderr.decode('utf-8', errors='replace')
 
         # 使用正则表达式解析视频文件的时长
         duration_match = re.search(r"Duration: (\d+):(\d+):(\d+\.\d+)", stderr)
@@ -214,7 +216,11 @@ def combine_sub_ass(sub1, sub2) -> bool:
     # 读取两个字幕文件的内容
     with open(sub1, 'r', encoding='utf-8-sig') as f:
         sub1_content = f.read()
-    with open(sub2, 'r', encoding='utf-8-sig') as f:
+    with open(sub2, 'rb') as f:
+        raw_data = f.read()
+        result = chardet.detect(raw_data)
+        file_encoding = result['encoding']
+    with open(sub2, 'r', encoding=file_encoding) as f:
         sub2_content = f.read()
         
     # 检查原生字幕格式

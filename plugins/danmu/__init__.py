@@ -25,7 +25,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0.2"
+    plugin_version = "1.0.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -300,25 +300,24 @@ class Danmu(_PluginBase):
         # 同时最多开启10个线程
         threading_list = []
         max_thread = 10
-        if self._path:
+        if paths:
             logger.info("开始全局弹幕刮削")
-            for path in self._path.split('\n'):
-                logger.info(f"刮削路径：{self._path}")
+            # 按行切割并去除前后空白
+            paths = [path.strip() for path in paths.split('\n') if path.strip()]
+            for path in paths:
+                logger.info(f"刮削路径：{path}")
                 if os.path.exists(path):
                     for root, dirs, files in os.walk(path):
                         for file in files:
                             if file.endswith('.mp4') or file.endswith('.mkv'):
-                                logger.info(f"找到视频文件：{file}")
                                 if len(threading_list) >= max_thread:
-                                    for thread in threading_list:
-                                        thread.join()
-                                    threading_list = []
-                                else:
-                                    target_file = os.path.join(root, file)
-                                    logger.info(f"开始生成弹幕文件：{target_file}")
-                                    thread = threading.Thread(target=self.generate_danmu, args=(target_file,))
-                                    thread.start()
-                                    threading_list.append(thread)
+                                    threading_list[0].join()  # 只等待第一个线程
+                                    threading_list.pop(0)
+                                target_file = os.path.join(root, file)
+                                print(f"开始生成弹幕文件：{target_file}")
+                                thread = threading.Thread(target=self.generate_danmu, args=(target_file,))
+                                thread.start()
+                                threading_list.append(thread)
         
         for thread in threading_list:
             thread.join()
