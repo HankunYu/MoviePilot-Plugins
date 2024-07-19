@@ -34,5 +34,17 @@
         "color": "#5378A4",
         "author": "hankun",
         "level": 1
+    },
+    "Danmu": {
+        "name": "弹幕刮削",
+        "description": "使用弹弹play平台生成弹幕的字幕文件，实现弹幕播放。还在开发 请勿使用 以免炸库",
+        "version": "0.0.1",
+        "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/danmu.png",
+        "color": "#3B5E8E",
+        "author": "hankun",
+        "level": 1,
+        "history": {
+            "v0.0.1": "新增插件，功能测试，开发中"
+          }
     }
 }
