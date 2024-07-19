@@ -219,8 +219,8 @@ def combine_sub_ass(sub1, sub2) -> bool:
         
     # 检查原生字幕格式
     if os.path.splitext(sub2)[1].lower() == '.ass' :
-        sub1ResX = re.search(r"PlayResX: (\d+)", sub1_content)
-        sub2ResX = re.search(r"PlayResX: (\d+)", sub2_content)
+        sub1ResX = re.search(r"PlayResX:\s*(\d+)", sub1_content)
+        sub2ResX = re.search(r"PlayResX:\s*(\d+)", sub2_content)
 
         # 计算两个字幕的分辨率的比例 （大致
         if not sub1ResX or not sub2ResX:
@@ -229,7 +229,7 @@ def combine_sub_ass(sub1, sub2) -> bool:
             fontSizeRatio = int(sub1ResX.group(1)) / int(sub2ResX.group(1)) * 0.8
 
         # 提取原生字幕的样式格式
-        format_match = re.search(r"Format: .+", sub2_content)
+        format_match = re.search(r"Format:.+", sub2_content)
         if not format_match:
             return False
 
@@ -277,15 +277,19 @@ def combine_sub_ass(sub1, sub2) -> bool:
 # 检查文件是否有自带的字幕
 def find_subtitle_file(file_path):
     # 遍历文件目录
+    filename = os.path.basename(file_path)
+    filename = os.path.splitext(filename)[0]
     for root, dirs, files in os.walk(os.path.dirname(file_path)):
         for file in files:
-          # 检查文件是否以.srt和.ass结尾，并且不包含'danmu'这个字符串
-          if (file.endswith('.srt') or file.endswith('.ass')) and 'danmu' not in file and file.startswith(''):
-              # 返回文件路径
-              return os.path.join(root, file)
-    # 检车视频文件是否内嵌中文字幕
+            # 检查文件是否以.srt和.ass结尾，并且不包含'danmu'这个字符串
+            if (file.endswith('.srt') or file.endswith('.ass')) and 'danmu' not in file and file.startswith(filename):
+                sub2 = os.path.join(root, file)
+                logger.info("找到字幕文件 - " + sub2)
+                # 返回文件路径
+                return sub2
     
     # 如果没有找到符合条件的文件，返回None
+    logger.info("没找到字幕文件")
     return None
 
 def get_video_streams(file_path):
@@ -327,74 +331,6 @@ def try_extract_srt(file_path):
               return None
   return None
 
-# sub1 为弹幕字幕，sub2 为原生字幕
-def combine_sub_ass(sub1, sub2) -> bool:
-    if not sub1 or not sub2:
-        return False
-    
-    # 读取两个字幕文件的内容
-    with open(sub1, 'r', encoding='utf-8-sig') as f:
-        sub1_content = f.read()
-    with open(sub2, 'r', encoding='utf-8-sig') as f:
-        sub2_content = f.read()
-        
-    # 检查原生字幕格式
-    if os.path.splitext(sub2)[1].lower() == '.ass' :
-        sub1ResX = re.search(r"PlayResX: (\d+)", sub1_content)
-        sub2ResX = re.search(r"PlayResX: (\d+)", sub2_content)
-
-        # 计算两个字幕的分辨率的比例 （大致
-        if not sub1ResX or not sub2ResX:
-            fontSizeRatio = 1
-        else:
-            fontSizeRatio = int(sub1ResX.group(1)) / int(sub2ResX.group(1))
-
-        # 提取原生字幕的样式格式
-        format_match = re.search(r"Format: .+", sub2_content)
-        if not format_match:
-            return False
-
-        format_line = format_match.group()
-
-        style_lines = re.findall(r'Style:.*', sub2_content)
-
-        for i, line in enumerate(style_lines):
-            elements = line.split(',')
-            if(len(elements) < 3):
-              continue
-            elements[2] = str(int(float(elements[2]) * fontSizeRatio))  # 修改字体大小
-            style_lines[i] = ','.join(elements)
-
-        # 拼接所有样式
-        styles_content = '\n'.join(style_lines)
-
-        # 提取原生字幕的内容
-        events_start = sub2_content.find('[Events]')
-        if events_start == -1:
-            return False  # 未找到[Events]
-
-        events_content = sub2_content[events_start + len('[Events]'):].strip()
-        
-        # 获取合并后sub名字
-        output = os.path.splitext(sub2)[0] + ".withDanmu.ass"
-        with open(output, 'w', encoding='utf-8-sig') as f:
-            # 写入弹幕字幕的内容
-            f.write(sub1_content)
-            f.write('\n')
-            f.write('[V4+ Styles]\n')
-            f.write(format_line)
-            f.write('\n')
-            f.write(styles_content)
-            f.write('\n')
-            f.write('[Events]\n')
-            f.write(events_content)
-    
-            return True
-
-    elif os.path.splitext(sub2)[1].lower() == '.srt':
-      return True
-    else:
-      return False
 
 def danmu_generator(file_path, width=1920, height=1080, fontface='Arial', fontsize=50, alpha=0.8, duration=6):
     # 使用弹弹play api 获取弹幕
