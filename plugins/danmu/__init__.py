@@ -25,7 +25,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "0.0.1"
+    plugin_version = "0.0.2"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -233,7 +233,7 @@ class Danmu(_PluginBase):
                                         'props': {
                                             'model': 'cron',
                                             'label': '自定义 cron 参数，默认每周三晚上十一点运行一次',
-                                            'type': 'number',
+                                            'type': 'text',
                                      
                                         }
                                     }
