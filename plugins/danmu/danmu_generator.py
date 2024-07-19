@@ -20,25 +20,38 @@ def calculate_md5_of_first_16MB(file_path):
 def get_video_duration(file_path):
     # 构建ffmpeg命令
     cmd = ['ffmpeg', '-i', file_path]
-    
-    # 调用ffmpeg命令并捕获输出
-    process = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    stderr = process.communicate()[1]
-    stderr = stderr.decode('utf-8')
-    
-    # 使用正则表达式解析视频文件的时长
-    duration_match = re.search(r"Duration: (\d+):(\d+):(\d+.\d+)", stderr)
-    if duration_match:
-        hours = int(duration_match.group(1))
-        minutes = int(duration_match.group(2))
-        seconds = float(duration_match.group(3))
-        
-        # 将时长转换为秒
-        total_seconds = hours * 3600 + minutes * 60 + seconds
-        return total_seconds
-    else:
-        logger.error("无法找到视频时长信息 - " + file_path)
-        return None
+
+    try:
+        # 调用ffmpeg命令并捕获输出
+        process = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+
+        # 尝试以utf-8解码
+        try:
+            stderr = stderr.decode('utf-8')
+        except UnicodeDecodeError as e:
+            logger.warning(f"utf-8 解码失败：{e}. 尝试使用默认解码。")
+            stderr = stderr.decode()
+
+        # 使用正则表达式解析视频文件的时长
+        duration_match = re.search(r"Duration: (\d+):(\d+):(\d+\.\d+)", stderr)
+        if duration_match:
+            hours = int(duration_match.group(1))
+            minutes = int(duration_match.group(2))
+            seconds = float(duration_match.group(3))
+
+            # 将时长转换为秒
+            total_seconds = hours * 3600 + minutes * 60 + seconds
+            return total_seconds
+        else:
+            logger.error(f"无法找到视频时长信息 - {file_path}")
+            return None
+    except FileNotFoundError:
+        logger.error("ffmpeg 工具没有找到，请确保已安装并正确配置路径。")
+    except Exception as e:
+        logger.error(f"处理文件 {file_path} 时出错: {e}")
+
+    return None
     
 def get_file_size(file_path):
     # 获取文件的大小，单位为字节

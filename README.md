@@ -35,5 +35,6 @@ MoviePilot官方插件市场：https://raw.githubusercontent.com/jxxghp/MoviePil
 
 ### [弹幕刮削](plugins/danmu/README.md)
 
+自动刮削新入库文件，可以全局文件刮削。
 使用弹弹Play弹幕库刮削弹幕到本地转为ass文件。
 .danmu为刮削出来的纯弹幕，.withDanmu为原生字幕与弹幕合并后的文件。方便不支持双字幕的播放器使用。
