@@ -54,14 +54,25 @@ def get_comment_ID(file_path):
     duration = int(get_video_duration(file_path))
     hash = calculate_md5_of_first_16MB(file_path)
     name = os.path.basename(file_path)
-    size = get_file_size(file_path)
-    info = {
-        "fileName": name,
-        "fileHash": hash,
-        "fileSize": size,
-        "videoDuration": duration,
-        "matchMode": "hashAndFileName"
-    }
+    try:
+        size = get_file_size(file_path)
+        duration = int(get_video_duration(file_path))
+        info = {
+            "fileName": name,
+            "fileHash": hash,
+            "fileSize": size,
+            "videoDuration": duration,
+            "matchMode": "hashAndFileName"
+        }
+    except:
+        logger.error('获取文件信息失败')
+        info = {
+            "fileName": name,
+            "fileHash": hash,
+            "fileSize": 0,
+            "videoDuration": 0,
+            "matchMode": "hashAndFileName"
+        }
     response = requests.post(url, headers=headers, json=info)
     if response.status_code == 200:
         if response.json()['isMatched']:
@@ -375,6 +386,9 @@ def combine_sub_ass(sub1, sub2) -> bool:
 def danmu_generator(file_path, width=1920, height=1080, fontface='Arial', fontsize=50, alpha=0.8, duration=6):
     # 使用弹弹play api 获取弹幕
     comment_id = get_comment_ID(file_path)
+    if(comment_id == None):
+        logger.info("未找到对应弹幕 - " + file_path)
+        return None
     generate_danmu_ass(comment_id,file_path,width, height, fontface, fontsize, alpha, duration)
     # 尝试搜索原生字幕
     sub2 = find_subtitle_file(file_path)
