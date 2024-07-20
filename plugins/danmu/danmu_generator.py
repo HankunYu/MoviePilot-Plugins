@@ -255,7 +255,8 @@ def combine_sub_ass(sub1, sub2) -> bool:
         sub2_content = f.read()
         
     # 检查原生字幕格式
-    if os.path.splitext(sub2)[1].lower() == '.ass' :
+    # 如果字幕是ass 或者ssa 格式，ssa格式按照ass处理
+    if os.path.splitext(sub2)[1].lower() == '.ass' or os.path.splitext(sub2)[1].lower() == '.ssa':
         sub1ResX = re.search(r"PlayResX:\s*(\d+)", sub1_content)
         sub2ResX = re.search(r"PlayResX:\s*(\d+)", sub2_content)
 
@@ -318,8 +319,8 @@ def find_subtitle_file(file_path):
     filename = os.path.splitext(filename)[0]
     for root, dirs, files in os.walk(os.path.dirname(file_path)):
         for file in files:
-            # 检查文件是否以.srt和.ass结尾，并且不包含'danmu'这个字符串
-            if (file.endswith('.srt') or file.endswith('.ass')) and 'danmu' not in file and file.startswith(filename):
+            # 检查文件是否以.srt .ass .ssa结尾，并且不包含'danmu'这个字符串
+            if (file.endswith('.srt') or file.endswith('.ass') or file.endswith('.ssa')) and 'danmu' not in file and file.startswith(filename):
                 sub2 = os.path.join(root, file)
                 logger.info("找到字幕文件 - " + sub2)
                 # 返回文件路径
@@ -329,45 +330,56 @@ def find_subtitle_file(file_path):
     logger.info("没找到字幕文件")
     return None
 
+# 获得视频文件中所有流信息，包括字幕流
 def get_video_streams(file_path):
-    """ 获取视频文件中所有的流信息，包括字幕流 """
     command = [
-        'ffprobe',
-        '-v', 'error',
-        '-show_entries', 'stream=index,codec_type,codec_name',
-        '-of', 'json',
-        file_path
+        'ffprobe', '-v', 'error', 
+        '-print_format', 'json', '-show_format', '-show_streams', file_path
     ]
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-    return json.loads(result.stdout)
+    if result.returncode != 0:
+        return {}
+    else:
+        return json.loads(result.stdout)
   
+# 提取视频文件中的指定字幕流
 def extract_subtitles(file_path, output_file, stream_index):
-    """ 提取视频文件中的指定字幕流 """
     command = [
         'ffmpeg',
         '-i', file_path,
         '-map', f'0:{stream_index}',
-        '-c:s', 'ass',  # 假设字幕流是字幕格式（如ass）
+        '-c:s', 'ass',
         output_file
     ]
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     return result.returncode == 0
 
-def try_extract_srt(file_path):
-  streams_info = get_video_streams(file_path)
-  for stream in streams_info.get('streams', []):
-      if stream.get('codec_type') == 'subtitle':
-          # 获取字幕流的索引
-          stream_index = stream['index']
-          # 输出的字幕文件名
-          output_file = f"{os.path.splitext(file_path)[0]}.ass"
-          if extract_subtitles(file_path, output_file, stream_index):
-              logger.info('成功提取内嵌字幕 - ' + file_path)
-              return output_file
-          else:
-              return None
-  return None
+# 提取所有字幕流，并按照字幕名字命名
+def try_extract_sub(file_path):
+    # 获取视频流信息
+    streams_info = get_video_streams(file_path)
 
+    for stream in streams_info.get('streams', []):
+        if stream.get('codec_type') == 'subtitle':
+            # 获取字幕流的索引
+            stream_index = stream['index']
+            # 获取文件名字和扩展名
+            base_name, _ = os.path.splitext(file_path)
+            # 获取语言信息
+            language = stream.get('tags', {}).get('language', 'unknown')
+            # 如果不是中文则跳过
+            if language not in ['zh', 'zho', 'chi', 'chs', 'cht', 'cn']:
+                continue
+            # 输出的字幕文件名：原文件名.字幕语言.ass
+            output_file = f"{base_name}.{language}.ass"
+            
+            # 检查文件是否存在并删除它
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            
+            if extract_subtitles(file_path, output_file, stream_index):
+                logger.info(f'成功提取内嵌字幕 - {output_file}')
+                break
 
 def danmu_generator(file_path, width=1920, height=1080, fontface='Arial', fontsize=50, alpha=0.8, duration=6):
     # 使用弹弹play api 获取弹幕
@@ -380,7 +392,7 @@ def danmu_generator(file_path, width=1920, height=1080, fontface='Arial', fontsi
     sub2 = find_subtitle_file(file_path)
     # 尝试获取内嵌字幕
     if sub2 == None:
-        try_extract_srt(file_path)
+        try_extract_sub(file_path)
     sub2 = find_subtitle_file(file_path)
     # 生成内嵌字幕加弹幕文件
     if sub2 != None:
