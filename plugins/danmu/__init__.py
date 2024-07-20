@@ -25,7 +25,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0.3"
+    plugin_version = "1.0.4"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -300,10 +300,10 @@ class Danmu(_PluginBase):
         # 同时最多开启10个线程
         threading_list = []
         max_thread = 10
-        if paths:
+        if self._path:
             logger.info("开始全局弹幕刮削")
             # 按行切割并去除前后空白
-            paths = [path.strip() for path in paths.split('\n') if path.strip()]
+            paths = [path.strip() for path in self._path.split('\n') if path.strip()]
             for path in paths:
                 logger.info(f"刮削路径：{path}")
                 if os.path.exists(path):

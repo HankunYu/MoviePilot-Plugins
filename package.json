@@ -38,12 +38,13 @@
     "Danmu": {
         "name": "弹幕刮削",
         "description": "使用弹弹play平台生成弹幕的字幕文件，实现弹幕播放。",
-        "version": "1.0.3",
+        "version": "1.0.4",
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/danmu.png",
         "color": "#3B5E8E",
         "author": "hankun",
         "level": 1,
         "history": {
+            "v1.0.4": "修复我傻逼打错变量名",
             "v1.0.3": "修复合并字幕不是utf8无法读取的问题以及线程排序会漏任务的问题。",
             "v1.0.2": "修复合并字幕命名错误。",
             "v1.0.1": "修复ffmpeg有时候解码错误。",
