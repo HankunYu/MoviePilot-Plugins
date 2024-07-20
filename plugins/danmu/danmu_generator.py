@@ -93,12 +93,43 @@ def get_comment_ID(file_path):
         if response.json()['isMatched']:
             return response.json()['matches'][0]['episodeId']
         else:
-            logger.error("未找到弹幕匹配 - " + file_path)
+            if len(response.json()['matches']) == 0:
+                logger.error('未找到弹幕可能匹配 - ' + file_path)
+                return None
+            logger.info('尝试从nfo文件获取标题 - ' + file_path)
+            title = get_title_from_nfo(file_path)
+            if not title:
+                logger.info('未找到标题 跳过 - ' + file_path)
+                return None
+            # 尝试从标题匹配
+            for match in response.json()['matches']:
+                episodeTitle = match['episodeTitle']
+                # 去除 第x话
+                # 稍微严格一点 不用contains
+                episodeTitle = re.sub(r'第\d+话 ', '', episodeTitle)
+                if episodeTitle == title:
+                    logger.info('匹配成功 - ' + file_path)
+                    return match['episodeId']
+            logger.info('未找到匹配，跳过 - ' + file_path)
             return None
     else:
         logger.error("获取弹幕ID失败 %s" % response.text)
+        return None
    
-   
+def get_title_from_nfo(file_path):
+    # 尝试读取nfo文件
+    logger.info('尝试读取nfo文件 - ' + file_path)
+    nfo_file = os.path.splitext(file_path)[0] + '.nfo'
+    with open(nfo_file) as f:
+        nfo_content = f.read()
+        try:
+            title = re.search(r'<title>(.*)</title>', nfo_content).group(1)
+            logger.info('从nfo文件中获取标题 - ' + title)
+            return title
+        except:
+            logger.error('未找到标题信息')
+            return None
+        
 def get_comments(comment_id):
     url = f'https://api.dandanplay.net/api/v2/comment/{comment_id}?withRelated=true'
     headers = {
