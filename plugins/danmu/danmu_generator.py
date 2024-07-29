@@ -197,7 +197,7 @@ def convert_comments_to_ass(comments, output_file, width=1920, height=1080, font
             text = comment['m']
             
             start_time = convert_timestamp(timeline)
-            end_time = convert_timestamp(timeline + duration)  # 默认显示时间为6秒
+            end_time = convert_timestamp(timeline + float(duration))  # 默认显示时间为6秒
 
             color_hex = '&H{0:06X}'.format(color & 0xFFFFFF)
             styles = ''
