@@ -65,6 +65,7 @@ def get_comment_ID(file_path):
     url = f'https://api.dandanplay.net/api/v2/match'
     headers = {
         'Accept': 'application/json',
+        "User-Agent": "Moviepilot/plugins 1.0.9"
     }
     duration = int(get_video_duration(file_path))
     hash = calculate_md5_of_first_16MB(file_path)
@@ -134,6 +135,7 @@ def get_comments(comment_id):
     url = f'https://api.dandanplay.net/api/v2/comment/{comment_id}?withRelated=true'
     headers = {
         'Accept': 'application/json',
+        "User-Agent": "Moviepilot/plugins 1.0.9"
     }
 
     response = requests.get(url, headers=headers)

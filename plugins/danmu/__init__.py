@@ -25,7 +25,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0.8"
+    plugin_version = "1.0.9"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -46,7 +46,7 @@ class Danmu(_PluginBase):
     _fontsize = 50
     _alpha = 0.8
     _duration = 6
-    _cron = '0 23 * * 3'
+    _cron = '0 0 1 1 *'
     _path = ''
 
     def init_plugin(self, config: dict = None):
@@ -59,7 +59,7 @@ class Danmu(_PluginBase):
             self._alpha = config.get("alpha")
             self._duration = config.get("duration")
             self._path = config.get("path")
-            self._cron = config.get("cron")
+            # self._cron = config.get("cron")
         if self._enabled:
             logger.info("弹幕加载插件已启用")
             
@@ -233,7 +233,7 @@ class Danmu(_PluginBase):
                                         'component': 'VTextField',
                                         'props': {
                                             'model': 'cron',
-                                            'label': '自定义 cron 参数，默认每周三晚上十一点运行一次',
+                                            'label': '取消定期刮削，需要全局刮削请去 设置->服务 手动启动',
                                             'type': 'text',
                                      
                                         }
@@ -272,7 +272,7 @@ class Danmu(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'flat',
-                                            'text': '此插件会根据情况生成两种弹幕字幕文件，均为ass格式。.danmu为刮削出来的纯弹幕，.withDanmu为原生字幕与弹幕合并后的文件。自动刮削新入库文件。如果没有外挂字幕只有内嵌字幕会自动提取内嵌字幕生成.withDanmu文件。弹幕来源为 弹弹play 提供的多站合并资源以及 https://github.com/m13253/danmaku2ass 提供的思路。第一次使用可以去 设置->服务 手动启动全局刮削',
+                                            'text': '此插件会根据情况生成两种弹幕字幕文件，均为ass格式。.danmu为刮削出来的纯弹幕，.withDanmu为原生字幕与弹幕合并后的文件。自动刮削新入库文件。如果没有外挂字幕只有内嵌字幕会自动提取内嵌字幕生成.withDanmu文件。弹幕来源为 弹弹play 提供的多站合并资源以及 https://github.com/m13253/danmaku2ass 提供的思路。第一次使用可以去 设置->服务 手动启动全局刮削。\n取消了定期全局刮削，为了降低服务器压力以及防止被ban IP。',
                                         }
                                     }
                                 ]
@@ -288,7 +288,7 @@ class Danmu(_PluginBase):
             "fontsize": 50,
             "alpha": 0.8,
             "duration": 6,
-            "cron": "0 23 * * 3",
+            "cron": "0 0 1 1 *",
         }
 
     def get_page(self) -> List[dict]:
