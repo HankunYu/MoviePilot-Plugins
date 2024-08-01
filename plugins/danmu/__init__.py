@@ -25,7 +25,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.0.9"
+    plugin_version = "1.1.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -315,7 +315,7 @@ class Danmu(_PluginBase):
                                     threading_list[0].join()  # 只等待第一个线程
                                     threading_list.pop(0)
                                 target_file = os.path.join(root, file)
-                                print(f"开始生成弹幕文件：{target_file}")
+                                logger.info(f"开始生成弹幕文件：{target_file}")
                                 thread = threading.Thread(target=self.generate_danmu, args=(target_file,))
                                 thread.start()
                                 threading_list.append(thread)
