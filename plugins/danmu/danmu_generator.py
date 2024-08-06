@@ -199,7 +199,7 @@ def convert_comments_to_ass(comments, output_file, width=1920, height=1080, font
         scrolling_tracks = {}
         top_tracks = {}
         bottom_tracks = {}
-
+        logger.info(f"{output_file} - 共匹配到{len(comments)}条弹幕。")
         for comment in comments:
             p = comment['p'].split(',')
             timeline, pos, color, _ = float(p[0]), int(p[1]), int(p[2]), str(p[3])
@@ -213,7 +213,7 @@ def convert_comments_to_ass(comments, output_file, width=1920, height=1080, font
             # 计算弹幕的宽度
             text_width = len(text) * fontsize * 0.6  # 粗略估算宽度
             # 计算弹幕尾部离开轨道起始点的时间
-            velocity = (width + text_width) / duration
+            velocity = (width + text_width) / float(duration)
             leave_time = text_width / velocity + gap
 
             color_hex = '&H{0:06X}'.format(color & 0xFFFFFF)
@@ -226,11 +226,11 @@ def convert_comments_to_ass(comments, output_file, width=1920, height=1080, font
                 styles = f'\\move({width}, {initial_y}, {-len(text)*fontsize}, {initial_y})'
             elif pos == 4:  # 底部弹幕
                 track_id = find_non_overlapping_track(bottom_tracks, timeline, max_tracks)
-                bottom_tracks[track_id] = timeline + duration
+                bottom_tracks[track_id] = timeline + float(duration)
                 styles = f'\\an2\\pos({width/2}, {height - 50 - (track_id - 1) * fontsize})'
             elif pos == 5:  # 顶部弹幕
                 track_id = find_non_overlapping_track(top_tracks, timeline, max_tracks)
-                top_tracks[track_id] = timeline + duration
+                top_tracks[track_id] = timeline + float(duration)
                 styles = f'\\an8\\pos({width/2}, {50 + (track_id - 1) * fontsize})'
             else:
                 styles = '\\move({}, {}, {}, {})'.format(0, 0, width, 0)
