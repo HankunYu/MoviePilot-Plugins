@@ -121,15 +121,19 @@ def get_title_from_nfo(file_path):
     # 尝试读取nfo文件
     logger.info('尝试读取nfo文件 - ' + file_path)
     nfo_file = os.path.splitext(file_path)[0] + '.nfo'
-    with open(nfo_file) as f:
-        nfo_content = f.read()
-        try:
-            title = re.search(r'<title>(.*)</title>', nfo_content).group(1)
-            logger.info('从nfo文件中获取标题 - ' + title)
-            return title
-        except:
-            logger.error('未找到标题信息')
-            return None
+    try:
+        with open(nfo_file) as f:
+            nfo_content = f.read()
+            try:
+                title = re.search(r'<title>(.*)</title>', nfo_content).group(1)
+                logger.info('从nfo文件中获取标题 - ' + title)
+                return title
+            except:
+                logger.error('未找到标题信息')
+                return None
+    except:
+        logger.error('未找到nfo文件')
+        return None
         
 def get_comments(comment_id):
     url = f'https://api.dandanplay.net/api/v2/comment/{comment_id}?withRelated=true'
