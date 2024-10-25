@@ -2,13 +2,14 @@
     "Discord": {
         "name": "Discord 消息推送",
         "description": "添加discord消息推送",
-        "version": "1.5.5",
+        "version": "1.5.6",
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/discord.png",
         "color": "#3B5E8E",
         "author": "hankun",
         "v2": true,
         "level": 1,
         "history":{
+            "v1.5.6": "修复对v1的支持，已知问题，在v2中同一个消息会莫名被连续发送两次。正在努力找原因...",
             "v1.5.0": "增加对v2的支持"
         }
     },
