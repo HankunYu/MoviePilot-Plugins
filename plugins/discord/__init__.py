@@ -29,7 +29,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.5.4"
+    plugin_version = "1.5.5"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -346,12 +346,12 @@ class Discord(_PluginBase):
         image = msg_body.get("image")
         link = msg_body.get("link")
         # 排除不响应的事件
-        logger.info(f"msg_type: {msg_type}")
+        logger.info(f"msg_type: {msg_type.value}")
         logger.info(msg_body)
         logger.info(text)
         logger.info(title)
         logger.info(self._select_types)
-        if msg_type not in self._select_types:
+        if msg_type.value not in self._select_types:
             logger.info(f"未选择发送的通知类型，跳过：{msg_type}")
             return
         
