@@ -29,7 +29,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.5.2"
+    plugin_version = "1.5.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -364,7 +364,8 @@ class Discord(_PluginBase):
         image = msg_body.get("image")
         link = msg_body.get("link")
         # 排除不响应的事件
-        logger.info(f"msg_type: {msg_type}, {msg_body.get("mtype")}")
+        logger.info(f"msg_type: {msg_type}")
+        logger.info(msg_body)
         logger.info(text)
         logger.info(title)
         if msg_type not in self._select_types:
