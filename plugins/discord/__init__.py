@@ -29,7 +29,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.5.1"
+    plugin_version = "1.5.2"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -358,13 +358,13 @@ class Discord(_PluginBase):
         # 提取消息内容
         msg_body = event.event_data
         text = msg_body.get("text")
-        msg_type: NotificationType = msg_body.get("type")
+        msg_type: NotificationType = msg_body.get("mtype")
         channel = msg_body.get("channel")
         title = msg_body.get("title")
         image = msg_body.get("image")
         link = msg_body.get("link")
         # 排除不响应的事件
-        logger.info(f"msg_type: {msg_type}, {msg_body.get("type")}")
+        logger.info(f"msg_type: {msg_type}, {msg_body.get("mtype")}")
         logger.info(text)
         logger.info(title)
         if msg_type not in self._select_types:
