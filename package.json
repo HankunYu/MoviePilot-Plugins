@@ -6,6 +6,7 @@
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/discord.png",
         "color": "#3B5E8E",
         "author": "hankun",
+        "v2": true,
         "level": 1
     },
     "RmCdata": {
@@ -15,6 +16,7 @@
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/Infuse.png",
         "color": "#32699D",
         "author": "hankun",
+        "v2": true,
         "level": 1
     },
     "Bangumi": {
@@ -24,6 +26,7 @@
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/bangumi.jpg",
         "color": "#5378A4",
         "author": "hankun",
+        "v2": true,
         "level": 1
     },
     "BDRemuxer": {
@@ -33,6 +36,7 @@
         "icon": "",
         "color": "#5378A4",
         "author": "hankun",
+        "v2": true,
         "level": 1
     },
     "Danmu": {
@@ -43,6 +47,7 @@
         "color": "#3B5E8E",
         "author": "hankun",
         "level": 1,
+        "v2": true,
         "history": {
             "v1.1.2": "修复nfo文件不存在时导致错误。",
             "v1.1.1": "修复错误导致弹幕生成失败，增加log信息显示匹配弹幕数量。",
