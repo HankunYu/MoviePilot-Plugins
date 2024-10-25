@@ -29,7 +29,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.5.3"
+    plugin_version = "1.5.4"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -45,7 +45,6 @@ class Discord(_PluginBase):
     _webhook_url = None
     _enabled = False
     _debug_enabled = False
-    _site_url = None
 
     # 消息类型
     _bot_token: str = None
@@ -64,16 +63,12 @@ class Discord(_PluginBase):
             self._enabled = config.get("enabled")
             self._webhook_url = config.get("webhook_url")
             self._debug_enabled = config.get("debug_enabled")
-            self._site_url = config.get("site_url")
             self._bot_token = config.get("bot_token")
             self._gpt_token = config.get("gpt_token")
             self._select_types = config.get("select_types")
             
             tokenes.bot_token = self._bot_token
             tokenes.gpt_token = self._gpt_token
-
-            if(self._site_url and not self._site_url.startswith("http")):
-                self._site_url = "http://" + self._site_url
             
             # 启动discord bot
             if(self._enabled and self._bot_token):
@@ -166,18 +161,6 @@ class Discord(_PluginBase):
                                         }
                                     }
                                 ]
-                            },
-                            {
-                                'component': 'VCol',
-                                'content': [
-                                    {
-                                        'component': 'VTextField',
-                                        'props': {
-                                            'model': 'site_url',
-                                            'label': '站点地址或IP（可选）'
-                                        }
-                                    }
-                                ]
                             }
                         ]
                     },
@@ -236,7 +219,6 @@ class Discord(_PluginBase):
             "enabled": False,
             "debug_enabled": False,
             "webhook_url": "",
-            "site_url": "",
             "bot_token": "",
             "gpt_token": "",
             "select_types": []
@@ -368,6 +350,7 @@ class Discord(_PluginBase):
         logger.info(msg_body)
         logger.info(text)
         logger.info(title)
+        logger.info(self._select_types)
         if msg_type not in self._select_types:
             logger.info(f"未选择发送的通知类型，跳过：{msg_type}")
             return
