@@ -3,10 +3,11 @@ from enum import Enum
 import asyncio, threading
 
 # MoviePilot library
+from app.core.event import eventmanager, Event
 from app.log import logger
 from app.plugins import _PluginBase
 from app.core.event import eventmanager
-from app.schemas.types import EventType
+from app.schemas.types import EventType, NotificationType
 from typing import Any, List, Dict, Tuple
 from app.utils.http import RequestUtils
 
@@ -28,7 +29,7 @@ class Discord(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.4.6"
+    plugin_version = "1.5.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -47,16 +48,13 @@ class Discord(_PluginBase):
     _site_url = None
 
     # 消息类型
-    _download: str = "资源下载"
-    _subscribe: str = "订阅"
-    _organize: str = "整理入库"
-    _site_message: str = "站点消息"
-    _media_server: str = "媒体服务器通知"
-    _manual: str = "手动处理通知"
     _bot_token: str = None
     _gpt_token: str = None
-    _all_types: List[str] = [_download, _subscribe, _organize, _site_message, _media_server, _manual]
-    _select_types: List[str] = []
+    _all_types: List[NotificationType] = [
+        NotificationType.Download, NotificationType.Subscribe, NotificationType.Organize, NotificationType.SiteMessage, 
+        NotificationType.MediaServer, NotificationType.Manual
+    ]
+    _select_types: List[NotificationType] = []
 
     bot_thread = None
     loop = None
@@ -350,50 +348,36 @@ class Discord(_PluginBase):
     """
     
     @eventmanager.register(EventType.NoticeMessage)
-    def send(self, event):
+    def send(self, event: Event):
         """
         向discord Webhook发送请求
         """
         if not self._enabled or not self._webhook_url or self._select_types is None or len(self._select_types) == 0:
             return
-
-        def __to_dict(_event):
-            """
-            递归将对象转换为字典
-            """
-            if isinstance(_event, dict):
-                for k, v in _event.items():
-                    _event[k] = __to_dict(v)
-                return _event
-            elif isinstance(_event, list):
-                for i in range(len(_event)):
-                    _event[i] = __to_dict(_event[i])
-                return _event
-            elif isinstance(_event, tuple):
-                return tuple(__to_dict(list(_event)))
-            elif isinstance(_event, set):
-                return set(__to_dict(list(_event)))
-            elif hasattr(_event, 'to_dict'):
-                return __to_dict(_event.to_dict())
-            elif hasattr(_event, '__dict__'):
-                return __to_dict(_event.__dict__)
-            elif isinstance(_event, (int, float, str, bool, type(None))):
-                return _event
-            else:
-                return str(_event)
         
-        def convert_data_to_embed(_data,_type):
-            msg = _data.get('text')
-            title = _data.get('title')
-            img = _data.get('image')
+        # 提取消息内容
+        msg_body = event.event_data
+        text = msg_body.get("text")
+        msg_type: NotificationType = msg_body.get("type")
+        channel = msg_body.get("channel")
+        title = msg_body.get("title")
+        image = msg_body.get("image")
+        link = msg_body.get("link")
+        # 排除不响应的事件
+        
+        if msg_type not in self._select_types:
+            logger.info(f"未选择发送的通知类型，跳过：{msg_type}")
+            return
+        
+        # format data for discord
+        def convert_data_to_embed():
             converted_text = ''
             fields = []
-            url = self._site_url
-
-            # 处理站点数据统计事件
-            if(_type == self._site_message):
+            
+            # 处理站点事件
+            if(msg_type == NotificationType.SiteMessage):
                 if title == '站点数据统计':
-                    lines = msg.split('\n')
+                    lines = text.split('\n')
                     converted_text = '  '
                     for i in range(0, len(lines), 4):
                         # 提取站点和上传下载量
@@ -413,7 +397,7 @@ class Discord(_PluginBase):
                         fields.append(field)
 
                 elif title == '【站点自动登录】' or title == '【站点自动签到】':
-                    lines = msg.split('\n')
+                    lines = text.split('\n')
                     converted_text = '  '
                     # 提取总共登陆数据
                     for i in range(3):
@@ -434,7 +418,7 @@ class Discord(_PluginBase):
                         fields.append(field)
 
                 elif title == "【自动删种任务完成】":
-                    lines = msg.split('\n')
+                    lines = text.split('\n')
                     # 提取总共处理种子数
                     converted_text = "**" + lines[0].split(' ')[0] + "** " + lines[0].split(' ')[1]
                     # 去除前一行
@@ -452,10 +436,8 @@ class Discord(_PluginBase):
                         fields.append(field)
 
             # 处理开始下载事件
-            elif(_type == self._download):
-                lines =  msg.split('\n')
-                if(url != None):
-                    url += '/downloading'
+            elif(msg_type == NotificationType.Download):
+                lines =  text.split('\n')
                 converted_text = '  '
                 # 遍历每行内容
                 for line in lines:
@@ -477,15 +459,9 @@ class Discord(_PluginBase):
                     fields.append(field)
         
             # 处理其他事件
-            elif(_type == self._organize or type == self._subscribe or type == self._media_server or type == self._manual):
-                lines =  msg.split('，')
+            else:
+                lines =  text.split('，')
                 converted_text = '  '
-                if(_type == self._subscribe):
-                    if(url != None):
-                        url += '/subscribe-tv'
-                elif(_type == self._organize):
-                    if(url != None):
-                        url += '/history'
                 # 遍历每行内容
                 for line in lines:
                     # 将每行内容按冒号分割为字段名称和值
@@ -511,16 +487,16 @@ class Discord(_PluginBase):
                     {
                         "author": {
                             "name": "Movie Pilot",
-                            "url": url if url else "https://github.com/jxxghp/MoviePilot",
+                            "url": link if link else "https://github.com/jxxghp/MoviePilot",
                             "icon_url": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins-discord/main/icons/logo.jpg"
                         },
                         "title": title,
-                        "url": url if url else "https://github.com/jxxghp/MoviePilot",
+                        "url": link if link else "https://github.com/jxxghp/MoviePilot",
                         "color": 15258703,
-                        "description": converted_text if converted_text else msg,
+                        "description": converted_text if converted_text else text,
                         "fields": fields,
                         "image": {
-                            "url": "http://none.png" if img is None else img
+                            "url": "http://none.png" if image is None else image
                         }
                     }
                 ]
@@ -528,24 +504,17 @@ class Discord(_PluginBase):
             }
 
             return data_json
-
-        raw_data = __to_dict(event.event_data)
-        target_type = raw_data.get('type').get('_value_')
+        
 
         if(self._debug_enabled):
-            logger.info(f"event type: " + str(target_type))
-            logger.info(f"raw data: " + str(raw_data))
+            logger.info(f"event type: " + str(msg_type))
+            logger.info(f"raw data: " + str(msg_body))
         
-        # 只发送已选择的通知消息
-        if(target_type not in self._select_types):
-            if(self._debug_enabled):
-                logger.info(f"未选择发送的通知类型，跳过：{target_type}")
-            return
         
         # 转换数据为embed格式
-        embed = convert_data_to_embed(raw_data,target_type)
+        embed = convert_data_to_embed()
         if(self._debug_enabled):
-            logger.info(f"title: " + str(raw_data.get('title')))
+            logger.info(f"title: " + title)
             logger.info(f"embed: " + str(embed))
 
         # 发送请求 
