@@ -6,7 +6,7 @@
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/discord.png",
         "color": "#3B5E8E",
         "author": "hankun",
-        "level": 99,
+        "level": 1,
         "history":{
             "v1.5.8": "增加对v2的支持，OpenAI暂时无法使用"
         },
