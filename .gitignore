@@ -162,3 +162,5 @@ cython_debug/
 #.idea/
 test.test
 json.py
+
+ignore/
