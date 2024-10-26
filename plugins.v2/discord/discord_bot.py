@@ -11,7 +11,7 @@ client = commands.Bot(command_prefix='$', intents=intents)
 # Load cogs
 async def load_extensions():
     try:
-        await client.load_extension(f"plugins.discord.cogs.moviepilot_cog")
+        await client.load_extension(f"app.plugins.discord.cogs.moviepilot_cog")
         logger.info("Cog 加载完成")
     except Exception as e:
         logger.error(f"Cog 加载失败: {e}")
@@ -19,7 +19,7 @@ async def load_extensions():
 # Unload cogs
 async def unload_extensions():
     try:
-        await client.unload_extension(f"plugins.discord.cogs.moviepilot_cog")
+        await client.unload_extension(f"app.plugins.discord.cogs.moviepilot_cog")
         logger.info("Cog 卸载完成")
     except Exception as e:
         logger.error(f"Cog 卸载失败: {e}")
