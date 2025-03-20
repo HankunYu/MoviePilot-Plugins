@@ -24,7 +24,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.5"
+    plugin_version = "1.1.6"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -57,7 +57,7 @@ class Danmu(_PluginBase):
             # self._fontface = config.get("fontface")
             self._fontsize = config.get("fontsize", 50)
             self._alpha = config.get("alpha", 0.8)
-            self._duration = config.get("duration", 6)
+            self._duration = config.get("duration", 10)
             self._path = config.get("path", "")
             self._cron = config.get("cron", "0 0 1 1 *")
         if self._enabled:
@@ -216,7 +216,7 @@ class Danmu(_PluginBase):
                                         'component': 'VTextField',
                                         'props': {
                                             'model': 'duration',
-                                            'label': '弹幕持续时间 默认6秒',
+                                            'label': '弹幕持续时间 默认10秒',
                                             'type': 'number',
                                      
                                         }

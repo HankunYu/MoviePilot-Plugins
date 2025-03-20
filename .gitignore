@@ -164,3 +164,4 @@ test.test
 json.py
 
 ignore/
+test_danmu.py

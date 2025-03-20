@@ -204,7 +204,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     @classmethod
     def convert_comments_to_ass(cls, comments: List[Dict], output_file: str, width: int = 1920, 
                               height: int = 1080, fontface: str = 'Arial', fontsize: float = 50, 
-                              alpha: float = 0.8, duration: float = 6):
+                              alpha: float = 0.8, duration: float = 10):
         styleid = 'Danmu'
         max_tracks = height // fontsize
         scrolling_tracks = {}
@@ -217,38 +217,51 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             cls.write_ass_head(f, width, height, fontface, fontsize, alpha, styleid)
             
             for comment in comments:
-                p = comment['p'].split(',')
-                timeline, pos, color = float(p[0]), int(p[1]), int(p[2])
-                text = comment['m']
-                
-                start_time = cls.convert_timestamp(timeline)
-                end_time = cls.convert_timestamp(timeline + duration)
-                
-                gap = 1
-                text_width = len(text) * fontsize * 0.6
-                velocity = (width + text_width) / duration
-                leave_time = text_width / velocity + gap
+                try:
+                    p = comment.get('p', '').split(',')
+                    if len(p) < 3:
+                        logger.warning(f"弹幕数据格式不正确: {comment}")
+                        continue
+                        
+                    timeline = float(p[0])
+                    pos = int(p[1])
+                    color = int(p[2])
+                    text = comment.get('m', '')
+                    
+                    if not text:
+                        continue
+                        
+                    start_time = cls.convert_timestamp(timeline)
+                    end_time = cls.convert_timestamp(timeline + duration)
+                    
+                    gap = 1
+                    text_width = len(text) * fontsize * 0.6
+                    velocity = (width + text_width) / duration
+                    leave_time = text_width / velocity + gap
 
-                color_hex = f'&H{color & 0xFFFFFF:06X}'
-                styles = ''
-                
-                if pos == 1:  # 滚动弹幕
-                    track_id = cls.find_non_overlapping_track(scrolling_tracks, timeline, max_tracks)
-                    scrolling_tracks[track_id] = timeline + leave_time
-                    initial_y = (track_id - 1) * fontsize + 10
-                    styles = f'\\move({width}, {initial_y}, {-len(text)*fontsize}, {initial_y})'
-                elif pos == 4:  # 底部弹幕
-                    track_id = cls.find_non_overlapping_track(bottom_tracks, timeline, max_tracks)
-                    bottom_tracks[track_id] = timeline + duration
-                    styles = f'\\an2\\pos({width/2}, {height - 50 - (track_id - 1) * fontsize})'
-                elif pos == 5:  # 顶部弹幕
-                    track_id = cls.find_non_overlapping_track(top_tracks, timeline, max_tracks)
-                    top_tracks[track_id] = timeline + duration
-                    styles = f'\\an8\\pos({width/2}, {50 + (track_id - 1) * fontsize})'
-                else:
-                    styles = f'\\move(0, 0, {width}, 0)'
+                    color_hex = f'&H{color & 0xFFFFFF:06X}'
+                    styles = ''
+                    
+                    if pos == 1:  # 滚动弹幕
+                        track_id = cls.find_non_overlapping_track(scrolling_tracks, timeline, max_tracks)
+                        scrolling_tracks[track_id] = timeline + leave_time
+                        initial_y = (track_id - 1) * fontsize + 10
+                        styles = f'\\move({width}, {initial_y}, {-len(text)*fontsize}, {initial_y})'
+                    elif pos == 4:  # 底部弹幕
+                        track_id = cls.find_non_overlapping_track(bottom_tracks, timeline, max_tracks)
+                        bottom_tracks[track_id] = timeline + duration
+                        styles = f'\\an2\\pos({width/2}, {height - 50 - (track_id - 1) * fontsize})'
+                    elif pos == 5:  # 顶部弹幕
+                        track_id = cls.find_non_overlapping_track(top_tracks, timeline, max_tracks)
+                        top_tracks[track_id] = timeline + duration
+                        styles = f'\\an8\\pos({width/2}, {50 + (track_id - 1) * fontsize})'
+                    else:
+                        styles = f'\\move(0, 0, {width}, 0)'
 
-                f.write(f'Dialogue: 0,{start_time},{end_time},{styleid},,0,0,0,,{{\\c{color_hex}{styles}}}{text}\n')
+                    f.write(f'Dialogue: 0,{start_time},{end_time},{styleid},,0,0,0,,{{\\c{color_hex}{styles}}}{text}\n')
+                except Exception as e:
+                    logger.error(f"处理弹幕数据失败: {e}, 弹幕数据: {comment}")
+                    continue
             
             logger.info('弹幕生成成功 - ' + output_file)
 
@@ -389,6 +402,12 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
             return None
 
         comments = sorted(comments_data["comments"], key=lambda x: float(x['p'].split(',')[0]))
+        
+        # 如果弹幕数量等于0，则不生成弹幕
+        if len(comments) == 0:
+            logger.info(f"弹幕数量为0，跳过生成 - {file_path}")
+            return None
+
         output_file = os.path.splitext(file_path)[0] + '.danmu.ass'
         
         DanmuConverter.convert_comments_to_ass(
