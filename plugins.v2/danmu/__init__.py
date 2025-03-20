@@ -26,7 +26,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.9"
+    plugin_version = "1.1.10"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -349,14 +349,14 @@ class Danmu(_PluginBase):
         :return: 生成的弹幕文件路径，如果失败则返回None
         """
         meta = MetaInfo(file_path)
-        media_info = self.media_chain.recognize_media(meta=meta)
         tmdb_id = None
         episode = None
-        if media_info:
-            tmdb_id = media_info.tmdb_id
-            episode = meta.episode
+        if self._useTmdbID:
+            media_info = self.media_chain.recognize_media(meta=meta)
+            if media_info:
+                tmdb_id = media_info.tmdb_id
+                episode = meta.episode.split('E')[1] if meta.episode else None
         
-        logger.info(f"TMDB ID: {tmdb_id}, Episode: {episode}")
     
         try:
             return generator.danmu_generator(
