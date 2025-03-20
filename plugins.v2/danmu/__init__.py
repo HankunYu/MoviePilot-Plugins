@@ -1,4 +1,3 @@
-
 # MoviePilot library
 from app.log import logger
 from app.plugins import _PluginBase
@@ -8,7 +7,7 @@ from app.utils.system import SystemUtils
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from typing import Any, List, Dict, Tuple
+from typing import Any, List, Dict, Tuple, Optional
 import subprocess
 import os
 import threading
@@ -25,7 +24,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.3"
+    plugin_version = "1.1.5"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -48,18 +47,19 @@ class Danmu(_PluginBase):
     _duration = 6
     _cron = '0 0 1 1 *'
     _path = ''
+    _max_threads = 10
 
     def init_plugin(self, config: dict = None):
         if config:
-            self._enabled = config.get("enabled")
-            self._width = config.get("width")
-            self._height = config.get("height")
+            self._enabled = config.get("enabled", False)
+            self._width = config.get("width", 1920)
+            self._height = config.get("height", 1080)
             # self._fontface = config.get("fontface")
-            self._fontsize = config.get("fontsize")
-            self._alpha = config.get("alpha")
-            self._duration = config.get("duration")
-            self._path = config.get("path")
-            # self._cron = config.get("cron")
+            self._fontsize = config.get("fontsize", 50)
+            self._alpha = config.get("alpha", 0.8)
+            self._duration = config.get("duration", 6)
+            self._path = config.get("path", "")
+            self._cron = config.get("cron", "0 0 1 1 *")
         if self._enabled:
             logger.info("弹幕加载插件已启用")
             
@@ -289,57 +289,87 @@ class Danmu(_PluginBase):
             "alpha": 0.8,
             "duration": 6,
             "cron": "0 0 1 1 *",
+            "path": ""
         }
 
     def get_page(self) -> List[dict]:
         pass
     
-    def generate_danmu(self, file_path: str):
-        generator.danmu_generator(file_path, self._width, self._height,'Arial', self._fontsize, self._alpha, self._duration)
+    def generate_danmu(self, file_path: str) -> Optional[str]:
+        """
+        生成弹幕文件
+        :param file_path: 视频文件路径
+        :return: 生成的弹幕文件路径，如果失败则返回None
+        """
+        try:
+            return generator.danmu_generator(
+                file_path,
+                self._width,
+                self._height,
+                'Arial',
+                self._fontsize,
+                self._alpha,
+                self._duration
+            )
+        except Exception as e:
+            logger.error(f"生成弹幕失败: {e}")
+            return None
 
     def generate_danmu_global(self):
-        # 同时最多开启10个线程
+        """
+        全局刮削弹幕
+        """
+        if not self._path:
+            logger.warning("未设置刮削路径，跳过全局刮削")
+            return
+
+        logger.info("开始全局弹幕刮削")
         threading_list = []
-        max_thread = 10
-        if self._path:
-            logger.info("开始全局弹幕刮削")
-            # 按行切割并去除前后空白
-            paths = [path.strip() for path in self._path.split('\n') if path.strip()]
-            for path in paths:
-                logger.info(f"刮削路径：{path}")
-                if os.path.exists(path):
-                    for root, dirs, files in os.walk(path):
-                        for file in files:
-                            if file.endswith('.mp4') or file.endswith('.mkv'):
-                                if len(threading_list) >= max_thread:
-                                    threading_list[0].join()  # 只等待第一个线程
-                                    threading_list.pop(0)
-                                target_file = os.path.join(root, file)
-                                logger.info(f"开始生成弹幕文件：{target_file}")
-                                thread = threading.Thread(target=self.generate_danmu, args=(target_file,))
-                                thread.start()
-                                threading_list.append(thread)
-        
+        paths = [path.strip() for path in self._path.split('\n') if path.strip()]
+
+        for path in paths:
+            if not os.path.exists(path):
+                logger.warning(f"路径不存在: {path}")
+                continue
+
+            logger.info(f"刮削路径：{path}")
+            for root, _, files in os.walk(path):
+                for file in files:
+                    if file.endswith(('.mp4', '.mkv')):
+                        if len(threading_list) >= self._max_threads:
+                            threading_list[0].join()
+                            threading_list.pop(0)
+
+                        target_file = os.path.join(root, file)
+                        logger.info(f"开始生成弹幕文件：{target_file}")
+                        thread = threading.Thread(
+                            target=self.generate_danmu,
+                            args=(target_file,)
+                        )
+                        thread.start()
+                        threading_list.append(thread)
+
         for thread in threading_list:
             thread.join()
+
         logger.info("全局弹幕刮削完成")
     
     @eventmanager.register(EventType.TransferComplete)
     def generate_danmu_after_transfer(self, event):
+        """
+        传输完成后生成弹幕
+        """
         if not self._enabled:
             return
+
         def __to_dict(_event):
             """
             递归将对象转换为字典
             """
             if isinstance(_event, dict):
-                for k, v in _event.items():
-                    _event[k] = __to_dict(v)
-                return _event
+                return {k: __to_dict(v) for k, v in _event.items()}
             elif isinstance(_event, list):
-                for i in range(len(_event)):
-                    _event[i] = __to_dict(_event[i])
-                return _event
+                return [__to_dict(item) for item in _event]
             elif isinstance(_event, tuple):
                 return tuple(__to_dict(list(_event)))
             elif isinstance(_event, set):
@@ -352,15 +382,23 @@ class Danmu(_PluginBase):
                 return _event
             else:
                 return str(_event)
+
+        try:
+            raw_data = __to_dict(event.event_data)
+            target_file = raw_data.get("transferinfo", {}).get("file_list_new", [None])[0]
             
-        raw_data = __to_dict(event.event_data)
-        target_file = raw_data.get("transferinfo").get("file_list_new")[0]
-        logger.info(f"开始生成弹幕文件：{target_file}")
-        thread = threading.Thread(target=self.generate_danmu, args=(target_file,))
-        thread.start()
-        
+            if not target_file:
+                logger.warning("未找到目标文件")
+                return
 
-
+            logger.info(f"开始生成弹幕文件：{target_file}")
+            thread = threading.Thread(
+                target=self.generate_danmu,
+                args=(target_file,)
+            )
+            thread.start()
+        except Exception as e:
+            logger.error(f"处理传输完成事件失败: {e}")
 
     def stop_service(self):
         """
