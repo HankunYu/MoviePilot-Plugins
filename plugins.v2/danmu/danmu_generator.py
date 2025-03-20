@@ -164,7 +164,7 @@ class DanmuAPI:
         :return: 弹幕数据
         """
         try:
-            url = f"{cls.BASE_URL}/{comment_id}"
+            url = f"{cls.BASE_URL}/{comment_id}?from_id=0&with_related=true&ch_convert=0"
             response = requests.get(url, headers=cls.HEADERS)
             if response.status_code == 200:
                 return response.json()
