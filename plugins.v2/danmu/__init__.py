@@ -6,6 +6,8 @@ from app.schemas.types import EventType
 from app.utils.system import SystemUtils
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from app.chain.media import MediaChain
+from app.core.metainfo import MetaInfo
 
 from typing import Any, List, Dict, Tuple, Optional
 import subprocess
@@ -24,7 +26,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.8"
+    plugin_version = "1.1.9"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -49,7 +51,10 @@ class Danmu(_PluginBase):
     _path = ''
     _max_threads = 10
     _onlyFromBili = False
-
+    _useTmdbID = True
+    
+    media_chain = MediaChain()
+    
     def init_plugin(self, config: dict = None):
         if config:
             self._enabled = config.get("enabled", False)
@@ -62,6 +67,7 @@ class Danmu(_PluginBase):
             self._path = config.get("path", "")
             self._cron = config.get("cron", "0 0 1 1 *")
             self._onlyFromBili = config.get("onlyFromBili", False)
+            self._useTmdbID = config.get("useTmdbID", True)
         if self._enabled:
             logger.info("弹幕加载插件已启用")
             
@@ -137,6 +143,27 @@ class Danmu(_PluginBase):
                                         'props': {
                                             'model': 'onlyFromBili',
                                             'label': '仅使用B站弹幕，建议关闭包含其他平台弹幕',
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'useTmdbID',
+                                            'label': '使用TMDB ID作为预备匹配方案，当无法匹配文件hash时尝试使用TMDB ID',
                                         }
                                     }
                                 ]
@@ -307,7 +334,9 @@ class Danmu(_PluginBase):
             "alpha": 0.8,
             "duration": 6,
             "cron": "0 0 1 1 *",
-            "path": ""
+            "path": "",
+            "onlyFromBili": False,
+            "useTmdbID": True
         }
 
     def get_page(self) -> List[dict]:
@@ -319,6 +348,16 @@ class Danmu(_PluginBase):
         :param file_path: 视频文件路径
         :return: 生成的弹幕文件路径，如果失败则返回None
         """
+        meta = MetaInfo(file_path)
+        media_info = self.media_chain.recognize_media(meta=meta)
+        tmdb_id = None
+        episode = None
+        if media_info:
+            tmdb_id = media_info.tmdb_id
+            episode = meta.episode
+        
+        logger.info(f"TMDB ID: {tmdb_id}, Episode: {episode}")
+    
         try:
             return generator.danmu_generator(
                 file_path,
@@ -328,7 +367,10 @@ class Danmu(_PluginBase):
                 self._fontsize,
                 self._alpha,
                 self._duration,
-                self._onlyFromBili
+                self._onlyFromBili,
+                self._useTmdbID,
+                tmdb_id,
+                episode
             )
         except Exception as e:
             logger.error(f"生成弹幕失败: {e}")

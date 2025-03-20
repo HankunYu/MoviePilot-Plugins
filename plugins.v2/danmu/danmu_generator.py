@@ -66,58 +66,76 @@ class DanmuAPI:
             logger.error(f"获取文件大小失败: {e}")
             return 0
 
-    @classmethod
-    def get_video_info(cls, file_path: str) -> Optional[VideoInfo]:
+    @staticmethod
+    def search_by_tmdb_id(tmdb_id: int, episode: Optional[int] = None) -> Optional[str]:
+        """
+        使用TMDB ID搜索弹幕
+        :param tmdb_id: TMDB ID
+        :param episode: 集数
+        :return: 弹幕ID
+        """
         try:
-            return VideoInfo(
-                file_name=os.path.basename(file_path),
-                file_hash=cls.calculate_md5_of_first_16MB(file_path),
-                file_size=cls.get_file_size(file_path),
-                video_duration=int(cls.get_video_duration(file_path) or 0)
-            )
+            url = f"{DanmuAPI.BASE_URL}/search/tmdb"
+            data = {
+                "tmdb_id": tmdb_id
+            }
+            if episode is not None:
+                data["episode"] = episode
+            else:
+                data["episode"] = 1
+            response = requests.post(url, json=data, headers=DanmuAPI.HEADERS)
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("success") and not result.get("hasMore"):
+                    animes = result.get("animes", [])
+                    if animes and len(animes) > 0:
+                        episodes = animes[0].get("episodes", [])
+                        if episodes and len(episodes) > 0:
+                            return str(episodes[0].get("episodeId"))
+            return None
         except Exception as e:
-            logger.error(f"获取视频信息失败: {e}")
+            logger.error(f"使用TMDB ID搜索弹幕失败: {e}")
             return None
 
-    @classmethod
-    def get_comment_id(cls, file_path: str) -> Optional[str]:
-        video_info = cls.get_video_info(file_path)
-        if not video_info:
-            return None
-
+    @staticmethod
+    def get_comment_id(file_path: str, use_tmdb_id: bool = False, tmdb_id: Optional[int] = None, episode: Optional[int] = None) -> Optional[str]:
+        """
+        获取弹幕ID
+        :param file_path: 视频文件路径
+        :param use_tmdb_id: 是否使用TMDB ID
+        :param tmdb_id: TMDB ID
+        :param episode: 集数
+        :return: 弹幕ID
+        """
         try:
-            response = requests.post(
-                f'{cls.BASE_URL}/match',
-                headers=cls.HEADERS,
-                json=video_info.__dict__
+            # 首先尝试使用文件名和文件大小匹配
+            file_name = os.path.basename(file_path)
+            file_size = DanmuAPI.get_file_size(file_path)
+            file_hash = DanmuAPI.calculate_md5_of_first_16MB(file_path)
+            
+            video_info = VideoInfo(
+                file_name=file_name,
+                file_hash=file_hash,
+                file_size=file_size,
+                video_duration=int(DanmuAPI.get_video_duration(file_path) or 0)
             )
             
-            if response.status_code != 200:
-                logger.error(f"获取弹幕ID失败: {response.text}")
-                return None
-
-            data = response.json()
-            if not data.get('isMatched'):
-                if not data.get('matches'):
-                    logger.error(f'未找到弹幕可能匹配 - {file_path}')
-                    return None
-
-                title = cls.get_title_from_nfo(file_path)
-                if not title:
-                    logger.info('未找到标题 跳过 - {file_path}')
-                    return None
-
-                for match in data['matches']:
-                    episode_title = re.sub(r'第\d+话 ', '', match['episodeTitle'])
-                    if episode_title == title:
-                        logger.info('匹配成功 - {file_path}')
-                        return match['episodeId']
-
-                logger.info('未找到匹配，跳过 - {file_path}')
-                return None
-
-            return data['matches'][0]['episodeId']
-
+            # 使用 match API
+            url = f"{DanmuAPI.BASE_URL}/match"
+            response = requests.post(url, json=video_info.__dict__, headers=DanmuAPI.HEADERS)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("isMatched") and result.get("matches"):
+                    return str(result["matches"][0]["episodeId"])
+            
+            # 如果使用TMDB ID且提供了TMDB ID，尝试使用TMDB ID匹配
+            if use_tmdb_id and tmdb_id is not None:
+                comment_id = DanmuAPI.search_by_tmdb_id(tmdb_id, episode)
+                if comment_id:
+                    return comment_id
+            
+            return None
         except Exception as e:
             logger.error(f"获取弹幕ID失败: {e}")
             return None
@@ -140,11 +158,14 @@ class DanmuAPI:
 
     @classmethod
     def get_comments(cls, comment_id: str) -> Optional[Dict]:
+        """
+        获取弹幕内容
+        :param comment_id: 弹幕ID
+        :return: 弹幕数据
+        """
         try:
-            response = requests.get(
-                f'{cls.BASE_URL}/{comment_id}?from_id=0&with_related=true&ch_convert=0',
-                headers=cls.HEADERS
-            )
+            url = f"{cls.BASE_URL}/{comment_id}"
+            response = requests.get(url, headers=cls.HEADERS)
             if response.status_code == 200:
                 return response.json()
             logger.error(f"获取弹幕失败: {response.text}")
@@ -221,7 +242,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     if len(p) < 3:
                         logger.warning(f"弹幕数据格式不正确: {comment}")
                         continue
-                        
+                    
                     timeline = float(p[0])
                     pos = int(p[1])
                     color = int(p[2])
@@ -390,9 +411,11 @@ class SubtitleProcessor:
 
 def danmu_generator(file_path: str, width: int = 1920, height: int = 1080, 
                    fontface: str = 'Arial', fontsize: float = 50, 
-                   alpha: float = 0.8, duration: float = 6, onlyFromBili: bool = False) -> Optional[str]:
+                   alpha: float = 0.8, duration: float = 6, onlyFromBili: bool = False,
+                   use_tmdb_id: bool = False, tmdb_id: Optional[int] = None,
+                   episode: Optional[int] = None) -> Optional[str]:
     try:
-        comment_id = DanmuAPI.get_comment_id(file_path)
+        comment_id = DanmuAPI.get_comment_id(file_path, use_tmdb_id, tmdb_id, episode)
         if not comment_id:
             logger.info(f"未找到对应弹幕 - {file_path}")
             return None
