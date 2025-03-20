@@ -192,11 +192,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     @staticmethod
     def find_non_overlapping_track(tracks: Dict[int, float], current_time: float, max_tracks: int) -> int:
         possible_track = 1
-        last_time_remain = 100
+        last_time_remain = 100.0
         for track in range(1, max_tracks + 1):
             if track not in tracks or current_time >= tracks[track]:
                 return track
-            time_remain = tracks[track] - current_time
+            time_remain = float(tracks[track]) - current_time
             if time_remain > last_time_remain:
                 possible_track = track
         return possible_track

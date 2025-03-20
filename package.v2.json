@@ -36,13 +36,13 @@
     "Danmu": {
         "name": "弹幕刮削",
         "description": "使用弹弹play平台生成弹幕的字幕文件，实现弹幕播放。",
-        "version": "1.1.6",
+        "version": "1.1.7",
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/danmu.png",
         "color": "#3B5E8E",
         "author": "hankun",
         "level": 1,
         "history": {
-            "v1.1.6": "增加了中转服务器，恢复了对弹弹的访问。修复透明度问题。还不稳定 先别更新",
+            "v1.1.7": "增加了中转服务器，恢复了对弹弹的访问。修复透明度问题。还不稳定 先别更新",
             "v1.1.3": "增加对v2的支持",
             "v1.1.2": "修复nfo文件不存在时导致错误。",
             "v1.1.1": "修复错误导致弹幕生成失败，增加log信息显示匹配弹幕数量。",
