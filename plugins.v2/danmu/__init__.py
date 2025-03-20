@@ -24,7 +24,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.7"
+    plugin_version = "1.1.8"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -48,6 +48,7 @@ class Danmu(_PluginBase):
     _cron = '0 0 1 1 *'
     _path = ''
     _max_threads = 10
+    _onlyFromBili = False
 
     def init_plugin(self, config: dict = None):
         if config:
@@ -60,6 +61,7 @@ class Danmu(_PluginBase):
             self._duration = config.get("duration", 10)
             self._path = config.get("path", "")
             self._cron = config.get("cron", "0 0 1 1 *")
+            self._onlyFromBili = config.get("onlyFromBili", False)
         if self._enabled:
             logger.info("弹幕加载插件已启用")
             
@@ -119,6 +121,22 @@ class Danmu(_PluginBase):
                                         'props': {
                                             'model': 'enabled',
                                             'label': '启用插件',
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'onlyFromBili',
+                                            'label': '仅使用B站弹幕，建议关闭包含其他平台弹幕',
                                         }
                                     }
                                 ]
@@ -309,7 +327,8 @@ class Danmu(_PluginBase):
                 'Arial',
                 self._fontsize,
                 self._alpha,
-                self._duration
+                self._duration,
+                self._onlyFromBili
             )
         except Exception as e:
             logger.error(f"生成弹幕失败: {e}")

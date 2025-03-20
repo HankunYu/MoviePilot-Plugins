@@ -202,11 +202,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         return possible_track
 
     @classmethod
-    def convert_comments_to_ass(cls, comments: List[Dict], output_file: str, width: int = 1920, 
-                              height: int = 1080, fontface: str = 'Arial', fontsize: float = 50, 
-                              alpha: float = 0.8, duration: float = 10):
+    def convert_comments_to_ass(cls, comments: List[Dict], output_file: str, width: int, 
+                              height: int, fontface: str, fontsize: float, alpha: float, duration: float):
         styleid = 'Danmu'
-        max_tracks = height // fontsize
+        max_tracks = int(height) // int(fontsize)
         scrolling_tracks = {}
         top_tracks = {}
         bottom_tracks = {}
@@ -227,6 +226,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     pos = int(p[1])
                     color = int(p[2])
                     text = comment.get('m', '')
+                    user = str(p[3])
                     
                     if not text:
                         continue
@@ -390,7 +390,7 @@ class SubtitleProcessor:
 
 def danmu_generator(file_path: str, width: int = 1920, height: int = 1080, 
                    fontface: str = 'Arial', fontsize: float = 50, 
-                   alpha: float = 0.8, duration: float = 6) -> Optional[str]:
+                   alpha: float = 0.8, duration: float = 6, onlyFromBili: bool = False) -> Optional[str]:
     try:
         comment_id = DanmuAPI.get_comment_id(file_path)
         if not comment_id:
@@ -403,15 +403,25 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
 
         comments = sorted(comments_data["comments"], key=lambda x: float(x['p'].split(',')[0]))
         
-        # 如果弹幕数量等于0，则不生成弹幕
         if len(comments) == 0:
             logger.info(f"弹幕数量为0，跳过生成 - {file_path}")
             return None
 
+        # 过滤B站弹幕
+        if onlyFromBili:
+            comments = [comment for comment in comments if '[BiliBili]' in comment['p'].split(',')[3]]
+            logger.info(f"过滤后剩余{len(comments)}条B站弹幕")
+
         output_file = os.path.splitext(file_path)[0] + '.danmu.ass'
         
         DanmuConverter.convert_comments_to_ass(
-            comments, output_file, width, height, fontface, fontsize, alpha, duration
+            comments, output_file, 
+            width=int(width), 
+            height=int(height), 
+            fontface=fontface, 
+            fontsize=float(fontsize), 
+            alpha=float(alpha), 
+            duration=float(duration)
         )
 
         sub2 = SubtitleProcessor.find_subtitle_file(file_path)
