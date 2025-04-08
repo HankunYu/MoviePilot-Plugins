@@ -120,6 +120,13 @@ class DanmuAPI:
                 video_duration=int(DanmuAPI.get_video_duration(file_path) or 0)
             )
             
+            # 先检查当前目录下有没有 .id 结尾的文件 如果有，则获取文件名作为弹幕ID
+            id_file = os.path.splitext(file_path)[0] + '.id'
+            if os.path.exists(id_file):
+                fileID = str(int(os.path.basename(id_file)) * 10000 + int(episode))
+                logger.info(f"找到弹幕ID文件 - {fileID}")
+                return fileID
+            
             # 使用 match API
             url = f"{DanmuAPI.BASE_URL}/match"
             response = requests.post(url, json=video_info.__dict__, headers=DanmuAPI.HEADERS)
