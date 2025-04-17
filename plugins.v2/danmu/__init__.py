@@ -27,7 +27,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.14.2"
+    plugin_version = "1.1.14.3"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -363,9 +363,9 @@ class Danmu(_PluginBase):
         }
 
     def get_page(self) -> List[dict]:
-        if not self._enabled or not self._path:
+        if not self._enabled:
             return []
-        local_path = self._path
+            
         return [
             {
                 'component': 'VForm',
@@ -375,7 +375,34 @@ class Danmu(_PluginBase):
                         'content': [
                             {
                                 'component': 'div',
-                                'text': '刮削媒体库路径',
+                                'text': '当前媒体库路径',
+                                'props': {
+                                    'class': 'text-subtitle-1 text-medium-emphasis mb-2'
+                                }
+                            },
+                            {
+                                'component': 'VTextarea',
+                                'props': {
+                                    'model': 'current_path',
+                                    'value': self._path,
+                                    'variant': 'outlined',
+                                    'bg-color': 'surface',
+                                    'rows': 2,
+                                    'readonly': True,
+                                    'disabled': True
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'div',
+                        'props': {
+                            'class': 'mt-4'
+                        },
+                        'content': [
+                            {
+                                'component': 'div',
+                                'text': '新的媒体库路径',
                                 'props': {
                                     'class': 'text-subtitle-1 text-medium-emphasis mb-2'
                                 }
@@ -384,7 +411,7 @@ class Danmu(_PluginBase):
                                 'component': 'VTextarea',
                                 'props': {
                                     'model': 'path',
-                                    'value': local_path,
+                                    'placeholder': '请输入新的媒体库路径，一行一个',
                                     'variant': 'outlined',
                                     'bg-color': 'surface',
                                     'rows': 2
@@ -405,12 +432,17 @@ class Danmu(_PluginBase):
                                 },
                                 'content': [
                                     {
-                                        'component': 'VDialogCloseBtn',
-                                        'content': '保存路径',
+                                        'component': 'VBtn',
                                         'props': {
                                             'color': 'primary',
                                             'block': True
                                         },
+                                        'content': [
+                                            {
+                                                'component': 'text',
+                                                'text': '保存路径'
+                                            }
+                                        ],
                                         'events': {
                                             'click': {
                                                 'api': 'plugin/Danmu/update_path',
@@ -431,12 +463,17 @@ class Danmu(_PluginBase):
                                 },
                                 'content': [
                                     {
-                                        'component': 'VDialogCloseBtn',
-                                        'content': '开始刮削',
+                                        'component': 'VBtn',
                                         'props': {
                                             'color': 'primary',
                                             'block': True
                                         },
+                                        'content': [
+                                            {
+                                                'component': 'text',
+                                                'text': '开始刮削'
+                                            }
+                                        ],
                                         'events': {
                                             'click': {
                                                 'api': 'plugin/Danmu/generate_danmu_with_path',
