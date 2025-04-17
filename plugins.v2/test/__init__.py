@@ -23,7 +23,7 @@ class Test(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.7"
+    plugin_version = "1.3.8"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -50,7 +50,16 @@ class Test(_PluginBase):
         pass
 
     def get_api(self) -> List[Dict[str, Any]]:
-        pass
+        """
+        获取插件API
+        """
+        return [{
+            "path": "/test_button_click",
+            "endpoint": self.test_button_click,
+            "methods": ["GET"],
+            "summary": "测试按钮点击",
+            "description": "测试按钮点击事件"
+        }]
     
     # 插件配置页面
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
@@ -81,28 +90,6 @@ class Test(_PluginBase):
                                 ]
                             }
                         ]
-                    },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 12,
-                                    'md': 6
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VBtn',
-                                        'props': {
-                                            'variant': 'tonal',
-                                            'text': '测试按钮',
-                                            'onclick': 'test_button_click(e)'
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
                     }
                 ]
             }
@@ -117,7 +104,41 @@ class Test(_PluginBase):
         logger.info("测试按钮被点击了！")
 
     def get_page(self) -> List[dict]:
-        pass
+        """
+        获取插件页面
+        """
+        return [{
+            'component': 'VForm',
+            'content': [
+                {
+                    'component': 'VRow',
+                    'content': [
+                        {
+                            'component': 'VCol',
+                            'props': {
+                                'cols': 12,
+                                'md': 6
+                            },
+                            'content': [
+                                {
+                                    'component': 'VBtn',
+                                    'props': {
+                                        'variant': 'tonal',
+                                        'text': '测试按钮'
+                                    },
+                                    'events': {
+                                        'click': {
+                                            'api': '/test_button_click',
+                                            'method': 'GET'
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }]
       
 
     def stop_service(self):
