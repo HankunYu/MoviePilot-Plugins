@@ -23,7 +23,7 @@ class Test(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.6"
+    plugin_version = "1.3.7"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -41,9 +41,6 @@ class Test(_PluginBase):
         if config:
             self._enabled = config.get("enabled")
             
-            # 启动discord bot
-            if(self._enabled):
-                logger.info(f"Discord插件初始化完成 version: {self.plugin_version}")
 
     def get_state(self) -> bool:
         return self._enabled
@@ -99,8 +96,8 @@ class Test(_PluginBase):
                                         'component': 'VBtn',
                                         'props': {
                                             'variant': 'tonal',
-                                            'children': '测试按钮',
-                                            'onClick': 'test_button_click(e)'
+                                            'text': '测试按钮',
+                                            'onclick': 'test_button_click(e)'
                                         }
                                     }
                                 ]
@@ -121,15 +118,6 @@ class Test(_PluginBase):
 
     def get_page(self) -> List[dict]:
         pass
-
-    
-    @eventmanager.register(EventType.NoticeMessage)
-    def send(self, event: Event):
-        msg_body = event.event_data
-        text = msg_body.get("text")
-        msg_type: NotificationType = msg_body.get("mtype")
-        logger.info(f"event type: " + str(msg_type))
-        return
       
 
     def stop_service(self):
