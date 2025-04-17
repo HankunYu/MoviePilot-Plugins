@@ -8,6 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from app.chain.media import MediaChain
 from app.core.metainfo import MetaInfo
+from app.core.config import settings
 
 from typing import Any, List, Dict, Tuple, Optional
 import subprocess
@@ -26,7 +27,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.13"
+    plugin_version = "1.1.14"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -86,6 +87,7 @@ class Danmu(_PluginBase):
             "kwargs": {} # 定时器参数
         }]
         """
+        pass
         if self.get_state() and self._path and self._cron:
             return [{
                 "id": "Danmu",
@@ -101,7 +103,22 @@ class Danmu(_PluginBase):
         pass
 
     def get_api(self) -> List[Dict[str, Any]]:
-        pass
+        """
+        获取插件API
+        [{
+            "path": "/xx",
+            "endpoint": self.xxx,
+            "methods": ["GET", "POST"],
+            "summary": "API说明"
+        }]
+        """
+        return [{
+            "path": "/generate_danmu_with_path",
+            "endpoint": self.generate_danmu_global,
+            "methods": ["GET"],
+            "summary": "刮削弹幕",
+            "description": "根据设定的路径刮削弹幕"
+        }]
     
     # 插件配置页面
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
@@ -268,23 +285,23 @@ class Danmu(_PluginBase):
                                     }
                                 ]
                             },
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 6,
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VTextField',
-                                        'props': {
-                                            'model': 'cron',
-                                            'label': '取消定期刮削，需要全局刮削请去 设置->服务 手动启动',
-                                            'type': 'text',
+                            # {
+                            #     'component': 'VCol',
+                            #     'props': {
+                            #         'cols': 6,
+                            #     },
+                            #     'content': [
+                            #         {
+                            #             'component': 'VTextField',
+                            #             'props': {
+                            #                 'model': 'cron',
+                            #                 'label': '取消定期刮削，需要全局刮削请去 设置->服务 手动启动',
+                            #                 'type': 'text',
                                      
-                                        }
-                                    }
-                                ]
-                            }
+                            #             }
+                            #         }
+                            #     ]
+                            # }
                         ]
                     },
                     {
@@ -340,7 +357,63 @@ class Danmu(_PluginBase):
         }
 
     def get_page(self) -> List[dict]:
-        pass
+        if not self._enabled or not self._path:
+            return []
+            
+        return [
+            {
+                'component': 'VForm',
+                'content': [
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'content': [
+                                    {
+                                        'component': 'VTextarea',
+                                        'props': {
+                                            'model': 'path',
+                                            'label': '刮削媒体库路径',
+                                            'value': self._path,
+                                            'readonly': True,
+                                            'rows': 2,
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'content': [
+                                    {
+                                        'component': 'VBtn',
+                                        'props': {
+                                            'color': 'primary',
+                                            'text': '开始刮削',
+                                            'block': True
+                                        },
+                                        'events': {
+                                            'click': {
+                                                'api': 'plugin/Danmu/generate_danmu_with_path',
+                                                'method': 'GET',
+                                                'params': {
+                                                    'apikey': settings.API_TOKEN
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     
     def generate_danmu(self, file_path: str) -> Optional[str]:
         """
@@ -381,10 +454,10 @@ class Danmu(_PluginBase):
         全局刮削弹幕
         """
         if not self._path:
-            logger.warning("未设置刮削路径，跳过全局刮削")
+            logger.warning("未设置刮削路径，跳过刮削")
             return
 
-        logger.info("开始全局弹幕刮削")
+        logger.info("开始弹幕刮削")
         threading_list = []
         paths = [path.strip() for path in self._path.split('\n') if path.strip()]
 
@@ -413,7 +486,7 @@ class Danmu(_PluginBase):
         for thread in threading_list:
             thread.join()
 
-        logger.info("全局弹幕刮削完成")
+        logger.info("弹幕刮削完成")
     
     @eventmanager.register(EventType.TransferComplete)
     def generate_danmu_after_transfer(self, event):
