@@ -27,7 +27,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.14.5"
+    plugin_version = "1.1.14.6"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -310,25 +310,25 @@ class Danmu(_PluginBase):
                             # }
                         ]
                     },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'content': [
-                                    {
-                                        'component': 'VTextarea',
-                                        'props': {
-                                            'model': 'path',
-                                            'label': '刮削媒体库路径，一行一个',
-                                            'placeholder': '留空不启用',
-                                            'rows': 2,
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    },
+                    # {
+                    #     'component': 'VRow',
+                    #     'content': [
+                    #         {
+                    #             'component': 'VCol',
+                    #             'content': [
+                    #                 {
+                    #                     'component': 'VTextarea',
+                    #                     'props': {
+                    #                         'model': 'path',
+                    #                         'label': '刮削媒体库路径，一行一个',
+                    #                         'placeholder': '留空不启用',
+                    #                         'rows': 2,
+                    #                     }
+                    #                 }
+                    #             ]
+                    #         }
+                    #     ]
+                    # },
                     {
                         'component': 'VRow',
                         'content': [
@@ -449,7 +449,7 @@ class Danmu(_PluginBase):
                                                 'method': 'GET',
                                                 'params': {
                                                     'apikey': settings.API_TOKEN,
-                                                    'path': '{{$form.path}}'
+                                                    'path': '{{path}}'
                                                 }
                                             }
                                         }
@@ -491,7 +491,7 @@ class Danmu(_PluginBase):
                     {
                         'component': 'VRow',
                         'props': {
-                            'class': 'mt-6 mb-6'
+                            'class': 'mt-8 mb-8'
                         }
                     }
                 ]
