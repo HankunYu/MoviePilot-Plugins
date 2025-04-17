@@ -9,6 +9,8 @@ from apscheduler.triggers.cron import CronTrigger
 from app.chain.media import MediaChain
 from app.core.metainfo import MetaInfo
 from app.core.config import settings
+from app import schemas
+from app.schemas.types import MediaType, EventType, SystemConfigKey
 
 from typing import Any, List, Dict, Tuple, Optional
 import subprocess
@@ -27,7 +29,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.14.12"
+    plugin_version = "1.1.14.13"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -486,7 +488,8 @@ class Danmu(_PluginBase):
                             {
                                 'component': 'VCol',
                                 'props': {
-                                    'cols': 6
+                                    'cols': 6,
+                                    'offset': 3
                                 },
                                 'content': [
                                     {
@@ -572,7 +575,7 @@ class Danmu(_PluginBase):
         """
         if not self._path:
             logger.warning("未设置刮削路径，跳过刮削")
-            return
+            return schemas.Response(success=False, message="没有设定路径")
 
         logger.info("开始弹幕刮削")
         threading_list = []
@@ -581,6 +584,7 @@ class Danmu(_PluginBase):
         for path in paths:
             if not os.path.exists(path):
                 logger.warning(f"路径不存在: {path}")
+                return schemas.Response(success=False, message=f"路径不存在: {path}")
                 continue
 
             # 检查是否是单个文件
@@ -620,6 +624,7 @@ class Danmu(_PluginBase):
             thread.join()
 
         logger.info("弹幕刮削完成")
+        return schemas.Response(success=True, message="弹幕刮削完成 ")
     
     @eventmanager.register(EventType.TransferComplete)
     def generate_danmu_after_transfer(self, event):
