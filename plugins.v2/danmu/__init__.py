@@ -27,7 +27,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.14"
+    plugin_version = "1.1.14.1"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -87,7 +87,7 @@ class Danmu(_PluginBase):
             "kwargs": {} # 定时器参数
         }]
         """
-        pass
+        return []
         if self.get_state() and self._path and self._cron:
             return [{
                 "id": "Danmu",
@@ -118,6 +118,12 @@ class Danmu(_PluginBase):
             "methods": ["GET"],
             "summary": "刮削弹幕",
             "description": "根据设定的路径刮削弹幕"
+        },{
+            "path": "/update_path",
+            "endpoint": self.update_path,
+            "methods": ["POST"],
+            "summary": "更新路径",
+            "description": "更新刮削路径"
         }]
     
     # 插件配置页面
@@ -365,19 +371,47 @@ class Danmu(_PluginBase):
                 'component': 'VForm',
                 'content': [
                     {
+                        'component': 'div',
+                        'content': [
+                            {
+                                'component': 'div',
+                                'text': '刮削媒体库路径',
+                                'props': {
+                                    'class': 'text-subtitle-1 text-medium-emphasis mb-2'
+                                }
+                            },
+                            {
+                                'component': 'VTextField',
+                                'props': {
+                                    'model': 'path',
+                                    'value': self._path,
+                                    'variant': 'outlined',
+                                    'bg-color': 'surface'
+                                }
+                            }
+                        ]
+                    },
+                    {
                         'component': 'VRow',
                         'content': [
                             {
                                 'component': 'VCol',
                                 'content': [
                                     {
-                                        'component': 'VTextarea',
+                                        'component': 'VBtn',
+                                        'content': '保存路径',
                                         'props': {
-                                            'model': 'path',
-                                            'label': '刮削媒体库路径',
-                                            'value': self._path,
-                                            'readonly': True,
-                                            'rows': 2,
+                                            'color': 'primary'
+                                        },
+                                        'events': {
+                                            'click': {
+                                                'api': 'plugin/Danmu/update_path',
+                                                'method': 'POST',
+                                                'params': {
+                                                    'path': '{{path}}',
+                                                    'apikey': settings.API_TOKEN
+                                                }
+                                            }
                                         }
                                     }
                                 ]
@@ -392,10 +426,9 @@ class Danmu(_PluginBase):
                                 'content': [
                                     {
                                         'component': 'VBtn',
+                                        'content': '开始刮削',
                                         'props': {
-                                            'color': 'primary',
-                                            'text': '开始刮削',
-                                            'block': True
+                                            'color': 'primary'
                                         },
                                         'events': {
                                             'click': {
@@ -449,6 +482,13 @@ class Danmu(_PluginBase):
             logger.error(f"生成弹幕失败: {e}")
             return None
 
+    def update_path(self, path: str):
+        """
+        更新路径
+        """
+        self._path = path
+        logger.info(f"更新路径: {self._path}")
+        
     def generate_danmu_global(self):
         """
         全局刮削弹幕
