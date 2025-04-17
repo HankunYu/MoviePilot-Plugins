@@ -27,7 +27,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.14.8"
+    plugin_version = "1.1.14.9"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -165,7 +165,7 @@ class Danmu(_PluginBase):
                                         'component': 'VSwitch',
                                         'props': {
                                             'model': 'onlyFromBili',
-                                            'label': '仅使用B站弹幕，建议关闭包含其他平台弹幕',
+                                            'label': '仅使用B站弹幕，建议关闭',
                                         }
                                     }
                                 ]
@@ -310,25 +310,55 @@ class Danmu(_PluginBase):
                             # }
                         ]
                     },
-                    # {
-                    #     'component': 'VRow',
-                    #     'content': [
-                    #         {
-                    #             'component': 'VCol',
-                    #             'content': [
-                    #                 {
-                    #                     'component': 'VTextarea',
-                    #                     'props': {
-                    #                         'model': 'path',
-                    #                         'label': '刮削媒体库路径，一行一个',
-                    #                         'placeholder': '留空不启用',
-                    #                         'rows': 2,
-                    #                     }
-                    #                 }
-                    #             ]
-                    #         }
-                    #     ]
-                    # },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'content': [
+                                    {
+                                        'component': 'VTextarea',
+                                        'props': {
+                                            'model': 'path',
+                                            'label': '刮削媒体库路径，一行一个',
+                                            'placeholder': '留空不启用',
+                                            'rows': 2,
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VCol',
+                        'props': {
+                            'cols': 6
+                        },
+                        'content': [
+                            {
+                                'component': 'VBtn',
+                                'props': {
+                                    'color': 'primary',
+                                    'block': True
+                                },
+                                'content': [
+                                    {
+                                        'component': 'text',
+                                        'text': '开始刮削'
+                                    }
+                                ],
+                                'events': {
+                                    'click': {
+                                        'api': 'plugin/Danmu/generate_danmu_with_path',
+                                        'method': 'GET',
+                                        'params': {
+                                            'apikey': settings.API_TOKEN
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    },
                     {
                         'component': 'VRow',
                         'content': [
@@ -340,7 +370,7 @@ class Danmu(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'flat',
-                                            'text': '此插件会根据情况生成两种弹幕字幕文件，均为ass格式。.danmu为刮削出来的纯弹幕，.withDanmu为原生字幕与弹幕合并后的文件。自动刮削新入库文件。如果没有外挂字幕只有内嵌字幕会自动提取内嵌字幕生成.withDanmu文件。弹幕来源为 弹弹play 提供的多站合并资源以及 https://github.com/m13253/danmaku2ass 提供的思路。第一次使用可以去 设置->服务 手动启动全局刮削。\n取消了定期全局刮削，为了降低服务器压力以及防止被ban IP。',
+                                            'text': '此插件会根据情况生成两种弹幕字幕文件，均为ass格式。.danmu为刮削出来的纯弹幕，.withDanmu为原生字幕与弹幕合并后的文件。自动刮削新入库文件。如果没有外挂字幕只有内嵌字幕会自动提取内嵌字幕生成.withDanmu文件。弹幕来源为 弹弹play 提供的多站合并资源以及 https://github.com/m13253/danmaku2ass 提供的思路。',
                                         }
                                     }
                                 ]
@@ -450,7 +480,7 @@ class Danmu(_PluginBase):
                                                 'method': 'GET',
                                                 'params': {
                                                     'apikey': settings.API_TOKEN,
-                                                    'path': '${path}'
+                                                    'path': ''
                                                 }
                                             }
                                         }
