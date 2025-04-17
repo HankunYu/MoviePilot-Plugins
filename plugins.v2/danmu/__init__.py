@@ -27,7 +27,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.14.6"
+    plugin_version = "1.1.14.7"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -411,6 +411,7 @@ class Danmu(_PluginBase):
                                 'component': 'VTextarea',
                                 'props': {
                                     'model': 'path',
+                                    'id': 'path-input',
                                     'placeholder': '请输入新的媒体库路径，一行一个',
                                     'variant': 'outlined',
                                     'bg-color': 'surface',
@@ -449,7 +450,7 @@ class Danmu(_PluginBase):
                                                 'method': 'GET',
                                                 'params': {
                                                     'apikey': settings.API_TOKEN,
-                                                    'path': '{{path}}'
+                                                    'path': 'document.getElementById(\'path-input\')?.value'
                                                 }
                                             }
                                         }
