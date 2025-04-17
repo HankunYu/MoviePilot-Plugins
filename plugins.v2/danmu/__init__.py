@@ -27,7 +27,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.14.10"
+    plugin_version = "1.1.14.12"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -329,33 +329,33 @@ class Danmu(_PluginBase):
                             }
                         ]
                     },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 6
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VBtn',
-                                        'props': {
-                                            'color': 'primary',
-                                            'block': True
-                                        },
-                                        'content': [
-                                            {
-                                                'component': 'text',
-                                                'text': '手动刮削指定路径',
-                                                "onClick": "function(e) { fetch('http://{settings.HOST}:{settings.PORT}{settings.API_V1_STR}/plugin/Danmu/generate_danmu_with_path?apikey=' + {settings.API_TOKEN}).then(response => response.json()).then(data => { console.log('刮削完成:', data); }).catch(error => { console.error('刮削失败:', error); }); }",
-                                            }
-                                        ]
-                                    }
-                                ]
-                            },
-                        ]
-                    },
+                    # {
+                    #     'component': 'VRow',
+                    #     'content': [
+                    #         {
+                    #             'component': 'VCol',
+                    #             'props': {
+                    #                 'cols': 6
+                    #             },
+                    #             'content': [
+                    #                 {
+                    #                     'component': 'VBtn',
+                    #                     'props': {
+                    #                         'color': 'primary',
+                    #                         'block': True
+                    #                     },
+                    #                     'content': [
+                    #                         {
+                    #                             'component': 'text',
+                    #                             'text': '手动刮削指定路径',
+                    #                             "onClick": "function(e) { fetch('http://{settings.HOST}:{settings.PORT}{settings.API_V1_STR}/plugin/Danmu/generate_danmu_with_path?apikey=' + {settings.API_TOKEN}).then(response => response.json()).then(data => { console.log('刮削完成:', data); }).catch(error => { console.error('刮削失败:', error); }); }",
+                    #                         }
+                    #                     ]
+                    #                 }
+                    #             ]
+                    #         },
+                    #     ]
+                    # },
                     {
                         'component': 'VRow',
                         'content': [
@@ -391,141 +391,139 @@ class Danmu(_PluginBase):
 
     def get_page(self) -> List[dict]:
         pass
-        # if not self._enabled:
-        #     return []
             
-        # return [
-        #     {
-        #         'component': 'VForm',
-        #         'content': [
-        #             {
-        #                 'component': 'div',
-        #                 'content': [
-        #                     {
-        #                         'component': 'div',
-        #                         'text': '当前媒体库路径',
-        #                         'props': {
-        #                             'class': 'text-subtitle-1 text-medium-emphasis mb-2'
-        #                         }
-        #                     },
-        #                     {
-        #                         'component': 'VTextarea',
-        #                         'props': {
-        #                             'model': 'current_path',
-        #                             'value': self._path,
-        #                             'variant': 'outlined',
-        #                             'bg-color': 'surface',
-        #                             'rows': 2,
-        #                             'readonly': True,
-        #                             'disabled': True
-        #                         }
-        #                     }
-        #                 ]
-        #             },
-        #             {
-        #                 'component': 'div',
-        #                 'props': {
-        #                     'class': 'mt-4'
-        #                 },
-        #                 'content': [
-        #                     {
-        #                         'component': 'div',
-        #                         'text': '新的媒体库路径',
-        #                         'props': {
-        #                             'class': 'text-subtitle-1 text-medium-emphasis mb-2'
-        #                         }
-        #                     },
-        #                     {
-        #                         'component': 'VTextarea',
-        #                         'props': {
-        #                             'model': 'path',
-        #                             'id': 'path-input',
-        #                             'placeholder': '请输入新的媒体库路径，一行一个',
-        #                             'variant': 'outlined',
-        #                             'bg-color': 'surface',
-        #                             'rows': 2
-        #                         }
-        #                     }
-        #                 ]
-        #             },
-        #             {
-        #                 'component': 'VRow',
-        #                 'props': {
-        #                     'class': 'mt-2'
-        #                 },
-        #                 'content': [
-        #                     {
-        #                         'component': 'VCol',
-        #                         'props': {
-        #                             'cols': 6
-        #                         },
-        #                         'content': [
-        #                             {
-        #                                 'component': 'VBtn',
-        #                                 'props': {
-        #                                     'color': 'primary',
-        #                                     'block': True
-        #                                 },
-        #                                 'content': [
-        #                                     {
-        #                                         'component': 'text',
-        #                                         'text': '保存路径'
-        #                                     }
-        #                                 ],
-        #                                 'events': {
-        #                                     'click': {
-        #                                         'api': 'plugin/Danmu/update_path',
-        #                                         'method': 'GET',
-        #                                         'params': {
-        #                                             'apikey': settings.API_TOKEN,
-        #                                             'path': ''
-        #                                         }
-        #                                     }
-        #                                 }
-        #                             }
-        #                         ]
-        #                     },
-        #                     {
-        #                         'component': 'VCol',
-        #                         'props': {
-        #                             'cols': 6
-        #                         },
-        #                         'content': [
-        #                             {
-        #                                 'component': 'VBtn',
-        #                                 'props': {
-        #                                     'color': 'primary',
-        #                                     'block': True
-        #                                 },
-        #                                 'content': [
-        #                                     {
-        #                                         'component': 'text',
-        #                                         'text': '开始刮削'
-        #                                     }
-        #                                 ],
-        #                                 'events': {
-        #                                     'click': {
-        #                                         'api': 'plugin/Danmu/generate_danmu_with_path',
-        #                                         'method': 'GET',
-        #                                         'params': {
-        #                                             'apikey': settings.API_TOKEN
-        #                                         }
-        #                                     }
-        #                                 }
-        #                             }
-        #                         ]
-        #                     }
-        #                 ]
-        #             },
-        #             {
-        #                 'component': 'VRow',
-        #                 'props': {
-        #                     'class': 'mt-8 mb-8'
-        #                 }
-        #             }
-        #         ]
-        #     }
-        # ]
+        return [
+            {
+                'component': 'VForm',
+                'content': [
+                    {
+                        'component': 'div',
+                        'content': [
+                            {
+                                'component': 'div',
+                                'text': '刮削的媒体库路径',
+                                'props': {
+                                    'class': 'text-subtitle-1 text-medium-emphasis mb-2'
+                                }
+                            },
+                            {
+                                'component': 'VTextarea',
+                                'props': {
+                                    'model': 'current_path',
+                                    'value': self._path,
+                                    'variant': 'outlined',
+                                    'bg-color': 'surface',
+                                    'rows': 2,
+                                    'readonly': True,
+                                    'disabled': True
+                                }
+                            }
+                        ]
+                    },
+                    # {
+                    #     'component': 'div',
+                    #     'props': {
+                    #         'class': 'mt-4'
+                    #     },
+                    #     'content': [
+                    #         {
+                    #             'component': 'div',
+                    #             'text': '新的媒体库路径',
+                    #             'props': {
+                    #                 'class': 'text-subtitle-1 text-medium-emphasis mb-2'
+                    #             }
+                    #         },
+                    #         {
+                    #             'component': 'VTextarea',
+                    #             'props': {
+                    #                 'model': 'path',
+                    #                 'id': 'path-input',
+                    #                 'placeholder': '请输入新的媒体库路径，一行一个',
+                    #                 'variant': 'outlined',
+                    #                 'bg-color': 'surface',
+                    #                 'rows': 2
+                    #             }
+                    #         }
+                    #     ]
+                    # },
+                    {
+                        'component': 'VRow',
+                        'props': {
+                            'class': 'mt-2'
+                        },
+                        'content': [
+                            # {
+                            #     'component': 'VCol',
+                            #     'props': {
+                            #         'cols': 6
+                            #     },
+                            #     'content': [
+                            #         {
+                            #             'component': 'VBtn',
+                            #             'props': {
+                            #                 'color': 'primary',
+                            #                 'block': True
+                            #             },
+                            #             'content': [
+                            #                 {
+                            #                     'component': 'text',
+                            #                     'text': '保存路径'
+                            #                 }
+                            #             ],
+                            #             'events': {
+                            #                 'click': {
+                            #                     'api': 'plugin/Danmu/update_path',
+                            #                     'method': 'GET',
+                            #                     'params': {
+                            #                         'apikey': settings.API_TOKEN,
+                            #                         'path': ''
+                            #                     }
+                            #                 }
+                            #             }
+                            #         }
+                            #     ]
+                            # },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VBtn',
+                                        'props': {
+                                            'color': 'primary',
+                                            'block': True
+                                        },
+                                        'content': [
+                                            {
+                                                'component': 'text',
+                                                'text': '开始刮削'
+                                            }
+                                        ],
+                                        'events': {
+                                            'click': {
+                                                'api': 'plugin/Danmu/generate_danmu_with_path',
+                                                'method': 'GET',
+                                                'params': {
+                                                    'apikey': settings.API_TOKEN
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'props': {
+                            'class': 'mt-8 mb-8'
+                        }
+                    }
+                ]
+            }
+        ]
     
     def generate_danmu(self, file_path: str) -> Optional[str]:
         """
@@ -585,6 +583,22 @@ class Danmu(_PluginBase):
                 logger.warning(f"路径不存在: {path}")
                 continue
 
+            # 检查是否是单个文件
+            if os.path.isfile(path) and path.endswith(('.mp4', '.mkv')):
+                logger.info(f"刮削单个文件：{path}")
+                if len(threading_list) >= self._max_threads:
+                    threading_list[0].join()
+                    threading_list.pop(0)
+
+                thread = threading.Thread(
+                    target=self.generate_danmu,
+                    args=(path,)
+                )
+                thread.start()
+                threading_list.append(thread)
+                continue
+
+            # 处理目录
             logger.info(f"刮削路径：{path}")
             for root, _, files in os.walk(path):
                 for file in files:
