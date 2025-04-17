@@ -27,7 +27,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.14.4"
+    plugin_version = "1.1.14.5"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -121,7 +121,7 @@ class Danmu(_PluginBase):
         },{
             "path": "/update_path",
             "endpoint": self.update_path,
-            "methods": ["POST"],
+            "methods": ["GET"],
             "summary": "更新路径",
             "description": "更新刮削路径"
         }]
@@ -446,10 +446,10 @@ class Danmu(_PluginBase):
                                         'events': {
                                             'click': {
                                                 'api': 'plugin/Danmu/update_path',
-                                                'method': 'POST',
+                                                'method': 'GET',
                                                 'params': {
                                                     'apikey': settings.API_TOKEN,
-                                                    'path': '{{$form.path}}',
+                                                    'path': '{{$form.path}}'
                                                 }
                                             }
                                         }
@@ -491,7 +491,7 @@ class Danmu(_PluginBase):
                     {
                         'component': 'VRow',
                         'props': {
-                            'class': 'mt-4'
+                            'class': 'mt-6 mb-6'
                         }
                     }
                 ]
