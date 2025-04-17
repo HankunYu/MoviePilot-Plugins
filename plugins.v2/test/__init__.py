@@ -23,7 +23,7 @@ class Test(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1"
+    plugin_version = "1.1"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -84,12 +84,46 @@ class Test(_PluginBase):
                                 ]
                             }
                         ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 6
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VBtn',
+                                        'props': {
+                                            'variant': 'tonal',
+                                            'text': '测试按钮',
+                                            'block': True
+                                        },
+                                        'events': [
+                                            {
+                                                'event': 'click',
+                                                'action': 'test_button_click'
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 ]
             }
         ], {
             "enabled": False
         }
+
+    def test_button_click(self):
+        """
+        测试按钮点击事件
+        """
+        logger.info("测试按钮被点击了！")
 
     def get_page(self) -> List[dict]:
         pass
