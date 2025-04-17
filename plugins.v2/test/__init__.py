@@ -100,8 +100,7 @@ class Test(_PluginBase):
                                         'props': {
                                             'variant': 'tonal',
                                             'text': '测试按钮',
-                                            'label': 'test',
-                                            'onclick': '{{ test_button_click }}'
+                                            'onClick': 'function(e) { test_button_click(e) }'
                                         }
                                     }
                                 ]
