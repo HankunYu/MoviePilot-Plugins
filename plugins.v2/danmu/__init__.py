@@ -29,7 +29,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.14.13"
+    plugin_version = "1.1.15"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -488,8 +488,8 @@ class Danmu(_PluginBase):
                             {
                                 'component': 'VCol',
                                 'props': {
-                                    'cols': 6,
-                                    'offset': 3
+                                    'cols': 3,
+                                    'offset': 9
                                 },
                                 'content': [
                                     {
