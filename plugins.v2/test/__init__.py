@@ -10,7 +10,7 @@ from app.core.event import eventmanager
 from app.schemas.types import EventType, NotificationType
 from typing import Any, List, Dict, Tuple
 from app.utils.http import RequestUtils
-
+from app.core.config import settings
     
 
 class Test(_PluginBase):
@@ -23,7 +23,7 @@ class Test(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.8"
+    plugin_version = "1.3.9"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -52,6 +52,12 @@ class Test(_PluginBase):
     def get_api(self) -> List[Dict[str, Any]]:
         """
         获取插件API
+        [{
+            "path": "/xx",
+            "endpoint": self.xxx,
+            "methods": ["GET", "POST"],
+            "summary": "API说明"
+        }]
         """
         return [{
             "path": "/test_button_click",
@@ -128,8 +134,11 @@ class Test(_PluginBase):
                                     },
                                     'events': {
                                         'click': {
-                                            'api': '/test_button_click',
-                                            'method': 'GET'
+                                            'api': 'plugin/test/test_button_click',
+                                            'method': 'get',
+                                            'params': {
+                                                'apikey': settings.API_TOKEN
+                                            }
                                         }
                                     }
                                 }
