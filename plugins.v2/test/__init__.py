@@ -23,7 +23,7 @@ class Test(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.2.0"
+    plugin_version = "1.3.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -101,7 +101,7 @@ class Test(_PluginBase):
                                             'variant': 'tonal',
                                             'text': '测试按钮',
                                             'block': True,
-                                            'onclick': 'test_button_click'
+                                            'onclick': '{{ test_button_click }}'
                                         }
                                     }
                                 ]
