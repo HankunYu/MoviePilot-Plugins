@@ -23,7 +23,7 @@ class Test(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.3.5"
+    plugin_version = "1.3.6"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -99,8 +99,8 @@ class Test(_PluginBase):
                                         'component': 'VBtn',
                                         'props': {
                                             'variant': 'tonal',
-                                            'text': '测试按钮',
-                                            'onclick': 'function(e) {{ test_button_click(e) }}'
+                                            'children': '测试按钮',
+                                            'onClick': 'test_button_click(e)'
                                         }
                                     }
                                 ]
