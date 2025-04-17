@@ -27,7 +27,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.14.1"
+    plugin_version = "1.1.14.2"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -365,7 +365,7 @@ class Danmu(_PluginBase):
     def get_page(self) -> List[dict]:
         if not self._enabled or not self._path:
             return []
-            
+        local_path = self._path
         return [
             {
                 'component': 'VForm',
@@ -381,54 +381,61 @@ class Danmu(_PluginBase):
                                 }
                             },
                             {
-                                'component': 'VTextField',
+                                'component': 'VTextarea',
                                 'props': {
                                     'model': 'path',
-                                    'value': self._path,
+                                    'value': local_path,
                                     'variant': 'outlined',
-                                    'bg-color': 'surface'
+                                    'bg-color': 'surface',
+                                    'rows': 2
                                 }
                             }
                         ]
                     },
                     {
                         'component': 'VRow',
+                        'props': {
+                            'class': 'mt-2'
+                        },
                         'content': [
                             {
                                 'component': 'VCol',
+                                'props': {
+                                    'cols': 6
+                                },
                                 'content': [
                                     {
-                                        'component': 'VBtn',
+                                        'component': 'VDialogCloseBtn',
                                         'content': '保存路径',
                                         'props': {
-                                            'color': 'primary'
+                                            'color': 'primary',
+                                            'block': True
                                         },
                                         'events': {
                                             'click': {
                                                 'api': 'plugin/Danmu/update_path',
                                                 'method': 'POST',
                                                 'params': {
-                                                    'path': '{{path}}',
+                                                    'path': '{path}',
                                                     'apikey': settings.API_TOKEN
                                                 }
                                             }
                                         }
                                     }
                                 ]
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VRow',
-                        'content': [
+                            },
                             {
                                 'component': 'VCol',
+                                'props': {
+                                    'cols': 6
+                                },
                                 'content': [
                                     {
-                                        'component': 'VBtn',
+                                        'component': 'VDialogCloseBtn',
                                         'content': '开始刮削',
                                         'props': {
-                                            'color': 'primary'
+                                            'color': 'primary',
+                                            'block': True
                                         },
                                         'events': {
                                             'click': {
