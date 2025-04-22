@@ -98,7 +98,7 @@ class DanmuAPI:
             return None
 
     @staticmethod
-    def get_comment_id(file_path: str, use_tmdb_id: bool = False, tmdb_id: Optional[int] = None, episode: Optional[int] = None) -> Optional[str]:
+    def get_comment_id(file_path: str, use_tmdb_id: bool = False, tmdb_id: Optional[int] = None, episode: Optional[int] = None, cache_ttl: Optional[int] = None) -> Optional[str]:
         """
         获取弹幕ID
         :param file_path: 视频文件路径
@@ -422,9 +422,9 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
                    fontface: str = 'Arial', fontsize: float = 50, 
                    alpha: float = 0.8, duration: float = 6, onlyFromBili: bool = False,
                    use_tmdb_id: bool = False, tmdb_id: Optional[int] = None,
-                   episode: Optional[int] = None) -> Optional[str]:
+                   episode: Optional[int] = None, cache_ttl: Optional[int] = None) -> Optional[str]:
     try:
-        comment_id = DanmuAPI.get_comment_id(file_path, use_tmdb_id, tmdb_id, episode)
+        comment_id = DanmuAPI.get_comment_id(file_path, use_tmdb_id, tmdb_id, episode, cache_ttl)
         if not comment_id:
             logger.info(f"未找到对应弹幕 - {file_path}")
             return None

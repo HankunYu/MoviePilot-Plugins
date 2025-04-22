@@ -11,6 +11,7 @@ from app.core.metainfo import MetaInfo
 from app.core.config import settings
 from app import schemas
 from app.schemas.types import MediaType, EventType, SystemConfigKey
+from datetime import datetime
 
 from typing import Any, List, Dict, Tuple, Optional
 import subprocess
@@ -29,7 +30,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.1.15"
+    plugin_version = "1.1.15.1"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -537,12 +538,25 @@ class Danmu(_PluginBase):
         meta = MetaInfo(file_path)
         tmdb_id = None
         episode = None
+        release_date = None
+        use_short_cache_ttl = False
         if self._useTmdbID:
             media_info = self.media_chain.recognize_media(meta=meta)
             if media_info:
                 tmdb_id = media_info.tmdb_id
                 episode = meta.episode.split('E')[1] if meta.episode else None
-        
+                release_date = media_info.release_date
+                # 检查发布日期是否在最近90天内
+                if release_date:
+                    try:
+                        release_datetime = datetime.strptime(release_date, '%Y-%m-%d')
+                        is_recent = (datetime.now() - release_datetime).days < 90
+                        if is_recent:
+                            logger.info(f"媒体 {tmdb_id} 是最近90天内发布的内容,使用短缓存")
+                            use_short_cache_ttl = True
+                    except ValueError:
+                        logger.warning(f"无效的发布日期格式: {release_date},使用默认缓存时间")
+                    
     
         try:
             return generator.danmu_generator(
@@ -556,7 +570,8 @@ class Danmu(_PluginBase):
                 self._onlyFromBili,
                 self._useTmdbID,
                 tmdb_id,
-                episode
+                episode,
+                60 if use_short_cache_ttl else None
             )
         except Exception as e:
             logger.error(f"生成弹幕失败: {e}")
