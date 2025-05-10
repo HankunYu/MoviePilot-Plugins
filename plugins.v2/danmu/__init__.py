@@ -4,8 +4,6 @@ from app.plugins import _PluginBase
 from app.core.event import eventmanager
 from app.schemas.types import EventType
 from app.utils.system import SystemUtils
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 from app.chain.media import MediaChain
 from app.core.metainfo import MetaInfo
 from app.core.config import settings
@@ -30,7 +28,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.2.0"
+    plugin_version = "1.3.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -50,12 +48,12 @@ class Danmu(_PluginBase):
     # _fontface = 'Arial'
     _fontsize = 50
     _alpha = 0.8
-    _duration = 6
-    _cron = '0 0 1 1 *'
+    _duration = 15
     _path = ''
     _max_threads = 10
     _onlyFromBili = False
     _useTmdbID = True
+    _auto_scrape = True
     
     media_chain = MediaChain()
     
@@ -67,14 +65,13 @@ class Danmu(_PluginBase):
             # self._fontface = config.get("fontface")
             self._fontsize = config.get("fontsize", 50)
             self._alpha = config.get("alpha", 0.8)
-            self._duration = config.get("duration", 10)
+            self._duration = config.get("duration", 15)
             self._path = config.get("path", "")
-            self._cron = config.get("cron", "0 0 1 1 *")
             self._onlyFromBili = config.get("onlyFromBili", False)
             self._useTmdbID = config.get("useTmdbID", True)
+            self._auto_scrape = config.get("auto_scrape", False)
         if self._enabled:
             logger.info("弹幕加载插件已启用")
-            
 
     def get_state(self) -> bool:
         return self._enabled
@@ -91,15 +88,6 @@ class Danmu(_PluginBase):
         }]
         """
         return []
-        if self.get_state() and self._path and self._cron:
-            return [{
-                "id": "Danmu",
-                "name": "弹幕全局刮削服务",
-                "trigger": CronTrigger.from_crontab(self._cron),
-                "func": self.generate_danmu_global,
-                "kwargs": {}
-            }]
-        return []
         
     @staticmethod
     def get_command() -> List[Dict[str, Any]]:
@@ -115,425 +103,137 @@ class Danmu(_PluginBase):
             "summary": "API说明"
         }]
         """
+        logger.info("获取插件API")
         return [{
             "path": "/generate_danmu_with_path",
             "endpoint": self.generate_danmu_global,
             "methods": ["GET"],
+            "auth": "bear",
             "summary": "刮削弹幕",
-            "description": "根据设定的路径刮削弹幕"
+            "description": "根据设定的路径刮削弹幕" 
         },{
             "path": "/update_path",
             "endpoint": self.update_path,
             "methods": ["GET"],
+            "auth": "bear",
             "summary": "更新路径",
             "description": "更新刮削路径"
-        }]
-    
+        },
+        {
+            "path": "/config",
+            "endpoint": self._get_config,
+            "methods": ["GET"],
+            "auth": "bear",
+            "summary": "获取配置",
+            "description": "获取插件配置"
+        },
+        {
+            "path": "/config",
+            "endpoint": self._save_config,
+            "methods": ["POST"],
+            "auth": "bear",
+            "summary": "保存配置",
+            "description": "保存插件配置"
+        },
+        {
+            "path": "/status",
+            "endpoint": self._get_status,
+            "methods": ["GET"],
+            "auth": "bear",
+            "summary": "获取状态",
+            "description": "获取当前刮削状态"
+        },
+        {
+            "path": "/scan_path",
+            "endpoint": self.scan_path,
+            "methods": ["GET"],
+            "auth": "bear",
+            "summary": "扫描路径",
+            "description": "扫描路径下的媒体文件和弹幕信息"
+        },
+        {
+            "path": "/generate_danmu",
+            "endpoint": self.generate_danmu_single,
+            "methods": ["GET"],
+            "auth": "bear",
+            "summary": "生成单个文件弹幕",
+            "description": "为指定文件生成弹幕"
+        }
+        ]
+     
     # 插件配置页面
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
-        """
-        拼装插件配置页面，需要返回两块数据：1、页面配置；2、数据结构
-        """
-        return [
-            {
-                'component': 'VForm',
-                'content': [
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 12,
-                                    'md': 6
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VSwitch',
-                                        'props': {
-                                            'model': 'enabled',
-                                            'label': '启用插件',
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 12,
-                                    'md': 6
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VSwitch',
-                                        'props': {
-                                            'model': 'onlyFromBili',
-                                            'label': '仅使用B站弹幕，建议关闭',
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 12,
-                                    'md': 6
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VSwitch',
-                                        'props': {
-                                            'model': 'useTmdbID',
-                                            'label': '使用TMDB ID作为预备匹配方案，当无法匹配文件hash时尝试使用TMDB ID',
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 6,
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VTextField',
-                                        'props': {
-                                            'model': 'width',
-                                            'label': '宽度，默认1920',
-                                            'type': 'number',
-                                        
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 6,
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VTextField',
-                                        'props': {
-                                            'model': 'height',
-                                            'label': '高度，默认1080',
-                                            'type': 'number',
-                                       
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 6,
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VTextField',
-                                        'props': {
-                                            'model': 'fontsize',
-                                            'label': '字体大小，默认50',
-                                            'type': 'number',
-                                        
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 6,
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VTextField',
-                                        'props': {
-                                            'model': 'alpha',
-                                            'label': '弹幕透明度，默认0.8',
-                                            'type': 'number',
-                                            
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 6,
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VTextField',
-                                        'props': {
-                                            'model': 'duration',
-                                            'label': '弹幕持续时间 默认10秒',
-                                            'type': 'number',
-                                     
-                                        }
-                                    }
-                                ]
-                            },
-                            # {
-                            #     'component': 'VCol',
-                            #     'props': {
-                            #         'cols': 6,
-                            #     },
-                            #     'content': [
-                            #         {
-                            #             'component': 'VTextField',
-                            #             'props': {
-                            #                 'model': 'cron',
-                            #                 'label': '取消定期刮削，需要全局刮削请去 设置->服务 手动启动',
-                            #                 'type': 'text',
-                                     
-                            #             }
-                            #         }
-                            #     ]
-                            # }
-                        ]
-                    },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'content': [
-                                    {
-                                        'component': 'VTextarea',
-                                        'props': {
-                                            'model': 'path',
-                                            'label': '刮削媒体库路径，一行一个',
-                                            'placeholder': '留空不启用',
-                                            'rows': 2,
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    # {
-                    #     'component': 'VRow',
-                    #     'content': [
-                    #         {
-                    #             'component': 'VCol',
-                    #             'props': {
-                    #                 'cols': 6
-                    #             },
-                    #             'content': [
-                    #                 {
-                    #                     'component': 'VBtn',
-                    #                     'props': {
-                    #                         'color': 'primary',
-                    #                         'block': True
-                    #                     },
-                    #                     'content': [
-                    #                         {
-                    #                             'component': 'text',
-                    #                             'text': '手动刮削指定路径',
-                    #                             "onClick": "function(e) { fetch('http://{settings.HOST}:{settings.PORT}{settings.API_V1_STR}/plugin/Danmu/generate_danmu_with_path?apikey=' + {settings.API_TOKEN}).then(response => response.json()).then(data => { console.log('刮削完成:', data); }).catch(error => { console.error('刮削失败:', error); }); }",
-                    #                         }
-                    #                     ]
-                    #                 }
-                    #             ]
-                    #         },
-                    #     ]
-                    # },
-                    {
-                        'component': 'VRow',
-                        'content': [
-                            {
-                                'component': 'VCol',
-                                'content': [
-                                    {
-                                        'component': 'VAlert',
-                                        'props': {
-                                            'type': 'info',
-                                            'variant': 'flat',
-                                            'text': '此插件会根据情况生成两种弹幕字幕文件，均为ass格式。.danmu为刮削出来的纯弹幕，.withDanmu为原生字幕与弹幕合并后的文件。自动刮削新入库文件。如果没有外挂字幕只有内嵌字幕会自动提取内嵌字幕生成.withDanmu文件。弹幕来源为 弹弹play 提供的多站合并资源以及 https://github.com/m13253/danmaku2ass 提供的思路。',
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }
-        ], {
-            "enabled": False,
-            "width": 1920,
-            "height": 1080,
-            "fontsize": 50,
-            "alpha": 0.8,
-            "duration": 6,
-            "cron": "0 0 1 1 *",
-            "path": "",
-            "onlyFromBili": False,
-            "useTmdbID": True
+        return None, self._get_config()
+    
+    def _get_config(self) -> Dict[str, Any]:
+        """获取配置"""
+        return {
+            "enabled": self._enabled,
+            "width": self._width,
+            "height": self._height,
+            "fontsize": self._fontsize,
+            "alpha": self._alpha,
+            "duration": self._duration,
+            "path": self._path,
+            "onlyFromBili": self._onlyFromBili,
+            "useTmdbID": self._useTmdbID,
+            "auto_scrape": self._auto_scrape
+        }
+        
+    def _save_config(self, config: dict):
+        """保存配置"""
+        try:
+            self._enabled = config.get("enabled", False)
+            self._width = config.get("width", 1920)
+            self._height = config.get("height", 1080)
+            self._fontsize = config.get("fontsize", 50)
+            self._alpha = config.get("alpha", 0.8)
+            self._duration = config.get("duration", 15)
+            self._path = config.get("path", "")
+            self._onlyFromBili = config.get("onlyFromBili", False)
+            self._useTmdbID = config.get("useTmdbID", True)
+            self._auto_scrape = config.get("auto_scrape", False)
+            
+            # 保存到系统配置
+            self.update_config({
+                "enabled": self._enabled,
+                "width": self._width,
+                "height": self._height,
+                "fontsize": self._fontsize,
+                "alpha": self._alpha,
+                "duration": self._duration,
+                "path": self._path,
+                "onlyFromBili": self._onlyFromBili,
+                "useTmdbID": self._useTmdbID,
+                "auto_scrape": self._auto_scrape
+            })
+            
+            return schemas.Response(success=True, message="配置已保存")
+        except Exception as e:
+            logger.error(f"保存配置失败: {e}")
+            return schemas.Response(success=False, message=f"保存配置失败: {str(e)}")
+    
+    def get_page(self) -> List[dict]:
+        """Vue mode doesn't use Vuetify page definitions."""
+        return None
+    
+    # --- V2 Vue Interface Method ---
+    @staticmethod
+    def get_render_mode() -> Tuple[str, Optional[str]]:
+        """Declare Vue rendering mode and assets path."""
+        return "vue", "dist/assets"
+    
+    def _get_status(self) -> Dict[str, Any]:
+        """获取当前状态"""
+        return {
+            "enabled": self._enabled
         }
 
-    def get_page(self) -> List[dict]:
-        pass
-            
-        return [
-            {
-                'component': 'VForm',
-                'content': [
-                    {
-                        'component': 'div',
-                        'content': [
-                            {
-                                'component': 'div',
-                                'text': '刮削的媒体库路径',
-                                'props': {
-                                    'class': 'text-subtitle-1 text-medium-emphasis mb-2'
-                                }
-                            },
-                            {
-                                'component': 'VTextarea',
-                                'props': {
-                                    'model': 'current_path',
-                                    'value': self._path,
-                                    'variant': 'outlined',
-                                    'bg-color': 'surface',
-                                    'rows': 2,
-                                    'readonly': True,
-                                    'disabled': True
-                                }
-                            }
-                        ]
-                    },
-                    # {
-                    #     'component': 'div',
-                    #     'props': {
-                    #         'class': 'mt-4'
-                    #     },
-                    #     'content': [
-                    #         {
-                    #             'component': 'div',
-                    #             'text': '新的媒体库路径',
-                    #             'props': {
-                    #                 'class': 'text-subtitle-1 text-medium-emphasis mb-2'
-                    #             }
-                    #         },
-                    #         {
-                    #             'component': 'VTextarea',
-                    #             'props': {
-                    #                 'model': 'path',
-                    #                 'id': 'path-input',
-                    #                 'placeholder': '请输入新的媒体库路径，一行一个',
-                    #                 'variant': 'outlined',
-                    #                 'bg-color': 'surface',
-                    #                 'rows': 2
-                    #             }
-                    #         }
-                    #     ]
-                    # },
-                    {
-                        'component': 'VRow',
-                        'props': {
-                            'class': 'mt-2'
-                        },
-                        'content': [
-                            # {
-                            #     'component': 'VCol',
-                            #     'props': {
-                            #         'cols': 6
-                            #     },
-                            #     'content': [
-                            #         {
-                            #             'component': 'VBtn',
-                            #             'props': {
-                            #                 'color': 'primary',
-                            #                 'block': True
-                            #             },
-                            #             'content': [
-                            #                 {
-                            #                     'component': 'text',
-                            #                     'text': '保存路径'
-                            #                 }
-                            #             ],
-                            #             'events': {
-                            #                 'click': {
-                            #                     'api': 'plugin/Danmu/update_path',
-                            #                     'method': 'GET',
-                            #                     'params': {
-                            #                         'apikey': settings.API_TOKEN,
-                            #                         'path': ''
-                            #                     }
-                            #                 }
-                            #             }
-                            #         }
-                            #     ]
-                            # },
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 3,
-                                    'offset': 9
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VBtn',
-                                        'props': {
-                                            'color': 'primary',
-                                            'block': True
-                                        },
-                                        'content': [
-                                            {
-                                                'component': 'text',
-                                                'text': '开始刮削'
-                                            }
-                                        ],
-                                        'events': {
-                                            'click': {
-                                                'api': 'plugin/Danmu/generate_danmu_with_path',
-                                                'method': 'GET',
-                                                'params': {
-                                                    'apikey': settings.API_TOKEN
-                                                }
-                                            }
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        'component': 'VRow',
-                        'props': {
-                            'class': 'mt-8 mb-8'
-                        }
-                    }
-                ]
-            }
-        ]
-    
     def generate_danmu(self, file_path: str) -> Optional[str]:
         """
         生成弹幕文件
         :param file_path: 视频文件路径
-        :return: 生成的弹幕文件路径，如果失败则返回None
+        :return: 生成的弹幕文件路径，如果失败则返回None或失败原因字符串
         """
         meta = MetaInfo(file_path)
         tmdb_id = None
@@ -546,7 +246,6 @@ class Danmu(_PluginBase):
                 tmdb_id = media_info.tmdb_id
                 episode = meta.episode.split('E')[1] if meta.episode else None
                 release_date = media_info.release_date
-                # 检查发布日期是否在最近90天内
                 if release_date:
                     try:
                         release_datetime = datetime.strptime(release_date, '%Y-%m-%d')
@@ -556,10 +255,9 @@ class Danmu(_PluginBase):
                             use_short_cache_ttl = True
                     except ValueError:
                         logger.warning(f"无效的发布日期格式: {release_date},使用默认缓存时间")
-                    
     
         try:
-            return generator.danmu_generator(
+            result = generator.danmu_generator(
                 file_path,
                 self._width,
                 self._height,
@@ -573,9 +271,14 @@ class Danmu(_PluginBase):
                 episode,
                 60 if use_short_cache_ttl else None
             )
+            # 如果返回字符串且包含弹幕数量为0，说明是失败原因
+            if isinstance(result, str) and result.startswith('弹幕数量为0'):
+                logger.info(result)
+                return result
+            return result
         except Exception as e:
             logger.error(f"生成弹幕失败: {e}")
-            return None
+            return f"生成弹幕失败: {str(e)}"
 
     def update_path(self, path: str):
         """
@@ -593,13 +296,25 @@ class Danmu(_PluginBase):
             return schemas.Response(success=False, message="没有设定路径")
 
         logger.info("开始弹幕刮削")
+        
         threading_list = []
         paths = [path.strip() for path in self._path.split('\n') if path.strip()]
 
+        # 计算总文件数
+        total_files = 0
         for path in paths:
             if not os.path.exists(path):
                 logger.warning(f"路径不存在: {path}")
                 return schemas.Response(success=False, message=f"路径不存在: {path}")
+
+            if os.path.isfile(path) and path.endswith(('.mp4', '.mkv')):
+                total_files += 1
+            else:
+                for root, _, files in os.walk(path):
+                    total_files += sum(1 for file in files if file.endswith(('.mp4', '.mkv')))
+
+        for path in paths:
+            if not os.path.exists(path):
                 continue
 
             # 检查是否是单个文件
@@ -639,14 +354,14 @@ class Danmu(_PluginBase):
             thread.join()
 
         logger.info("弹幕刮削完成")
-        return schemas.Response(success=True, message="弹幕刮削完成 ")
+        return schemas.Response(success=True, message="弹幕刮削完成")
     
     @eventmanager.register(EventType.TransferComplete)
     def generate_danmu_after_transfer(self, event):
         """
         传输完成后生成弹幕
         """
-        if not self._enabled:
+        if not self._enabled or not self._auto_scrape:
             return
 
         def __to_dict(_event):
@@ -692,3 +407,126 @@ class Danmu(_PluginBase):
         退出插件
         """
         pass
+
+    def count_danmu_lines(self, ass_file: str) -> int:
+        """
+        计算弹幕文件中的弹幕数量
+        :param ass_file: 弹幕文件路径
+        :return: 弹幕数量
+        """
+        try:
+            if not os.path.exists(ass_file):
+                return 0
+            count = 0
+            with open(ass_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('Dialogue:'):
+                        count += 1
+            return count
+        except Exception as e:
+            logger.error(f"计算弹幕数量失败: {e}")
+            return 0
+
+    def scan_path(self, path: str = None) -> Dict[str, Any]:
+        """
+        扫描路径下的媒体文件和弹幕信息
+        :param path: 要扫描的路径
+        :return: 目录结构信息
+        """
+        if not path:
+            path = self._path
+            
+        if not path or not os.path.exists(path):
+            return schemas.Response(success=False, message="路径不存在")
+            
+        result = {
+            "name": os.path.basename(path),
+            "path": path,
+            "type": "directory",
+            "children": []
+        }
+        
+        try:
+            # 如果是文件
+            if os.path.isfile(path):
+                if path.endswith(('.mp4', '.mkv')):
+                    result["type"] = "media"
+                    # 检查是否存在对应的弹幕文件
+                    logger.info(f"检查弹幕文件: {path}")
+                    ass_file = f"{os.path.splitext(path)[0]}.danmu.ass"
+                    if os.path.exists(ass_file):
+                        result["danmu_count"] = self.count_danmu_lines(ass_file)
+                        logger.info(f"找到弹幕文件,数量: {result['danmu_count']}")
+                    else:
+                        result["danmu_count"] = 0
+                        logger.info("未找到弹幕文件")
+                return result
+                
+            # 如果是目录
+            for item in os.listdir(path):
+                item_path = os.path.join(path, item)
+                if os.path.isfile(item_path):
+                    if item.endswith(('.mp4', '.mkv')):
+                        child = {
+                            "name": item,
+                            "path": item_path,
+                            "type": "media",
+                            "children": []
+                        }
+                        # 检查是否存在对应的弹幕文件
+                        ass_file = f"{os.path.splitext(item_path)[0]}.danmu.ass"
+                        if os.path.exists(ass_file):
+                            child["danmu_count"] = self.count_danmu_lines(ass_file)
+                        else:
+                            child["danmu_count"] = 0
+                        result["children"].append(child)
+                elif os.path.isdir(item_path):
+                    child = {
+                        "name": item,
+                        "path": item_path,
+                        "type": "directory",
+                        "children": []
+                    }
+                    result["children"].append(child)
+                    
+            return schemas.Response(success=True, data=result)
+        except Exception as e:
+            logger.error(f"扫描路径失败: {e}")
+            return schemas.Response(success=False, message=f"扫描路径失败: {str(e)}")
+
+    def generate_danmu_single(self, file_path: str) -> Dict[str, Any]:
+        """
+        为单个文件生成弹幕
+        :param file_path: 媒体文件路径
+        :return: 生成结果
+        """
+        if not file_path or not os.path.exists(file_path):
+            return schemas.Response(success=False, message="文件不存在")
+            
+        if not file_path.endswith(('.mp4', '.mkv')):
+            return schemas.Response(success=False, message="不支持的文件格式")
+            
+        try:
+            result = self.generate_danmu(file_path)
+            if result is None:
+                return schemas.Response(success=False, message="弹幕生成失败")
+            # 如果是字符串且不是弹幕文件路径，说明是失败原因
+            if isinstance(result, str) and not result.endswith('.ass'):
+                return schemas.Response(success=False, message=result)
+            # 正常生成
+            ass_file = f"{os.path.splitext(file_path)[0]}.danmu.ass"
+            danmu_count = self.count_danmu_lines(ass_file)
+            logger.info(f"生成弹幕成功，弹幕数量: {danmu_count}")
+            if danmu_count == 0:
+                return schemas.Response(success=False, message="弹幕数量为0 跳过生成")
+            return schemas.Response(
+                success=True,
+                message="弹幕生成成功",
+                data={
+                    "danmu_count": danmu_count,
+                    "file_path": file_path
+                }
+            )
+        except Exception as e:
+            logger.error(f"生成弹幕失败: {e}")
+            return schemas.Response(success=False, message=f"生成弹幕失败: {str(e)}")
