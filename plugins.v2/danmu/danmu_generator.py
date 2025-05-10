@@ -21,7 +21,7 @@ class DanmuAPI:
     BASE_URL = 'https://dandanapi.hankun.online/api/v1'
     HEADERS = {
         'Accept': 'application/json',
-        "User-Agent": "Moviepilot/plugins 1.1.0"
+        "User-Agent": "Moviepilot/plugins 1.3.0"
     }
 
     @staticmethod
@@ -427,17 +427,17 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
         comment_id = DanmuAPI.get_comment_id(file_path, use_tmdb_id, tmdb_id, episode, cache_ttl)
         if not comment_id:
             logger.info(f"未找到对应弹幕 - {file_path}")
-            return None
+            return "未找到对应弹幕"
 
         comments_data = DanmuAPI.get_comments(comment_id)
         if not comments_data:
-            return None
+            return "未获取到弹幕数据"
 
         comments = sorted(comments_data["comments"], key=lambda x: float(x['p'].split(',')[0]))
         
         if len(comments) == 0:
             logger.info(f"弹幕数量为0，跳过生成 - {file_path}")
-            return None
+            return f"弹幕数量为0，跳过生成 - {file_path}"
 
         # 过滤B站弹幕
         if onlyFromBili:
@@ -470,5 +470,5 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
 
     except Exception as e:
         logger.error(f"生成弹幕失败: {e}")
-        return None
+        return f"生成弹幕失败: {str(e)}"
 

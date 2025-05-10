@@ -36,12 +36,13 @@
     "Danmu": {
         "name": "弹幕刮削",
         "description": "使用弹弹play平台生成弹幕的字幕文件，实现弹幕播放。",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/danmu.png",
         "color": "#3B5E8E",
         "author": "hankun",
         "level": 1,
         "history": {
+            "v1.3.0": "新增联邦组件支持,增加UI手动刮削,需求MP v2.4.5+",
             "v1.2.0": "针对新番（90天内发布的媒体资源）使用较短时间缓存以获取最新弹幕数据",
             "v1.1.15": "增加根据路径刮削弹幕功能。增加单文件路径刮削。能力有限无法在同一个页面实现按钮功能……",
             "v1.1.13": "先检查当前目录下有没有.id结尾的文件 如果有，则获取文件名作为弹幕ID（如190270001 则使用19027.id)。如果需要请访问 https://dandanapi.hankun.online/docs 尝试获取epsoide id。",
