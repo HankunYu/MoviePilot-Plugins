@@ -108,6 +108,28 @@
                     </div>
                   </div>
                 </v-col>
+                <v-col cols="12" md="6">
+                  <div class="setting-item d-flex align-center py-2">
+                    <v-icon icon="mdi-repeat" size="small" :color="editableConfig.enable_retry_task ? 'warning' : 'grey'" class="mr-3"></v-icon>
+                    <div class="setting-content flex-grow-1">
+                      <div class="d-flex justify-space-between align-center">
+                        <div>
+                          <div class="text-subtitle-2">启用重试任务</div>
+                          <div class="text-caption text-grey">弹幕数量不足时自动加入重试列表</div>
+                        </div>
+                        <v-switch
+                          v-model="editableConfig.enable_retry_task"
+                          color="warning"
+                          inset
+                          :disabled="saving"
+                          density="compact"
+                          hide-details
+                          class="small-switch"
+                        ></v-switch>
+                      </div>
+                    </div>
+                  </div>
+                </v-col>
               </v-row>
             </v-card-text>
           </v-card>
@@ -290,7 +312,8 @@ const editableConfig = reactive({
   path: '',
   onlyFromBili: false,
   useTmdbID: true,
-  auto_scrape: true
+  auto_scrape: true,
+  enable_retry_task: true
 });
 
 const getPluginId = () => {
@@ -324,7 +347,8 @@ async function loadInitialData() {
         path: data.path,
         onlyFromBili: data.onlyFromBili,
         useTmdbID: data.useTmdbID,
-        auto_scrape: data.auto_scrape
+        auto_scrape: data.auto_scrape,
+        enable_retry_task: data.enable_retry_task
       });
       initialConfigLoaded.value = true;
       successMessage.value = '成功加载配置';
@@ -347,7 +371,8 @@ async function loadInitialData() {
         path: props.initialConfig.path,
         onlyFromBili: props.initialConfig.onlyFromBili,
         useTmdbID: props.initialConfig.useTmdbID,
-        auto_scrape: props.initialConfig.auto_scrape
+        auto_scrape: props.initialConfig.auto_scrape,
+        enable_retry_task: props.initialConfig.enable_retry_task
       });
     }
     successMessage.value = null;
@@ -387,7 +412,8 @@ async function saveFullConfig() {
       path: editableConfig.path,
       onlyFromBili: editableConfig.onlyFromBili,
       useTmdbID: editableConfig.useTmdbID,
-      auto_scrape: editableConfig.auto_scrape
+      auto_scrape: editableConfig.auto_scrape,
+      enable_retry_task: editableConfig.enable_retry_task
     };
 
     // 发送保存请求
@@ -427,7 +453,8 @@ function resetConfigToFetched() {
       path: serverFetchedConfig.path,
       onlyFromBili: serverFetchedConfig.onlyFromBili,
       useTmdbID: serverFetchedConfig.useTmdbID,
-      auto_scrape: serverFetchedConfig.auto_scrape
+      auto_scrape: serverFetchedConfig.auto_scrape,
+      enable_retry_task: serverFetchedConfig.enable_retry_task
     });
     error.value = null;
     successMessage.value = '配置已重置为上次加载的状态';
@@ -452,7 +479,8 @@ onMounted(() => {
       path: props.initialConfig.path,
       onlyFromBili: props.initialConfig.onlyFromBili,
       useTmdbID: props.initialConfig.useTmdbID,
-      auto_scrape: props.initialConfig.auto_scrape
+      auto_scrape: props.initialConfig.auto_scrape,
+      enable_retry_task: props.initialConfig.enable_retry_task
     });
   }
   loadInitialData();
