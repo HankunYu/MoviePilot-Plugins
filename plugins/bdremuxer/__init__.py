@@ -5,10 +5,12 @@ from app.plugins import _PluginBase
 from app.core.event import eventmanager
 from app.schemas.types import EventType
 from app.utils.system import SystemUtils
+
 from typing import Any, List, Dict, Tuple
 import subprocess
 import os
 import shutil
+import time
 import threading
 try:
     from pyparsebluray import mpls
@@ -55,6 +57,7 @@ class BDRemuxer(_PluginBase):
             self._delete = config.get("delete")
             self._run_once = config.get("run_once")
             self._path = config.get("path")
+
         if self._enabled:
             logger.info("BD Remuxer 插件初始化完成")
             if self._run_once:
@@ -303,6 +306,55 @@ class BDRemuxer(_PluginBase):
                     return play_items
         return play_items
 
+
+    def find_all_bdmv_paths(self, start_path: str, max_depth: int = 3) -> list:
+        """
+        查找所有符合条件的BDMV目录
+        """
+        bdmv_paths = []
+        visited = set()
+
+        def search(path, depth):
+            if path in visited:
+                return
+            visited.add(path)
+
+            # 跳过隐藏目录
+            if any(part.startswith('.') for part in path.split(os.sep)):
+                return
+
+            # 检查当前路径是否有BDMV
+            bdmv_candidate = os.path.join(path, "BDMV")
+            if os.path.exists(bdmv_candidate):
+                bdmv_paths.append(bdmv_candidate)
+                # 找到后不再向下搜索该分支
+                return
+
+            # 深度限制
+            if depth >= max_depth:
+                return
+
+            # 继续搜索子目录
+            try:
+                for entry in os.listdir(path):
+                    full_path = os.path.join(path, entry)
+                    if os.path.isdir(full_path):
+                        search(full_path, depth + 1)
+            except Exception as e:
+                self.logger.error(f"搜索错误: {str(e)}")
+
+        # 开始深度优先搜索
+        search(start_path, 0)
+        return bdmv_paths
+
+    def process_wrapper(self, path, thread_counter):
+        try:
+            self.extract(path)
+        finally:
+            # 减少线程计数
+            with threading.Lock():
+                thread_counter -= 1
+
     @eventmanager.register(EventType.TransferComplete)
     def remuxer(self, event):
         if not self._enabled:
@@ -336,16 +388,44 @@ class BDRemuxer(_PluginBase):
         target_file = raw_data.get("transferinfo").get("file_list_new")[0]
         target_path = os.path.dirname(target_file)
 
-        # 检查是否存在BDMV文件夹
-        bd_path = os.path.dirname(target_path)
-        if not os.path.exists(bd_path + '/BDMV'):
-            logger.warn('失败。找不到BDMV文件夹: ' + bd_path)
-            return
-        # 提取流程
-        thread = threading.Thread(target=self.extract, args=(bd_path,))
-        thread.start()
-        
+        # 查找所有BDMV目录
+        bdmv_paths = self.find_all_bdmv_paths(os.path.dirname(target_file))
 
+        if not bdmv_paths:
+            self.logger.info(f"在目标路径内未发现BDMV目录")
+            return
+
+        self.logger.info(f"找到 {len(bdmv_paths)} 个BDMV目录")
+
+        # 添加用户配置选项：处理策略
+        process_strategy = self.get_config("bdmv_process_strategy") or "all"
+
+        # 根据策略过滤BDMV目录
+        if process_strategy == "first":
+            bdmv_paths = [bdmv_paths[0]]  # 只处理第一个
+        elif process_strategy == "containing_name":
+            media_name = os.path.basename(target_file).split('.')[0]
+            bdmv_paths = [p for p in bdmv_paths if media_name in p]
+
+        # 并行处理所有选定的BDMV目录
+        threads = []
+        MAX_THREADS = 3
+        active_threads = 0
+        for bdmv_path in bdmv_paths:
+            while active_threads >= MAX_THREADS:
+                time.sleep(5)  # 等待空闲线程
+            active_threads += 1
+            self.logger.info(f"开始处理BDMV: {bdmv_path}")
+            bd_root = os.path.dirname(bdmv_path)
+            thread = threading.Thread(target=self.process_wrapper, args=(bd_root, active_threads))
+            thread.start()
+            threads.append(thread)
+
+        # 等待所有线程完成
+        if self.get_config("wait_for_completion"):
+            for t in threads:
+                t.join()
+            self.logger.info("所有BDMV处理完成")
 
 
     def stop_service(self):
