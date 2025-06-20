@@ -66,6 +66,19 @@
             "v1.0.0": "基本功能实现，暂时不支持srt字幕。"
           }
     },
+    "IdentifierHelper": {
+        "name": "自定义识别词助手",
+        "description": "管理自定义识别词，支持标签分类和可视化编辑，提供便捷的识别词管理界面",
+        "version": "1.0.0",
+        "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/Identifier.png",
+        "color": "#4CAF50",
+        "author": "hankun",
+        "level": 1,
+        "v2": true,
+        "history": {
+            "v1.0.0": "初始版本，支持标签分类管理、可视化编辑、导入导出等功能"
+        }
+    },
     "Test":{
         "name": "测试",
         "description": "测试",
