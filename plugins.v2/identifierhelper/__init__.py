@@ -22,7 +22,7 @@ class IdentifierHelper(_PluginBase):
     # 插件图标
     plugin_icon = "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/Identifier.png"
     # 插件版本
-    plugin_version = "1.0.1"
+    plugin_version = "1.0.2"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -203,15 +203,9 @@ class IdentifierHelper(_PluginBase):
                 text = raw_data
                 logger.debug(f"原始数据是字符串，长度: {len(text)}")
             elif isinstance(raw_data, list):
-                # 处理列表类型的数据
-                text_parts = []
-                for item in raw_data:
-                    if isinstance(item, str):
-                        text_parts.append(item)
-                    else:
-                        text_parts.append(str(item))
-                text = '\n'.join(text_parts) if text_parts else ""
-                logger.debug(f"列表转换为字符串，长度: {len(text)}")
+                # 处理列表类型的数据（新的存储格式）
+                text = '\n'.join(str(item) for item in raw_data) if raw_data else ""
+                logger.debug(f"列表转换为字符串，共{len(raw_data)}条记录，字符串长度: {len(text)}")
             elif isinstance(raw_data, dict):
                 # 处理字典类型的数据（可能的JSON格式）
                 text = str(raw_data)
@@ -401,19 +395,31 @@ class IdentifierHelper(_PluginBase):
             
             # 保存到数据库
             try:
-                result = self.systemconfig.set(SystemConfigKey.CustomIdentifiers, final_data)
+                # 将文本格式转换为列表格式保存
+                lines = final_data.strip().split('\n') if final_data else []
+                list_data = [line for line in lines if line.strip()]  # 过滤空行
+                
+                logger.info(f"原始数据: {repr(final_data)}")
+                logger.info(f"分割后的行数: {len(lines)}")
+                logger.info(f"过滤空行后的行数: {len(list_data)}")
+                logger.info(f"转换为列表格式: {repr(list_data)}")
+                
+                result = self.systemconfig.set(SystemConfigKey.CustomIdentifiers, list_data)
                 logger.info(f"数据库保存操作结果: {result}")
                 
                 # 验证保存是否成功
                 saved_data = self.systemconfig.get(SystemConfigKey.CustomIdentifiers)
-                if saved_data == final_data:
-                    logger.info(f"数据保存验证成功，共{len(final_data)}个字符")
+                logger.info(f"从数据库读取的数据类型: {type(saved_data)}")
+                logger.info(f"从数据库读取的数据内容: {repr(saved_data)}")
+                
+                if isinstance(saved_data, list) and len(saved_data) == len(list_data):
+                    logger.info(f"数据保存验证成功，共{len(list_data)}条记录")
                     return {
                         "code": 0,
-                        "message": f"数据保存成功，共{len(final_data)}个字符"
+                        "message": f"数据保存成功，共{len(list_data)}条记录"
                     }
                 else:
-                    logger.error(f"数据保存验证失败，期望长度: {len(final_data)}, 实际长度: {len(str(saved_data)) if saved_data else 0}")
+                    logger.error(f"数据保存验证失败，期望{len(list_data)}条记录，实际{len(saved_data) if isinstance(saved_data, list) else '非列表类型'}")
                     return {
                         "code": 1,
                         "message": "数据保存验证失败"
@@ -440,12 +446,15 @@ class IdentifierHelper(_PluginBase):
     def get_raw_identifiers(self) -> Dict[str, Any]:
         """获取原始识别词数据"""
         try:
-            raw_data = self.systemconfig.get(SystemConfigKey.CustomIdentifiers) or ""
-            # 确保返回字符串类型
+            raw_data = self.systemconfig.get(SystemConfigKey.CustomIdentifiers) or []
+            # 将列表格式转换为字符串格式用于前端显示
             if isinstance(raw_data, list):
                 data = '\n'.join(raw_data) if raw_data else ""
+                logger.debug(f"从列表格式转换为文本，共{len(raw_data)}条记录")
             else:
+                # 兼容旧的字符串格式数据
                 data = str(raw_data) if raw_data else ""
+                logger.debug(f"处理字符串格式数据，长度: {len(data)}")
             
             return {
                 "code": 0,
