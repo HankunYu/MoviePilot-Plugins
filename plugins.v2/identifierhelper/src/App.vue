@@ -27,6 +27,8 @@ export default defineComponent({
     
     // 处理窗口消息
     const handleMessage = (event) => {
+      console.log('收到父窗口消息:', event.data);
+      
       // 接收来自父窗口的消息，获取API对象
       if (event.data && event.data.type === 'api') {
         api.value = event.data.data;
@@ -53,12 +55,19 @@ export default defineComponent({
     
     // 挂载时添加消息监听
     onMounted(() => {
+      console.log('插件组件已挂载');
       window.addEventListener('message', handleMessage);
       
       // 通知父窗口已准备好接收API
       if (window.parent && window.parent.postMessage) {
+        console.log('向父窗口发送ready消息');
         window.parent.postMessage({ type: 'ready' }, '*');
       }
+      
+      // 延迟检查API状态
+      setTimeout(() => {
+        console.log('当前API状态:', api.value);
+      }, 1000);
     });
     
     // 卸载前移除消息监听

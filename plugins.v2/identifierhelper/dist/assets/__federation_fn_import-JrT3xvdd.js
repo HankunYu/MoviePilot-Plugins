@@ -353,20 +353,13 @@ function satisfy(version, range) {
   return true;
 }
 
-const currentImports = {};
-
 // eslint-disable-next-line no-undef
-const moduleMap = {'vue':{get:()=>()=>__federation_import(new URL('__federation_shared_vue-DXmzoBRC.js', import.meta.url).href),import:true},'vuetify':{get:()=>()=>__federation_import(new URL('__federation_shared_vuetify-A5z-0vmr.js', import.meta.url).href),import:true}};
+const moduleMap = {};
 const moduleCache = Object.create(null);
 async function importShared(name, shareScope = 'default') {
   return moduleCache[name]
     ? new Promise((r) => r(moduleCache[name]))
     : (await getSharedFromRuntime(name, shareScope)) || getSharedFromLocal(name)
-}
-// eslint-disable-next-line
-async function __federation_import(name) {
-  currentImports[name] ??= import(name);
-  return currentImports[name]
 }
 async function getSharedFromRuntime(name, shareScope) {
   let module = null;

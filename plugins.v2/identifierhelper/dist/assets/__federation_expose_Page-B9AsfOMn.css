@@ -1,0 +1,95 @@
+
+.plugin-page[data-v-d92b4dc5] {
+  width: 100%;
+  height: 100%;
+}
+.tree-container[data-v-d92b4dc5] {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.category-node[data-v-d92b4dc5] {
+  border-left: 3px solid transparent;
+  transition: all 0.2s ease;
+}
+.category-node[data-v-d92b4dc5]:hover {
+  border-left-color: rgba(var(--v-theme-primary), 0.5);
+}
+.category-header[data-v-d92b4dc5] {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.category-header[data-v-d92b4dc5]:hover {
+  background-color: rgba(var(--v-theme-primary), 0.05);
+}
+.sub-category-node[data-v-d92b4dc5] {
+  position: relative;
+}
+.sub-category-node[data-v-d92b4dc5]::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: rgba(var(--v-theme-info), 0.3);
+}
+.sub-category-card[data-v-d92b4dc5] {
+  background-color: rgba(var(--v-theme-surface), 0.8);
+  border-left: 2px solid rgba(var(--v-theme-info), 0.5);
+}
+.identifier-item[data-v-d92b4dc5] {
+  background-color: rgba(var(--v-theme-surface), 0.5);
+  transition: all 0.2s ease;
+  border-left: 2px solid transparent;
+}
+.identifier-item[data-v-d92b4dc5]:hover {
+  background-color: rgba(var(--v-theme-primary), 0.08);
+  border-left-color: rgba(var(--v-theme-primary), 0.5);
+}
+.action-buttons[data-v-d92b4dc5] {
+  display: flex;
+  gap: 2px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+.identifier-item:hover .action-buttons[data-v-d92b4dc5] {
+  opacity: 1;
+}
+.expanded[data-v-d92b4dc5] {
+  box-shadow: 0 2px 8px rgba(var(--v-theme-primary), 0.1);
+}
+.cursor-pointer[data-v-d92b4dc5] {
+  cursor: pointer;
+}
+
+
+/* 滚动条样式 */
+.tree-container[data-v-d92b4dc5]::-webkit-scrollbar {
+  width: 6px;
+}
+.tree-container[data-v-d92b4dc5]::-webkit-scrollbar-track {
+  background: rgba(var(--v-theme-surface), 0.1);
+  border-radius: 3px;
+}
+.tree-container[data-v-d92b4dc5]::-webkit-scrollbar-thumb {
+  background: rgba(var(--v-theme-primary), 0.3);
+  border-radius: 3px;
+}
+.tree-container[data-v-d92b4dc5]::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--v-theme-primary), 0.5);
+}
+
+/* 动画效果 */
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+.tree-container[data-v-d92b4dc5] {
+    max-height: 60vh;
+}
+.sub-category-node[data-v-d92b4dc5] {
+    margin-left: 0;
+}
+.sub-category-node[data-v-d92b4dc5]::before {
+    display: none;
+}
+}
