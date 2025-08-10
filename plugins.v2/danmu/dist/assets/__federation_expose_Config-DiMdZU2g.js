@@ -1,7 +1,7 @@
 import { importShared } from './__federation_fn_import-JrT3xvdd.js';
 import { _ as _export_sfc } from './_plugin-vue_export-helper-pcqpp-6-.js';
 
-const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,withCtx:_withCtx,toDisplayString:_toDisplayString,createTextVNode:_createTextVNode,openBlock:_openBlock,createBlock:_createBlock,createCommentVNode:_createCommentVNode,withModifiers:_withModifiers,createElementBlock:_createElementBlock} = await importShared('vue');
+const {resolveComponent:_resolveComponent,createVNode:_createVNode,createElementVNode:_createElementVNode,withCtx:_withCtx,toDisplayString:_toDisplayString,createTextVNode:_createTextVNode,openBlock:_openBlock,createBlock:_createBlock,createCommentVNode:_createCommentVNode,mergeProps:_mergeProps,withModifiers:_withModifiers,createElementBlock:_createElementBlock} = await importShared('vue');
 
 
 const _hoisted_1 = { class: "plugin-config" };
@@ -20,6 +20,10 @@ const _hoisted_13 = { class: "d-flex justify-space-between align-center" };
 const _hoisted_14 = { class: "setting-item d-flex align-center py-2" };
 const _hoisted_15 = { class: "setting-content flex-grow-1" };
 const _hoisted_16 = { class: "d-flex justify-space-between align-center" };
+const _hoisted_17 = { class: "setting-item d-flex align-center py-2" };
+const _hoisted_18 = { class: "setting-content flex-grow-1" };
+const _hoisted_19 = { class: "d-flex justify-space-between align-center" };
+const _hoisted_20 = { class: "d-flex align-center" };
 
 const {ref,reactive,onMounted} = await importShared('vue');
 
@@ -66,7 +70,9 @@ const editableConfig = reactive({
   onlyFromBili: false,
   useTmdbID: true,
   auto_scrape: true,
-  enable_retry_task: true
+  enable_retry_task: true,
+  screen_area: 'full',
+  enable_strm: true
 });
 
 const getPluginId = () => {
@@ -99,7 +105,9 @@ async function loadInitialData() {
         onlyFromBili: data.onlyFromBili,
         useTmdbID: data.useTmdbID,
         auto_scrape: data.auto_scrape,
-        enable_retry_task: data.enable_retry_task
+        enable_retry_task: data.enable_retry_task,
+        screen_area: data.screen_area,
+        enable_strm: data.enable_strm
       });
       initialConfigLoaded.value = true;
       successMessage.value = '成功加载配置';
@@ -123,7 +131,9 @@ async function loadInitialData() {
         onlyFromBili: props.initialConfig.onlyFromBili,
         useTmdbID: props.initialConfig.useTmdbID,
         auto_scrape: props.initialConfig.auto_scrape,
-        enable_retry_task: props.initialConfig.enable_retry_task
+        enable_retry_task: props.initialConfig.enable_retry_task,
+        screen_area: props.initialConfig.screen_area,
+        enable_strm: props.initialConfig.enable_strm
       });
     }
     successMessage.value = null;
@@ -162,7 +172,9 @@ async function saveFullConfig() {
       onlyFromBili: editableConfig.onlyFromBili,
       useTmdbID: editableConfig.useTmdbID,
       auto_scrape: editableConfig.auto_scrape,
-      enable_retry_task: editableConfig.enable_retry_task
+      enable_retry_task: editableConfig.enable_retry_task,
+      screen_area: editableConfig.screen_area,
+      enable_strm: editableConfig.enable_strm
     };
 
     // 发送保存请求
@@ -203,7 +215,9 @@ function resetConfigToFetched() {
       onlyFromBili: serverFetchedConfig.onlyFromBili,
       useTmdbID: serverFetchedConfig.useTmdbID,
       auto_scrape: serverFetchedConfig.auto_scrape,
-      enable_retry_task: serverFetchedConfig.enable_retry_task
+      enable_retry_task: serverFetchedConfig.enable_retry_task,
+      screen_area: serverFetchedConfig.screen_area,
+      enable_strm: serverFetchedConfig.enable_strm
     });
     error.value = null;
     successMessage.value = '配置已重置为上次加载的状态';
@@ -229,7 +243,9 @@ onMounted(() => {
       onlyFromBili: props.initialConfig.onlyFromBili,
       useTmdbID: props.initialConfig.useTmdbID,
       auto_scrape: props.initialConfig.auto_scrape,
-      enable_retry_task: props.initialConfig.enable_retry_task
+      enable_retry_task: props.initialConfig.enable_retry_task,
+      screen_area: props.initialConfig.screen_area,
+      enable_strm: props.initialConfig.enable_strm
     });
   }
   loadInitialData();
@@ -241,14 +257,16 @@ return (_ctx, _cache) => {
   const _component_v_alert = _resolveComponent("v-alert");
   const _component_v_switch = _resolveComponent("v-switch");
   const _component_v_col = _resolveComponent("v-col");
+  const _component_v_btn = _resolveComponent("v-btn");
+  const _component_v_tooltip = _resolveComponent("v-tooltip");
   const _component_v_row = _resolveComponent("v-row");
   const _component_v_card_text = _resolveComponent("v-card-text");
   const _component_v_card = _resolveComponent("v-card");
   const _component_v_text_field = _resolveComponent("v-text-field");
+  const _component_v_select = _resolveComponent("v-select");
   const _component_v_textarea = _resolveComponent("v-textarea");
   const _component_v_form = _resolveComponent("v-form");
   const _component_v_divider = _resolveComponent("v-divider");
-  const _component_v_btn = _resolveComponent("v-btn");
   const _component_v_spacer = _resolveComponent("v-spacer");
   const _component_v_card_actions = _resolveComponent("v-card-actions");
 
@@ -500,6 +518,73 @@ return (_ctx, _cache) => {
                                 ])
                               ]),
                               _: 1
+                            }),
+                            _createVNode(_component_v_col, {
+                              cols: "12",
+                              md: "6"
+                            }, {
+                              default: _withCtx(() => [
+                                _createElementVNode("div", _hoisted_17, [
+                                  _createVNode(_component_v_icon, {
+                                    icon: "mdi-file-video-outline",
+                                    size: "small",
+                                    color: editableConfig.enable_strm ? 'info' : 'grey',
+                                    class: "mr-3"
+                                  }, null, 8, ["color"]),
+                                  _createElementVNode("div", _hoisted_18, [
+                                    _createElementVNode("div", _hoisted_19, [
+                                      _createElementVNode("div", _hoisted_20, [
+                                        _cache[22] || (_cache[22] = _createElementVNode("div", null, [
+                                          _createElementVNode("div", { class: "text-subtitle-2" }, "启用STRM文件刮削"),
+                                          _createElementVNode("div", { class: "text-caption text-grey" }, "是否支持.strm流媒体文件的弹幕刮削")
+                                        ], -1)),
+                                        _createVNode(_component_v_tooltip, { location: "top" }, {
+                                          activator: _withCtx(({ props }) => [
+                                            _createVNode(_component_v_btn, _mergeProps(props, {
+                                              icon: "mdi-help-circle-outline",
+                                              size: "x-small",
+                                              variant: "text",
+                                              color: "grey",
+                                              class: "ml-2"
+                                            }), null, 16)
+                                          ]),
+                                          default: _withCtx(() => [
+                                            _cache[21] || (_cache[21] = _createElementVNode("div", { class: "tooltip-content" }, [
+                                              _createElementVNode("div", { class: "text-subtitle-2 mb-1" }, "STRM文件刮削说明"),
+                                              _createElementVNode("div", { class: "text-caption" }, [
+                                                _createElementVNode("div", { class: "mb-1" }, [
+                                                  _createElementVNode("strong", null, "功能限制：")
+                                                ]),
+                                                _createElementVNode("div", null, "• 仅支持TMDB ID匹配，无法使用文件hash"),
+                                                _createElementVNode("div", null, "• 无法提取内嵌字幕，仅支持外部字幕"),
+                                                _createElementVNode("div", null, "• 使用默认分辨率(1920x1080)"),
+                                                _createElementVNode("div", { class: "mt-2 mb-1" }, [
+                                                  _createElementVNode("strong", null, "使用条件：")
+                                                ]),
+                                                _createElementVNode("div", null, "• 文件名需包含正确的媒体信息"),
+                                                _createElementVNode("div", null, "• MoviePilot能够识别并获取TMDB ID"),
+                                                _createElementVNode("div", null, "• 弹弹play平台需要有对应弹幕资源")
+                                              ])
+                                            ], -1))
+                                          ]),
+                                          _: 1
+                                        })
+                                      ]),
+                                      _createVNode(_component_v_switch, {
+                                        modelValue: editableConfig.enable_strm,
+                                        "onUpdate:modelValue": _cache[5] || (_cache[5] = $event => ((editableConfig.enable_strm) = $event)),
+                                        color: "info",
+                                        inset: "",
+                                        disabled: saving.value,
+                                        density: "compact",
+                                        "hide-details": "",
+                                        class: "small-switch"
+                                      }, null, 8, ["modelValue", "disabled"])
+                                    ])
+                                  ])
+                                ])
+                              ]),
+                              _: 1
                             })
                           ]),
                           _: 1
@@ -523,7 +608,7 @@ return (_ctx, _cache) => {
                           color: "primary",
                           size: "small"
                         }),
-                        _cache[21] || (_cache[21] = _createElementVNode("span", null, "弹幕参数设置", -1))
+                        _cache[23] || (_cache[23] = _createElementVNode("span", null, "弹幕参数设置", -1))
                       ]),
                       _: 1
                     }),
@@ -537,56 +622,8 @@ return (_ctx, _cache) => {
                             }, {
                               default: _withCtx(() => [
                                 _createVNode(_component_v_text_field, {
-                                  modelValue: editableConfig.width,
-                                  "onUpdate:modelValue": _cache[5] || (_cache[5] = $event => ((editableConfig.width) = $event)),
-                                  modelModifiers: { number: true },
-                                  label: "视频宽度",
-                                  type: "number",
-                                  variant: "outlined",
-                                  min: 1,
-                                  rules: [v => v > 0 || '宽度必须大于0'],
-                                  hint: "弹幕视频的宽度",
-                                  "persistent-hint": "",
-                                  "prepend-inner-icon": "mdi-arrow-expand-horizontal",
-                                  disabled: saving.value,
-                                  density: "compact",
-                                  class: "text-caption"
-                                }, null, 8, ["modelValue", "rules", "disabled"])
-                              ]),
-                              _: 1
-                            }),
-                            _createVNode(_component_v_col, {
-                              cols: "12",
-                              md: "6"
-                            }, {
-                              default: _withCtx(() => [
-                                _createVNode(_component_v_text_field, {
-                                  modelValue: editableConfig.height,
-                                  "onUpdate:modelValue": _cache[6] || (_cache[6] = $event => ((editableConfig.height) = $event)),
-                                  modelModifiers: { number: true },
-                                  label: "视频高度",
-                                  type: "number",
-                                  variant: "outlined",
-                                  min: 1,
-                                  rules: [v => v > 0 || '高度必须大于0'],
-                                  hint: "弹幕视频的高度",
-                                  "persistent-hint": "",
-                                  "prepend-inner-icon": "mdi-arrow-expand-vertical",
-                                  disabled: saving.value,
-                                  density: "compact",
-                                  class: "text-caption"
-                                }, null, 8, ["modelValue", "rules", "disabled"])
-                              ]),
-                              _: 1
-                            }),
-                            _createVNode(_component_v_col, {
-                              cols: "12",
-                              md: "6"
-                            }, {
-                              default: _withCtx(() => [
-                                _createVNode(_component_v_text_field, {
                                   modelValue: editableConfig.fontsize,
-                                  "onUpdate:modelValue": _cache[7] || (_cache[7] = $event => ((editableConfig.fontsize) = $event)),
+                                  "onUpdate:modelValue": _cache[6] || (_cache[6] = $event => ((editableConfig.fontsize) = $event)),
                                   modelModifiers: { number: true },
                                   label: "字体大小",
                                   type: "number",
@@ -600,6 +637,31 @@ return (_ctx, _cache) => {
                                   density: "compact",
                                   class: "text-caption"
                                 }, null, 8, ["modelValue", "rules", "disabled"])
+                              ]),
+                              _: 1
+                            }),
+                            _createVNode(_component_v_col, {
+                              cols: "12",
+                              md: "6"
+                            }, {
+                              default: _withCtx(() => [
+                                _createVNode(_component_v_select, {
+                                  modelValue: editableConfig.screen_area,
+                                  "onUpdate:modelValue": _cache[7] || (_cache[7] = $event => ((editableConfig.screen_area) = $event)),
+                                  label: "弹幕显示区域",
+                                  variant: "outlined",
+                                  items: [
+                      { title: '全屏弹幕', value: 'full' },
+                      { title: '半屏弹幕', value: 'half' },
+                      { title: '1/4屏弹幕', value: 'quarter' }
+                    ],
+                                  hint: "选择弹幕显示的屏幕区域，超出区域的弹幕将被忽略",
+                                  "persistent-hint": "",
+                                  "prepend-inner-icon": "mdi-monitor",
+                                  disabled: saving.value,
+                                  density: "compact",
+                                  class: "text-caption"
+                                }, null, 8, ["modelValue", "disabled"])
                               ]),
                               _: 1
                             }),
@@ -675,7 +737,7 @@ return (_ctx, _cache) => {
                           color: "primary",
                           size: "small"
                         }),
-                        _cache[22] || (_cache[22] = _createElementVNode("span", null, "手动控制媒体库路径", -1))
+                        _cache[24] || (_cache[24] = _createElementVNode("span", null, "手动控制媒体库路径", -1))
                       ]),
                       _: 1
                     }),
@@ -713,7 +775,7 @@ return (_ctx, _cache) => {
                           class: "mr-2",
                           size: "small"
                         }),
-                        _cache[23] || (_cache[23] = _createElementVNode("span", { class: "text-caption" }, " 此插件用于生成视频的弹幕字幕文件.弹幕来源为弹弹play平台. ", -1))
+                        _cache[25] || (_cache[25] = _createElementVNode("span", { class: "text-caption" }, " 此插件用于生成视频的弹幕字幕文件.弹幕来源为弹弹play平台. ", -1))
                       ]),
                       _: 1
                     })
@@ -737,7 +799,7 @@ return (_ctx, _cache) => {
               variant: "text",
               size: "small"
             }, {
-              default: _withCtx(() => _cache[24] || (_cache[24] = [
+              default: _withCtx(() => _cache[26] || (_cache[26] = [
                 _createTextVNode("状态页")
               ])),
               _: 1
@@ -751,7 +813,7 @@ return (_ctx, _cache) => {
               "prepend-icon": "mdi-restore",
               size: "small"
             }, {
-              default: _withCtx(() => _cache[25] || (_cache[25] = [
+              default: _withCtx(() => _cache[27] || (_cache[27] = [
                 _createTextVNode("重置")
               ])),
               _: 1
@@ -765,7 +827,7 @@ return (_ctx, _cache) => {
               variant: "text",
               size: "small"
             }, {
-              default: _withCtx(() => _cache[26] || (_cache[26] = [
+              default: _withCtx(() => _cache[28] || (_cache[28] = [
                 _createTextVNode("保存配置")
               ])),
               _: 1
@@ -778,7 +840,7 @@ return (_ctx, _cache) => {
               variant: "text",
               size: "small"
             }, {
-              default: _withCtx(() => _cache[27] || (_cache[27] = [
+              default: _withCtx(() => _cache[29] || (_cache[29] = [
                 _createTextVNode("关闭")
               ])),
               _: 1
@@ -794,6 +856,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-2b6e1a1e"]]);
+const Config = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-6766bb8b"]]);
 
 export { Config as default };

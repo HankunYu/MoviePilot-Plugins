@@ -17,6 +17,39 @@ class VideoInfo:
     video_duration: int
     match_mode: str = "hashAndFileName"
 
+class StrmProcessor:
+    @staticmethod
+    def is_strm_file(file_path: str) -> bool:
+        """检查是否为.strm文件"""
+        return file_path.lower().endswith('.strm')
+    
+    @staticmethod
+    def get_strm_url(file_path: str) -> Optional[str]:
+        """读取.strm文件获取流媒体URL"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                url = f.read().strip()
+                logger.info(f"从.strm文件读取到URL: {url}")
+                return url if url else None
+        except Exception as e:
+            logger.error(f"读取.strm文件失败: {e}")
+            return None
+    
+    @staticmethod
+    def create_fake_video_info(file_path: str) -> VideoInfo:
+        """为.strm文件创建虚拟的VideoInfo对象，用于TMDB匹配"""
+        file_name = os.path.basename(file_path)
+        # 使用文件名作为hash（确保唯一性）
+        fake_hash = hashlib.md5(file_name.encode()).hexdigest()
+        
+        return VideoInfo(
+            file_name=file_name,
+            file_hash=fake_hash,
+            file_size=0,  # .strm文件大小通常很小，设为0
+            video_duration=0,  # 无法获取时长，设为0
+            match_mode="hashAndFileName"
+        )
+
 class DanmuAPI:
     BASE_URL = 'https://dandanapi.hankun.online/api/v1'
     HEADERS = {
@@ -108,7 +141,27 @@ class DanmuAPI:
         :return: 弹幕ID
         """
         try:
-            # 首先尝试使用文件名和文件大小匹配
+            # 检查是否为.strm文件
+            if StrmProcessor.is_strm_file(file_path):
+                logger.info(f"检测到.strm文件: {file_path}")
+                # 读取.strm文件内容
+                strm_url = StrmProcessor.get_strm_url(file_path)
+                if strm_url:
+                    logger.info(f"STRM文件指向: {strm_url}")
+                
+                # 对于.strm文件，强制使用TMDB ID匹配
+                if tmdb_id is not None:
+                    logger.info(f"为.strm文件使用TMDB ID匹配: {tmdb_id}")
+                    comment_id = DanmuAPI.search_by_tmdb_id(tmdb_id, episode)
+                    if comment_id:
+                        return comment_id
+                else:
+                    logger.warning(f".strm文件未提供TMDB ID，无法进行弹幕匹配: {file_path}")
+                
+                # .strm文件如果没有TMDB ID，直接返回None
+                return None
+            
+            # 普通视频文件的处理逻辑
             file_name = os.path.basename(file_path)
             file_size = DanmuAPI.get_file_size(file_path)
             file_hash = DanmuAPI.calculate_md5_of_first_16MB(file_path)
@@ -233,9 +286,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     @classmethod
     def convert_comments_to_ass(cls, comments: List[Dict], output_file: str, width: int, 
-                              height: int, fontface: str, fontsize: float, alpha: float, duration: float):
+                              height: int, fontface: str, fontsize: float, alpha: float, duration: float, screen_area: str = 'full'):
         styleid = 'Danmu'
-        max_tracks = int(height) // int(fontsize)
+        
+        # 根据屏幕区域计算有效高度和轨道数
+        if screen_area == 'half':
+            effective_height = height // 2  # 上半屏
+            logger.info(f"使用半屏弹幕模式，有效高度: {effective_height}")
+        elif screen_area == 'quarter':
+            effective_height = height // 4  # 上1/4屏
+            logger.info(f"使用1/4屏弹幕模式，有效高度: {effective_height}")
+        else:  # full
+            effective_height = height
+            logger.info(f"使用全屏弹幕模式，有效高度: {effective_height}")
+        
+        max_tracks = int(effective_height) // int(fontsize)
+        logger.info(f"最大弹幕轨道数: {max_tracks}")
+        
         scrolling_tracks = {}
         top_tracks = {}
         bottom_tracks = {}
@@ -274,15 +341,31 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     
                     if pos == 1:  # 滚动弹幕
                         track_id = cls.find_non_overlapping_track(scrolling_tracks, timeline, max_tracks)
+                        # 检查轨道是否超出屏幕区域
+                        if track_id > max_tracks:
+                            continue  # 忽略超出区域的弹幕
                         scrolling_tracks[track_id] = timeline + leave_time
                         initial_y = (track_id - 1) * fontsize + 10
                         styles = f'\\move({width}, {initial_y}, {-len(text)*fontsize}, {initial_y})'
                     elif pos == 4:  # 底部弹幕
                         track_id = cls.find_non_overlapping_track(bottom_tracks, timeline, max_tracks)
+                        # 检查轨道是否超出屏幕区域
+                        if track_id > max_tracks:
+                            continue  # 忽略超出区域的弹幕
                         bottom_tracks[track_id] = timeline + duration
-                        styles = f'\\an2\\pos({width/2}, {height - 50 - (track_id - 1) * fontsize})'
+                        # 底部弹幕需要根据屏幕区域调整位置
+                        if screen_area == 'half':
+                            bottom_y = effective_height - 10 - (track_id - 1) * fontsize
+                        elif screen_area == 'quarter':
+                            bottom_y = effective_height - 10 - (track_id - 1) * fontsize
+                        else:
+                            bottom_y = height - 50 - (track_id - 1) * fontsize
+                        styles = f'\\an2\\pos({width/2}, {bottom_y})'
                     elif pos == 5:  # 顶部弹幕
                         track_id = cls.find_non_overlapping_track(top_tracks, timeline, max_tracks)
+                        # 检查轨道是否超出屏幕区域
+                        if track_id > max_tracks:
+                            continue  # 忽略超出区域的弹幕
                         top_tracks[track_id] = timeline + duration
                         styles = f'\\an8\\pos({width/2}, {50 + (track_id - 1) * fontsize})'
                     else:
@@ -309,6 +392,32 @@ class SubtitleProcessor:
         except Exception as e:
             logger.error(f"获取视频流信息失败: {e}")
             return {}
+
+    @staticmethod
+    def get_video_resolution(file_path: str) -> Tuple[int, int]:
+        """
+        获取视频的真实分辨率
+        :param file_path: 视频文件路径
+        :return: (宽度, 高度) 元组
+        """
+        try:
+            # .strm文件无法直接获取视频分辨率，使用默认值
+            if StrmProcessor.is_strm_file(file_path):
+                logger.info(f".strm文件使用默认分辨率: 1920x1080")
+                return 1920, 1080
+            
+            streams_info = SubtitleProcessor.get_video_streams(file_path)
+            for stream in streams_info.get('streams', []):
+                if stream.get('codec_type') == 'video':
+                    width = stream.get('width', 1920)
+                    height = stream.get('height', 1080)
+                    logger.info(f"检测到视频分辨率: {width}x{height}")
+                    return width, height
+            logger.warning(f"未找到视频流，使用默认分辨率: 1920x1080")
+            return 1920, 1080
+        except Exception as e:
+            logger.error(f"获取视频分辨率失败: {e}，使用默认分辨率: 1920x1080")
+            return 1920, 1080
 
     @staticmethod
     def extract_subtitles(file_path: str, output_file: str, stream_index: int) -> bool:
@@ -357,9 +466,15 @@ class SubtitleProcessor:
                     return sub2
         logger.info("没找到字幕文件")
         return None
+    
+    @staticmethod
+    def can_extract_subtitles(file_path: str) -> bool:
+        """检查是否可以从文件中提取字幕"""
+        # .strm文件无法提取内嵌字幕
+        return not StrmProcessor.is_strm_file(file_path)
 
     @staticmethod
-    def combine_sub_ass(sub1: str, sub2: str) -> bool:
+    def combine_sub_ass(sub1: str, sub2: str, video_file_path: str = None) -> bool:
         if not sub1 or not sub2:
             return False
         
@@ -376,8 +491,30 @@ class SubtitleProcessor:
                 sub2_content = f.read()
                 
             if os.path.splitext(sub2)[1].lower() in ['.ass', '.ssa']:
+                # 获取弹幕文件的分辨率（这是正确的分辨率）
                 sub1ResX = re.search(r"PlayResX:\s*(\d+)", sub1_content)
+                sub1ResY = re.search(r"PlayResY:\s*(\d+)", sub1_content)
+                
+                # 获取原字幕文件的分辨率（可能不准确）
                 sub2ResX = re.search(r"PlayResX:\s*(\d+)", sub2_content)
+                sub2ResY = re.search(r"PlayResY:\s*(\d+)", sub2_content)
+                
+                # 如果有视频文件路径，获取真实的视频分辨率
+                if video_file_path:
+                    video_width, video_height = SubtitleProcessor.get_video_resolution(video_file_path)
+                    logger.info(f"使用视频真实分辨率: {video_width}x{video_height}")
+                    
+                    # 修正字幕文件的分辨率信息
+                    if sub2ResX and sub2ResY:
+                        old_width = int(sub2ResX.group(1))
+                        old_height = int(sub2ResY.group(1))
+                        logger.info(f"原字幕分辨率: {old_width}x{old_height}")
+                        
+                        # 如果原字幕分辨率明显不对（比如小于视频分辨率的一半），使用视频分辨率
+                        if old_width < video_width // 2 or old_height < video_height // 2:
+                            logger.warning(f"检测到字幕分辨率异常，从 {old_width}x{old_height} 修正为 {video_width}x{video_height}")
+                            sub2_content = sub2_content.replace(f"PlayResX: {old_width}", f"PlayResX: {video_width}")
+                            sub2_content = sub2_content.replace(f"PlayResY: {old_height}", f"PlayResY: {video_height}")
 
                 fontSizeRatio = 1
                 if sub1ResX and sub2ResX:
@@ -422,7 +559,8 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
                    fontface: str = 'Arial', fontsize: float = 50, 
                    alpha: float = 0.8, duration: float = 6, onlyFromBili: bool = False,
                    use_tmdb_id: bool = False, tmdb_id: Optional[int] = None,
-                   episode: Optional[int] = None, cache_ttl: Optional[int] = None) -> Optional[str]:
+                   episode: Optional[int] = None, cache_ttl: Optional[int] = None,
+                   screen_area: str = 'full') -> Optional[str]:
     try:
         comment_id = DanmuAPI.get_comment_id(file_path, use_tmdb_id, tmdb_id, episode, cache_ttl)
         if not comment_id:
@@ -453,18 +591,25 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
             fontface=fontface, 
             fontsize=float(fontsize), 
             alpha=float(alpha), 
-            duration=float(duration)
+            duration=float(duration),
+            screen_area=screen_area
         )
 
+        # 处理字幕合并
         sub2 = SubtitleProcessor.find_subtitle_file(file_path)
-        if not sub2:
+        
+        # 只有非.strm文件才尝试提取内嵌字幕
+        if not sub2 and SubtitleProcessor.can_extract_subtitles(file_path):
             SubtitleProcessor.try_extract_sub(file_path)
             sub2 = SubtitleProcessor.find_subtitle_file(file_path)
 
         if sub2:
-            SubtitleProcessor.combine_sub_ass(output_file, sub2)
+            SubtitleProcessor.combine_sub_ass(output_file, sub2, file_path)
         else:
-            logger.error(f'未找到原生字幕，跳过合并 - {file_path}')
+            if StrmProcessor.is_strm_file(file_path):
+                logger.info(f'.strm文件未找到外部字幕，仅生成弹幕文件 - {file_path}')
+            else:
+                logger.error(f'未找到原生字幕，跳过合并 - {file_path}')
 
         return output_file
 

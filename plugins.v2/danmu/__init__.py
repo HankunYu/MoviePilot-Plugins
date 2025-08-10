@@ -29,7 +29,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.4.0"
+    plugin_version = "1.5.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -55,6 +55,8 @@ class Danmu(_PluginBase):
     _onlyFromBili = False
     _useTmdbID = True
     _auto_scrape = True
+    _screen_area = 'full'  # full(全屏), half(半屏), quarter(1/4屏)
+    _enable_strm = True  # 是否启用.strm文件刮削
     # 新增重试相关配置
     _min_danmu_count = 100  # 最小弹幕数量要求 - 硬编码
     _max_retry_times = 10  # 最大重试次数 - 硬编码
@@ -64,6 +66,14 @@ class Danmu(_PluginBase):
     _retry_tasks = {}
     
     media_chain = MediaChain()
+    
+    def _is_supported_file(self, file_path: str) -> bool:
+        """检查文件是否支持处理"""
+        if file_path.endswith(('.mp4', '.mkv')):
+            return True
+        elif file_path.endswith('.strm'):
+            return self._enable_strm
+        return False
     
     def init_plugin(self, config: dict = None):
         if config:
@@ -79,6 +89,8 @@ class Danmu(_PluginBase):
             self._useTmdbID = config.get("useTmdbID", True)
             self._auto_scrape = config.get("auto_scrape", False)
             self._enable_retry_task = config.get("enable_retry_task", True)
+            self._screen_area = config.get("screen_area", "full")
+            self._enable_strm = config.get("enable_strm", True)
             # 加载重试任务列表
             retry_tasks_str = config.get("retry_tasks", "{}")
             try:
@@ -262,7 +274,9 @@ class Danmu(_PluginBase):
             "onlyFromBili": self._onlyFromBili,
             "useTmdbID": self._useTmdbID,
             "auto_scrape": self._auto_scrape,
-            "enable_retry_task": self._enable_retry_task
+            "enable_retry_task": self._enable_retry_task,
+            "screen_area": self._screen_area,
+            "enable_strm": self._enable_strm
         }
         
     def _save_config(self, config: dict):
@@ -279,6 +293,8 @@ class Danmu(_PluginBase):
             self._useTmdbID = config.get("useTmdbID", True)
             self._auto_scrape = config.get("auto_scrape", False)
             self._enable_retry_task = config.get("enable_retry_task", True)
+            self._screen_area = config.get("screen_area", "full")
+            self._enable_strm = config.get("enable_strm", True)
             
             # 准备重试任务数据
             retry_tasks_for_save = {}
@@ -303,6 +319,8 @@ class Danmu(_PluginBase):
                 "useTmdbID": self._useTmdbID,
                 "auto_scrape": self._auto_scrape,
                 "enable_retry_task": self._enable_retry_task,
+                "screen_area": self._screen_area,
+                "enable_strm": self._enable_strm,
                 "retry_tasks": json.dumps(retry_tasks_for_save)
             })
             
@@ -367,7 +385,8 @@ class Danmu(_PluginBase):
                 self._useTmdbID,
                 tmdb_id,
                 episode,
-                60 if use_short_cache_ttl else None
+                60 if use_short_cache_ttl else None,
+                self._screen_area
             )
             
             # 检查弹幕生成结果
@@ -506,7 +525,7 @@ class Danmu(_PluginBase):
                 continue
 
             # 检查是否是单个文件
-            if os.path.isfile(path) and path.endswith(('.mp4', '.mkv')):
+            if os.path.isfile(path) and self._is_supported_file(path):
                 logger.info(f"刮削单个文件：{path}")
                 if len(threading_list) >= self._max_threads:
                     threading_list[0].join()
@@ -524,16 +543,16 @@ class Danmu(_PluginBase):
             logger.info(f"刮削路径：{path}")
             for root, _, files in os.walk(path):
                 for file in files:
-                    if file.endswith(('.mp4', '.mkv')):
+                    file_path = os.path.join(root, file)
+                    if self._is_supported_file(file_path):
                         if len(threading_list) >= self._max_threads:
                             threading_list[0].join()
                             threading_list.pop(0)
 
-                        target_file = os.path.join(root, file)
-                        logger.info(f"开始生成弹幕文件：{target_file}")
+                        logger.info(f"开始生成弹幕文件：{file_path}")
                         thread = threading.Thread(
                             target=self.generate_danmu,
-                            args=(target_file,)
+                            args=(file_path,)
                         )
                         thread.start()
                         threading_list.append(thread)
@@ -696,7 +715,7 @@ class Danmu(_PluginBase):
             # 如果是文件，直接返回文件信息
             if os.path.isfile(path):
                 logger.debug(f"{path} 是文件")
-                if path.endswith(('.mp4', '.mkv')):
+                if self._is_supported_file(path):
                     logger.debug(f"{path} 是媒体文件")
                     result["type"] = "media"
                     # 检查是否存在对应的弹幕文件
@@ -741,7 +760,7 @@ class Danmu(_PluginBase):
                 
                 if os.path.isdir(item_path):
                     directories.append((item, item_path))
-                elif os.path.isfile(item_path) and item.endswith(('.mp4', '.mkv')):
+                elif os.path.isfile(item_path) and self._is_supported_file(item_path):
                     files.append((item, item_path))
             
             # 添加目录到结果
@@ -795,8 +814,11 @@ class Danmu(_PluginBase):
         if not file_path or not os.path.exists(file_path):
             return schemas.Response(success=False, message="文件不存在")
             
-        if not file_path.endswith(('.mp4', '.mkv')):
-            return schemas.Response(success=False, message="不支持的文件格式")
+        if not self._is_supported_file(file_path):
+            if file_path.endswith('.strm') and not self._enable_strm:
+                return schemas.Response(success=False, message=".strm文件刮削功能未启用")
+            else:
+                return schemas.Response(success=False, message="不支持的文件格式")
             
         try:
             result = self.generate_danmu(file_path)

@@ -130,6 +130,55 @@
                     </div>
                   </div>
                 </v-col>
+                <v-col cols="12" md="6">
+                  <div class="setting-item d-flex align-center py-2">
+                    <v-icon icon="mdi-file-video-outline" size="small" :color="editableConfig.enable_strm ? 'info' : 'grey'" class="mr-3"></v-icon>
+                    <div class="setting-content flex-grow-1">
+                      <div class="d-flex justify-space-between align-center">
+                        <div class="d-flex align-center">
+                          <div>
+                            <div class="text-subtitle-2">启用STRM文件刮削</div>
+                            <div class="text-caption text-grey">是否支持.strm流媒体文件的弹幕刮削</div>
+                          </div>
+                          <v-tooltip location="top">
+                            <template v-slot:activator="{ props }">
+                              <v-btn
+                                v-bind="props"
+                                icon="mdi-help-circle-outline"
+                                size="x-small"
+                                variant="text"
+                                color="grey"
+                                class="ml-2"
+                              ></v-btn>
+                            </template>
+                            <div class="tooltip-content">
+                              <div class="text-subtitle-2 mb-1">STRM文件刮削说明</div>
+                              <div class="text-caption">
+                                <div class="mb-1"><strong>功能限制：</strong></div>
+                                <div>• 仅支持TMDB ID匹配，无法使用文件hash</div>
+                                <div>• 无法提取内嵌字幕，仅支持外部字幕</div>
+                                <div>• 使用默认分辨率(1920x1080)</div>
+                                <div class="mt-2 mb-1"><strong>使用条件：</strong></div>
+                                <div>• 文件名需包含正确的媒体信息</div>
+                                <div>• MoviePilot能够识别并获取TMDB ID</div>
+                                <div>• 弹弹play平台需要有对应弹幕资源</div>
+                              </div>
+                            </div>
+                          </v-tooltip>
+                        </div>
+                        <v-switch
+                          v-model="editableConfig.enable_strm"
+                          color="info"
+                          inset
+                          :disabled="saving"
+                          density="compact"
+                          hide-details
+                          class="small-switch"
+                        ></v-switch>
+                      </div>
+                    </div>
+                  </div>
+                </v-col>
               </v-row>
             </v-card-text>
           </v-card>
@@ -142,38 +191,6 @@
             </v-card-title>
             <v-card-text class="px-3 py-2">
               <v-row>
-                <v-col cols="12" md="6">
-                  <v-text-field
-                    v-model.number="editableConfig.width"
-                    label="视频宽度"
-                    type="number"
-                    variant="outlined"
-                    :min="1"
-                    :rules="[v => v > 0 || '宽度必须大于0']"
-                    hint="弹幕视频的宽度"
-                    persistent-hint
-                    prepend-inner-icon="mdi-arrow-expand-horizontal"
-                    :disabled="saving"
-                    density="compact"
-                    class="text-caption"
-                  ></v-text-field>
-                </v-col>
-                <v-col cols="12" md="6">
-                  <v-text-field
-                    v-model.number="editableConfig.height"
-                    label="视频高度"
-                    type="number"
-                    variant="outlined"
-                    :min="1"
-                    :rules="[v => v > 0 || '高度必须大于0']"
-                    hint="弹幕视频的高度"
-                    persistent-hint
-                    prepend-inner-icon="mdi-arrow-expand-vertical"
-                    :disabled="saving"
-                    density="compact"
-                    class="text-caption"
-                  ></v-text-field>
-                </v-col>
                 <v-col cols="12" md="6">
                   <v-text-field
                     v-model.number="editableConfig.fontsize"
@@ -189,6 +206,24 @@
                     density="compact"
                     class="text-caption"
                   ></v-text-field>
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-select
+                    v-model="editableConfig.screen_area"
+                    label="弹幕显示区域"
+                    variant="outlined"
+                    :items="[
+                      { title: '全屏弹幕', value: 'full' },
+                      { title: '半屏弹幕', value: 'half' },
+                      { title: '1/4屏弹幕', value: 'quarter' }
+                    ]"
+                    hint="选择弹幕显示的屏幕区域，超出区域的弹幕将被忽略"
+                    persistent-hint
+                    prepend-inner-icon="mdi-monitor"
+                    :disabled="saving"
+                    density="compact"
+                    class="text-caption"
+                  ></v-select>
                 </v-col>
                 <v-col cols="12" md="6">
                   <v-text-field
@@ -313,7 +348,9 @@ const editableConfig = reactive({
   onlyFromBili: false,
   useTmdbID: true,
   auto_scrape: true,
-  enable_retry_task: true
+  enable_retry_task: true,
+  screen_area: 'full',
+  enable_strm: true
 });
 
 const getPluginId = () => {
@@ -348,7 +385,9 @@ async function loadInitialData() {
         onlyFromBili: data.onlyFromBili,
         useTmdbID: data.useTmdbID,
         auto_scrape: data.auto_scrape,
-        enable_retry_task: data.enable_retry_task
+        enable_retry_task: data.enable_retry_task,
+        screen_area: data.screen_area,
+        enable_strm: data.enable_strm
       });
       initialConfigLoaded.value = true;
       successMessage.value = '成功加载配置';
@@ -372,7 +411,9 @@ async function loadInitialData() {
         onlyFromBili: props.initialConfig.onlyFromBili,
         useTmdbID: props.initialConfig.useTmdbID,
         auto_scrape: props.initialConfig.auto_scrape,
-        enable_retry_task: props.initialConfig.enable_retry_task
+        enable_retry_task: props.initialConfig.enable_retry_task,
+        screen_area: props.initialConfig.screen_area,
+        enable_strm: props.initialConfig.enable_strm
       });
     }
     successMessage.value = null;
@@ -413,7 +454,9 @@ async function saveFullConfig() {
       onlyFromBili: editableConfig.onlyFromBili,
       useTmdbID: editableConfig.useTmdbID,
       auto_scrape: editableConfig.auto_scrape,
-      enable_retry_task: editableConfig.enable_retry_task
+      enable_retry_task: editableConfig.enable_retry_task,
+      screen_area: editableConfig.screen_area,
+      enable_strm: editableConfig.enable_strm
     };
 
     // 发送保存请求
@@ -454,7 +497,9 @@ function resetConfigToFetched() {
       onlyFromBili: serverFetchedConfig.onlyFromBili,
       useTmdbID: serverFetchedConfig.useTmdbID,
       auto_scrape: serverFetchedConfig.auto_scrape,
-      enable_retry_task: serverFetchedConfig.enable_retry_task
+      enable_retry_task: serverFetchedConfig.enable_retry_task,
+      screen_area: serverFetchedConfig.screen_area,
+      enable_strm: serverFetchedConfig.enable_strm
     });
     error.value = null;
     successMessage.value = '配置已重置为上次加载的状态';
@@ -480,7 +525,9 @@ onMounted(() => {
       onlyFromBili: props.initialConfig.onlyFromBili,
       useTmdbID: props.initialConfig.useTmdbID,
       auto_scrape: props.initialConfig.auto_scrape,
-      enable_retry_task: props.initialConfig.enable_retry_task
+      enable_retry_task: props.initialConfig.enable_retry_task,
+      screen_area: props.initialConfig.screen_area,
+      enable_strm: props.initialConfig.enable_strm
     });
   }
   loadInitialData();
@@ -533,6 +580,24 @@ onMounted(() => {
 .text-subtitle-2 {
   font-size: 14px !important;
   font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.tooltip-content {
+  max-width: 350px;
+  padding: 4px;
+  line-height: 1.4;
+}
+
+.tooltip-content .text-caption {
+  color: rgba(255, 255, 255, 0.87);
+}
+
+.tooltip-content strong {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.tooltip-content div {
   margin-bottom: 2px;
 }
 </style>
