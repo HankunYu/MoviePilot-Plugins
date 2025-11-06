@@ -1,68 +1,68 @@
 
-.plugin-page[data-v-0853f3af] {
+.plugin-page[data-v-3bacb9fc] {
   max-width: 80rem;
   margin: 0 auto;
   padding: 0.5rem;
 }
-.bg-primary-lighten-5[data-v-0853f3af] {
+.bg-primary-lighten-5[data-v-3bacb9fc] {
   background-color: rgba(var(--v-theme-primary), 0.07);
 }
-.border[data-v-0853f3af] {
+.border[data-v-3bacb9fc] {
   border: thin solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
-.status-card[data-v-0853f3af] {
+.status-card[data-v-3bacb9fc] {
   background-image: linear-gradient(to right, rgba(var(--v-theme-surface), 0.98), rgba(var(--v-theme-surface), 0.95)), 
                     repeating-linear-gradient(45deg, rgba(var(--v-theme-primary), 0.03), rgba(var(--v-theme-primary), 0.03) 10px, transparent 10px, transparent 20px);
   background-attachment: fixed;
   box-shadow: 0 1px 2px rgba(var(--v-border-color), 0.05) !important;
   transition: all 0.3s ease;
 }
-.status-card[data-v-0853f3af]:hover {
+.status-card[data-v-3bacb9fc]:hover {
   box-shadow: 0 3px 6px rgba(var(--v-border-color), 0.1) !important;
 }
-.status-item[data-v-0853f3af] {
+.status-item[data-v-3bacb9fc] {
   border-radius: 8px;
   transition: all 0.2s ease;
   padding: 0.5rem;
   margin-bottom: 4px;
 }
-.status-item[data-v-0853f3af]:hover {
+.status-item[data-v-3bacb9fc]:hover {
   background-color: rgba(var(--v-theme-primary), 0.03);
 }
-.text-subtitle-2[data-v-0853f3af] {
+.text-subtitle-2[data-v-3bacb9fc] {
   font-size: 14px !important;
   font-weight: 500;
   margin-bottom: 2px;
 }
-.directory-content[data-v-0853f3af] {
+.directory-content[data-v-3bacb9fc] {
   max-height: 600px;
   overflow-y: auto;
 }
-.directory-item[data-v-0853f3af] {
+.directory-item[data-v-3bacb9fc] {
   border-radius: 4px;
   transition: all 0.2s ease;
   cursor: pointer;
 }
-.directory-item[data-v-0853f3af]:hover {
+.directory-item[data-v-3bacb9fc]:hover {
   background-color: rgba(var(--v-theme-primary), 0.03);
 }
-.back-item[data-v-0853f3af] {
+.back-item[data-v-3bacb9fc] {
   border-radius: 4px;
   transition: all 0.2s ease;
   cursor: pointer;
   border: 1px dashed rgba(var(--v-theme-primary), 0.3);
 }
-.back-item[data-v-0853f3af]:hover {
+.back-item[data-v-3bacb9fc]:hover {
   background-color: rgba(var(--v-theme-primary), 0.05);
   border-color: rgba(var(--v-theme-primary), 0.5);
 }
-.media-item[data-v-0853f3af] {
+.media-item[data-v-3bacb9fc] {
   border-radius: 4px;
   transition: all 0.2s ease;
 }
-.media-item[data-v-0853f3af]:hover {
+.media-item[data-v-3bacb9fc]:hover {
   background-color: rgba(var(--v-theme-primary), 0.03);
 }
-.cursor-pointer[data-v-0853f3af] {
+.cursor-pointer[data-v-3bacb9fc] {
   cursor: pointer;
 }

@@ -16,8 +16,10 @@ import subprocess
 import os
 import threading
 import json
+import copy
+import requests
 from app.plugins.danmu import danmu_generator as generator
-    
+   
 
 class Danmu(_PluginBase):
     # 插件名称
@@ -29,7 +31,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.5.0"
+    plugin_version = "1.6.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -64,8 +66,207 @@ class Danmu(_PluginBase):
     
     # 重试任务列表 - 存储格式: {file_path: {"retry_count": int, "last_attempt": datetime, "file_path": str}}
     _retry_tasks = {}
-    
+    _manual_matches: Dict[str, Dict[str, Any]] = {}
+    _manual_file_matches: Dict[str, Dict[str, Any]] = {}
+    _manual_match_storage_key = "manual_matches"
+
     media_chain = MediaChain()
+
+    @property
+    def _manual_match_filename(self) -> str:
+        return generator.DanmuAPI.MANUAL_MATCH_FILE
+
+    def _normalize_path(self, path: Optional[str]) -> Optional[str]:
+        if not path:
+            return None
+        return os.path.normpath(path)
+
+    def _manual_json_path(self, directory: str) -> str:
+        return os.path.join(directory, self._manual_match_filename)
+
+    def _save_manual_state(self):
+        try:
+            payload = {
+                "directories": self._manual_matches,
+                "files": self._manual_file_matches
+            }
+            self.save_data(self._manual_match_storage_key, payload)
+        except Exception as e:
+            logger.warning(f"保存手动匹配状态失败: {e}")
+
+    def _load_manual_matches(self):
+        stored = self.get_data(self._manual_match_storage_key)
+        if not isinstance(stored, dict):
+            stored = {}
+
+        # 兼容旧版本仅存储目录映射的结构
+        if "directories" in stored or "files" in stored:
+            dir_data = stored.get("directories", {})
+            file_data = stored.get("files", {})
+        else:
+            dir_data = stored
+            file_data = {}
+
+        self._manual_matches = {}
+        self._manual_file_matches = {}
+
+        for raw_path, info in dir_data.items():
+            norm = self._normalize_path(raw_path)
+            if not norm:
+                continue
+            payload = self._normalize_manual_entry(info, scope="directory")
+            if payload:
+                self._manual_matches[norm] = payload
+
+        for raw_path, info in file_data.items():
+            norm = self._normalize_path(raw_path)
+            if not norm:
+                continue
+            payload = self._normalize_manual_entry(info, scope="file")
+            if payload:
+                self._manual_file_matches[norm] = payload
+
+    @staticmethod
+    def _normalize_manual_entry(data: Any, scope: str) -> Optional[Dict[str, Any]]:
+        if not isinstance(data, dict):
+            return None
+        anime_id = data.get("animeId") or data.get("anime_id")
+        if anime_id is None:
+            return None
+        try:
+            anime_id = int(anime_id)
+        except (TypeError, ValueError):
+            return None
+        payload = dict(data)
+        payload["animeId"] = anime_id
+        payload.pop("anime_id", None)
+        payload["scope"] = scope
+        payload.setdefault("updatedAt", datetime.now().isoformat(timespec="seconds"))
+        return payload
+
+    @staticmethod
+    def _clone_manual_match(data: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if not data:
+            return None
+        return copy.deepcopy(data)
+
+    def _convert_legacy_id_file(self, directory: str) -> Optional[Dict[str, Any]]:
+        try:
+            for entry in os.listdir(directory):
+                if not entry.endswith('.id'):
+                    continue
+                legacy_path = os.path.join(directory, entry)
+                try:
+                    anime_id = int(os.path.splitext(entry)[0])
+                except (TypeError, ValueError):
+                    logger.warning(f"忽略无法解析的ID文件: {legacy_path}")
+                    continue
+                match_info = {
+                    "animeId": int(anime_id),
+                    "source": "legacy-id-file",
+                    "updatedAt": datetime.now().isoformat(timespec="seconds")
+                }
+                self._write_manual_match_file(directory, match_info)
+                try:
+                    os.remove(legacy_path)
+                    logger.info(f"已转换旧的ID文件并删除: {legacy_path}")
+                except Exception as e:
+                    logger.warning(f"删除旧ID文件失败: {e}")
+                return match_info
+        except FileNotFoundError:
+            return None
+        except Exception as e:
+            logger.warning(f"转换旧ID文件失败: {e}")
+        return None
+
+    def _write_manual_match_file(self, directory: str, data: Dict[str, Any]):
+        if not directory:
+            return
+        try:
+            generator.DanmuAPI._write_manual_mapping(directory, data)
+        except AttributeError:
+            # 回退写入逻辑
+            try:
+                os.makedirs(directory, exist_ok=True)
+                anime_id = data.get("animeId") or data.get("anime_id")
+                if anime_id is None:
+                    return
+                payload = dict(data)
+                payload["animeId"] = int(anime_id)
+                payload.pop("anime_id", None)
+                payload["scope"] = "directory"
+                payload.setdefault("updatedAt", datetime.now().isoformat(timespec="seconds"))
+                with open(self._manual_json_path(directory), 'w', encoding='utf-8') as f:
+                    json.dump(payload, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                logger.error(f"写入手动匹配文件失败: {e}")
+
+    def _update_manual_match_cache(self, directory: str, data: Optional[Dict[str, Any]]):
+        norm = self._normalize_path(directory)
+        if not norm:
+            return
+        if data:
+            payload = self._normalize_manual_entry(data, scope="directory")
+            if not payload:
+                return
+            self._manual_matches[norm] = payload
+        else:
+            self._manual_matches.pop(norm, None)
+        self._save_manual_state()
+
+    def _update_manual_file_match_cache(self, file_path: str, data: Optional[Dict[str, Any]]):
+        norm = self._normalize_path(file_path)
+        if not norm:
+            return
+        if data:
+            payload = self._normalize_manual_entry(data, scope="file")
+            if not payload:
+                return
+            self._manual_file_matches[norm] = payload
+        else:
+            self._manual_file_matches.pop(norm, None)
+        self._save_manual_state()
+
+    def _get_manual_match(self, directory: str) -> Optional[Dict[str, Any]]:
+        if not directory or not os.path.isdir(directory):
+            return None
+        norm = self._normalize_path(directory)
+        cached = self._manual_matches.get(norm)
+        if cached:
+            return self._clone_manual_match(cached)
+
+        manual_path = self._manual_json_path(directory)
+        if os.path.exists(manual_path):
+            try:
+                with open(manual_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                self._update_manual_match_cache(directory, data)
+                return self._clone_manual_match(self._manual_matches.get(norm))
+            except Exception as e:
+                logger.warning(f"读取手动匹配文件失败: {e}")
+
+        legacy = self._convert_legacy_id_file(directory)
+        if legacy:
+            self._update_manual_match_cache(directory, legacy)
+            return self._clone_manual_match(self._manual_matches.get(norm))
+
+        return None
+
+    def _get_manual_file_match(self, file_path: str) -> Optional[Dict[str, Any]]:
+        norm = self._normalize_path(file_path)
+        if not norm:
+            return None
+        cached = self._manual_file_matches.get(norm)
+        if cached:
+            return self._clone_manual_match(cached)
+        return None
+
+    def _resolve_manual_directory(self, file_path: Optional[str] = None, directory_path: Optional[str] = None) -> Optional[str]:
+        if directory_path:
+            return self._normalize_path(directory_path)
+        if file_path:
+            return self._normalize_path(os.path.dirname(file_path))
+        return None
     
     def _is_supported_file(self, file_path: str) -> bool:
         """检查文件是否支持处理"""
@@ -112,6 +313,8 @@ class Danmu(_PluginBase):
             except (json.JSONDecodeError, ValueError, TypeError) as e:
                 logger.warning(f"加载重试任务失败，使用空列表: {e}")
                 self._retry_tasks = {}
+        # 加载手动匹配缓存
+        self._load_manual_matches()
         if self._enabled:
             logger.info("弹幕加载插件已启用")
 
@@ -254,6 +457,30 @@ class Danmu(_PluginBase):
             "auth": "bear",
             "summary": "移除重试任务",
             "description": "移除指定的重试任务，需要file_path参数"
+        },
+        {
+            "path": "/search_anime",
+            "endpoint": self.search_anime,
+            "methods": ["GET"],
+            "auth": "bear",
+            "summary": "搜索弹弹番剧",
+            "description": "根据关键字搜索手动匹配候选"
+        },
+        {
+            "path": "/manual_match",
+            "endpoint": self.set_manual_match,
+            "methods": ["POST"],
+            "auth": "bear",
+            "summary": "保存手动匹配",
+            "description": "为目录保存手动匹配的弹弹作品"
+        },
+        {
+            "path": "/remove_manual_match",
+            "endpoint": self.remove_manual_match,
+            "methods": ["GET"],
+            "auth": "bear",
+            "summary": "移除手动匹配",
+            "description": "移除指定目录的手动匹配"
         }
         ]
      
@@ -360,7 +587,11 @@ class Danmu(_PluginBase):
             media_info = self.media_chain.recognize_media(meta=meta)
             if media_info:
                 tmdb_id = media_info.tmdb_id
-                episode = meta.episode.split('E')[1] if meta.episode else None
+                if meta.episode:
+                    try:
+                        episode = meta.episode.split('E')[-1]
+                    except Exception:
+                        episode = None
                 release_date = media_info.release_date
                 if release_date:
                     try:
@@ -372,6 +603,18 @@ class Danmu(_PluginBase):
                     except ValueError:
                         logger.warning(f"无效的发布日期格式: {release_date},使用默认缓存时间")
     
+        manual_comment_id = None
+        manual_file_match = self._get_manual_file_match(file_path)
+        if manual_file_match:
+            manual_comment_id = generator.DanmuAPI._compose_comment_id(
+                manual_file_match.get("animeId"),
+                episode
+            )
+            if manual_comment_id:
+                logger.info(f"使用单文件手动匹配ID: {manual_comment_id}")
+            else:
+                logger.warning(f"单文件手动匹配生成弹幕ID失败: {manual_file_match}")
+
         try:
             result = generator.danmu_generator(
                 file_path,
@@ -386,7 +629,8 @@ class Danmu(_PluginBase):
                 tmdb_id,
                 episode,
                 60 if use_short_cache_ttl else None,
-                self._screen_area
+                self._screen_area,
+                manual_comment_id=manual_comment_id
             )
             
             # 检查弹幕生成结果
@@ -634,7 +878,7 @@ class Danmu(_PluginBase):
             logger.error(f"计算弹幕数量失败: {e}")
             return 0
 
-    def scan_path(self, path: str = None, current_dir: str = None) -> Dict[str, Any]:
+    def scan_path(self, path: str = None, current_dir: str = None) -> schemas.Response:
         """
         扫描路径下的媒体文件和弹幕信息
         :param path: 配置的根路径
@@ -710,6 +954,21 @@ class Danmu(_PluginBase):
             "is_root": is_root,
             "children": []
         }
+        if os.path.isdir(path):
+            manual_dir_match = self._get_manual_match(path)
+            result["manual_match"] = manual_dir_match
+            result["manual_scope"] = manual_dir_match.get("scope") if manual_dir_match else None
+            result["directory_path"] = path
+        else:
+            manual_file_match = self._get_manual_file_match(path)
+            if manual_file_match:
+                result["manual_match"] = manual_file_match
+                result["manual_scope"] = manual_file_match.get("scope")
+            else:
+                parent_manual = self._get_manual_match(os.path.dirname(path))
+                result["manual_match"] = parent_manual
+                result["manual_scope"] = parent_manual.get("scope") if parent_manual else None
+            result["directory_path"] = os.path.dirname(path)
         
         try:
             # 如果是文件，直接返回文件信息
@@ -718,6 +977,7 @@ class Danmu(_PluginBase):
                 if self._is_supported_file(path):
                     logger.debug(f"{path} 是媒体文件")
                     result["type"] = "media"
+                    result["manual_match"] = self._get_manual_match(os.path.dirname(path))
                     # 检查是否存在对应的弹幕文件
                     ass_file = f"{os.path.splitext(path)[0]}.danmu.ass"
                     logger.debug(f"检查弹幕文件: {ass_file}")
@@ -773,6 +1033,10 @@ class Danmu(_PluginBase):
                     "type": "directory",
                     "children": []
                 }
+                manual_dir_match = self._get_manual_match(item_path)
+                child["manual_match"] = manual_dir_match
+                child["manual_scope"] = manual_dir_match.get("scope") if manual_dir_match else None
+                child["directory_path"] = item_path
                 result["children"].append(child)
             
             # 添加媒体文件到结果
@@ -785,6 +1049,15 @@ class Danmu(_PluginBase):
                     "type": "media",
                     "children": []
                 }
+                file_manual = self._get_manual_file_match(item_path)
+                if file_manual:
+                    child["manual_match"] = file_manual
+                    child["manual_scope"] = file_manual.get("scope")
+                else:
+                    dir_manual = self._get_manual_match(os.path.dirname(item_path))
+                    child["manual_match"] = dir_manual
+                    child["manual_scope"] = dir_manual.get("scope") if dir_manual else None
+                child["directory_path"] = os.path.dirname(item_path)
                 # 检查是否存在对应的弹幕文件
                 ass_file = f"{os.path.splitext(item_path)[0]}.danmu.ass"
                 logger.debug(f"检查弹幕文件: {ass_file}")
@@ -805,7 +1078,7 @@ class Danmu(_PluginBase):
             result["error"] = str(e)
             return result
 
-    def generate_danmu_single(self, file_path: str) -> Dict[str, Any]:
+    def generate_danmu_single(self, file_path: str) -> schemas.Response:
         """
         为单个文件生成弹幕
         :param file_path: 媒体文件路径
@@ -845,7 +1118,144 @@ class Danmu(_PluginBase):
             logger.error(f"生成弹幕失败: {e}")
             return schemas.Response(success=False, message=f"生成弹幕失败: {str(e)}")
 
-    def scan_subfolder(self, subfolder_path: str = None) -> Dict[str, Any]:
+    def search_anime(self, keyword: Optional[str] = None, type: Optional[str] = None) -> schemas.Response:
+        """
+        搜索弹弹动漫
+        """
+        keyword = keyword.strip() if keyword else ""
+        if not keyword:
+            return schemas.Response(success=False, message="搜索关键字不能为空")
+
+        params = {"keyword": keyword}
+        if type and type != "all":
+            params["type"] = type
+
+        try:
+            response = requests.get(
+                f"{generator.DanmuAPI.BASE_URL}/search/anime",
+                params=params,
+                headers=generator.DanmuAPI.HEADERS,
+                timeout=15
+            )
+            if response.status_code != 200:
+                logger.error(f"搜索弹弹失败，HTTP {response.status_code}: {response.text}")
+                return schemas.Response(success=False, message=f"搜索失败: HTTP {response.status_code}")
+
+            data = response.json()
+            if not data.get("success", False):
+                message = data.get("errorMessage") or "搜索失败"
+                logger.warning(f"弹弹搜索返回失败: {message}")
+                return schemas.Response(success=False, message=message, data=data)
+
+            return schemas.Response(success=True, data=data)
+        except Exception as e:
+            logger.error(f"搜索弹弹动漫失败: {e}")
+            return schemas.Response(success=False, message=f"搜索失败: {str(e)}")
+
+    def set_manual_match(self, data: Dict[str, Any]) -> schemas.Response:
+        """
+        保存手动匹配结果
+        """
+        if not isinstance(data, dict):
+            return schemas.Response(success=False, message="请求数据无效")
+
+        file_path = data.get("file_path")
+        directory_path = data.get("directory")
+        scope = (data.get("scope") or "").lower()
+        anime = data.get("anime") or {}
+
+        if scope not in {"file", "directory"}:
+            scope = "directory" if directory_path or (file_path and data.get("directory")) else "file"
+
+        if scope == "file":
+            if not file_path:
+                return schemas.Response(success=False, message="缺少文件路径")
+        manual_dir = self._resolve_manual_directory(file_path=file_path, directory_path=directory_path)
+        if scope == "directory":
+            if not manual_dir:
+                return schemas.Response(success=False, message="无法确定手动匹配目录")
+            if not os.path.isdir(manual_dir):
+                return schemas.Response(success=False, message="匹配目录不存在，请刷新后重试")
+
+        anime_id = anime.get("animeId") or anime.get("anime_id")
+        if anime_id is None:
+            return schemas.Response(success=False, message="缺少animeId")
+
+        try:
+            anime_id = int(anime_id)
+        except (TypeError, ValueError):
+            return schemas.Response(success=False, message="animeId格式无效")
+
+        manual_info = {
+            "animeId": anime_id,
+            "animeTitle": anime.get("animeTitle"),
+            "imageUrl": anime.get("imageUrl"),
+            "type": anime.get("type"),
+            "typeDescription": anime.get("typeDescription"),
+            "episodeCount": anime.get("episodeCount"),
+            "rating": anime.get("rating"),
+            "startDate": anime.get("startDate"),
+            "source": "manual_file" if scope == "file" else "manual",
+            "updatedAt": datetime.now().isoformat(timespec="seconds")
+        }
+
+        try:
+            if scope == "file":
+                manual_info["scope"] = "file"
+                self._update_manual_file_match_cache(file_path, manual_info)
+                logger.info(f"单文件手动匹配已保存: {file_path} -> {anime_id}")
+            else:
+                manual_info["scope"] = "directory"
+                self._write_manual_match_file(manual_dir, manual_info)
+                self._update_manual_match_cache(manual_dir, manual_info)
+                logger.info(f"目录手动匹配已保存: {manual_dir} -> {anime_id}")
+            return schemas.Response(
+                success=True,
+                message="手动匹配已保存",
+                data={
+                    "directory": manual_dir if scope == "directory" else self._resolve_manual_directory(file_path=file_path),
+                    "file_path": file_path if scope == "file" else None,
+                    "manual_match": manual_info
+                }
+            )
+        except Exception as e:
+            logger.error(f"保存手动匹配失败: {e}")
+            return schemas.Response(success=False, message=f"保存失败: {str(e)}")
+
+    def remove_manual_match(self, file_path: Optional[str] = None, directory: Optional[str] = None,
+                             scope: Optional[str] = None) -> schemas.Response:
+        """
+        移除手动匹配
+        """
+        scope = (scope or "").lower()
+        if scope not in {"file", "directory"}:
+            scope = "file" if file_path and not directory else "directory"
+
+        if scope == "file":
+            norm = self._normalize_path(file_path)
+            if not norm:
+                return schemas.Response(success=False, message="未提供有效文件路径")
+            removed = self._manual_file_matches.pop(norm, None)
+            if removed:
+                self._save_manual_state()
+            return schemas.Response(success=True, message="单文件手动匹配已移除", data={"file_path": file_path})
+
+        manual_dir = self._resolve_manual_directory(file_path=file_path, directory_path=directory)
+        if not manual_dir:
+            return schemas.Response(success=False, message="未提供有效目录")
+
+        json_path = self._manual_json_path(manual_dir)
+        try:
+            if os.path.exists(json_path):
+                os.remove(json_path)
+                logger.info(f"已删除手动匹配文件: {json_path}")
+        except Exception as e:
+            logger.warning(f"删除手动匹配文件失败: {e}")
+
+        self._update_manual_match_cache(manual_dir, None)
+        return schemas.Response(success=True, message="目录手动匹配已移除", data={"directory": manual_dir})
+
+    def scan_subfolder(self, subfolder_path: str = None) -> schemas.Response:
         """
         专门用于扫描子文件夹的内容（点击式导航）
         :param subfolder_path: 子文件夹路径

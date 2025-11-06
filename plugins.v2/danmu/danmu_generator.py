@@ -5,7 +5,8 @@ import re
 import hashlib
 import subprocess
 import json
-from typing import Optional, Dict, List, Tuple
+from datetime import datetime
+from typing import Optional, Dict, List, Tuple, Any
 from dataclasses import dataclass
 from app.log import logger
 
@@ -56,7 +57,96 @@ class DanmuAPI:
         'Accept': 'application/json',
         "User-Agent": "Moviepilot/plugins 1.3.0"
     }
+    MANUAL_MATCH_FILE = ".dandan.anime.json"
 
+    @classmethod
+    def _manual_file_path(cls, directory: str) -> str:
+        return os.path.join(directory, cls.MANUAL_MATCH_FILE)
+
+    @staticmethod
+    def _normalize_episode(episode: Optional[int]) -> int:
+        try:
+            value = int(episode)
+        except (TypeError, ValueError):
+            value = 1
+        return value if value > 0 else 1
+
+    @classmethod
+    def _compose_comment_id(cls, anime_id: Any, episode: Optional[int]) -> Optional[str]:
+        try:
+            anime_id_int = int(anime_id)
+        except (TypeError, ValueError):
+            return None
+        episode_int = cls._normalize_episode(episode)
+        return str(anime_id_int * 10000 + episode_int)
+
+    @classmethod
+    def _write_manual_mapping(cls, directory: str, data: Dict[str, Any]) -> None:
+        if not directory:
+            return
+        anime_id = data.get("animeId") or data.get("anime_id")
+        if anime_id is None:
+            return
+        try:
+            anime_id_int = int(anime_id)
+        except (TypeError, ValueError):
+            logger.warning(f"手动匹配数据中的animeId无效: {anime_id}")
+            return
+        payload = dict(data)
+        payload["animeId"] = anime_id_int
+        payload.pop("anime_id", None)
+        payload.setdefault("updatedAt", datetime.now().isoformat(timespec="seconds"))
+        manual_path = cls._manual_file_path(directory)
+        try:
+            with open(manual_path, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            logger.info(f"已写入手动匹配文件: {manual_path}")
+        except Exception as e:
+            logger.error(f"写入手动匹配文件失败: {e}")
+
+    @classmethod
+    def _load_manual_mapping(cls, directory: str) -> Optional[Dict[str, Any]]:
+        if not directory or not os.path.isdir(directory):
+            return None
+
+        manual_path = cls._manual_file_path(directory)
+        if os.path.exists(manual_path):
+            try:
+                with open(manual_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                anime_id = data.get("animeId") or data.get("anime_id")
+                if anime_id is not None:
+                    return data
+            except Exception as e:
+                logger.warning(f"读取手动匹配文件失败: {e}")
+
+        # 兼容旧的 .id 文件
+        try:
+            for file in os.listdir(directory):
+                if not file.endswith('.id'):
+                    continue
+                legacy_path = os.path.join(directory, file)
+                try:
+                    anime_id = int(os.path.splitext(file)[0])
+                except (TypeError, ValueError):
+                    logger.warning(f"忽略无法解析的ID文件: {legacy_path}")
+                    continue
+                data = {
+                    "animeId": anime_id,
+                    "source": "legacy-id-file",
+                    "updatedAt": datetime.now().isoformat(timespec="seconds")
+                }
+                cls._write_manual_mapping(directory, data)
+                try:
+                    os.remove(legacy_path)
+                    logger.info(f"已转换旧的ID文件并移除: {legacy_path}")
+                except Exception as err:
+                    logger.warning(f"移除旧ID文件失败: {err}")
+                return data
+        except Exception as e:
+            logger.warning(f"检查手动匹配目录失败: {e}")
+
+        return None
     @staticmethod
     def calculate_md5_of_first_16MB(file_path: str) -> str:
         md5 = hashlib.md5()
@@ -173,14 +263,16 @@ class DanmuAPI:
                 video_duration=int(DanmuAPI.get_video_duration(file_path) or 0)
             )
             
-            # 检查当前目录下所有的 .id 文件
             video_dir = os.path.dirname(file_path)
-            for file in os.listdir(video_dir):
-                if file.endswith('.id'):
-                    id_file = os.path.join(video_dir, file)
-                    logger.info(f"找到弹幕ID文件 - {id_file}")
-                    fileID = str(int(os.path.splitext(file)[0]) * 10000 + int(episode))
-                    return fileID
+            manual_mapping = DanmuAPI._load_manual_mapping(video_dir)
+            if manual_mapping:
+                manual_comment = DanmuAPI._compose_comment_id(
+                    manual_mapping.get("animeId") or manual_mapping.get("anime_id"),
+                    episode
+                )
+                if manual_comment:
+                    logger.info(f"使用目录手动匹配ID: {manual_comment}")
+                    return manual_comment
             
             # 使用 match API
             url = f"{DanmuAPI.BASE_URL}/match"
@@ -555,14 +647,16 @@ class SubtitleProcessor:
             logger.error(f"合并字幕失败: {e}")
             return False
 
-def danmu_generator(file_path: str, width: int = 1920, height: int = 1080, 
-                   fontface: str = 'Arial', fontsize: float = 50, 
+def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
+                   fontface: str = 'Arial', fontsize: float = 50,
                    alpha: float = 0.8, duration: float = 6, onlyFromBili: bool = False,
                    use_tmdb_id: bool = False, tmdb_id: Optional[int] = None,
                    episode: Optional[int] = None, cache_ttl: Optional[int] = None,
-                   screen_area: str = 'full') -> Optional[str]:
+                   screen_area: str = 'full', manual_comment_id: Optional[str] = None) -> Optional[str]:
     try:
-        comment_id = DanmuAPI.get_comment_id(file_path, use_tmdb_id, tmdb_id, episode, cache_ttl)
+        comment_id = manual_comment_id or DanmuAPI.get_comment_id(
+            file_path, use_tmdb_id, tmdb_id, episode, cache_ttl
+        )
         if not comment_id:
             logger.info(f"未找到对应弹幕 - {file_path}")
             return "未找到对应弹幕"
@@ -616,4 +710,3 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
     except Exception as e:
         logger.error(f"生成弹幕失败: {e}")
         return f"生成弹幕失败: {str(e)}"
-
