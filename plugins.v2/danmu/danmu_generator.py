@@ -365,16 +365,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         )
 
     @staticmethod
-    def find_non_overlapping_track(tracks: Dict[int, float], current_time: float, max_tracks: int) -> int:
-        possible_track = 1
-        last_time_remain = 100.0
+    def find_non_overlapping_track(tracks: Dict[int, float], current_time: float, max_tracks: int) -> Optional[int]:
         for track in range(1, max_tracks + 1):
             if track not in tracks or current_time >= tracks[track]:
                 return track
-            time_remain = float(tracks[track]) - current_time
-            if time_remain > last_time_remain:
-                possible_track = track
-        return possible_track
+        # 所有轨道都被占用时返回None，避免强行使用忙碌轨道导致重叠
+        return None
 
     @classmethod
     def convert_comments_to_ass(cls, comments: List[Dict], output_file: str, width: int, 
@@ -401,7 +397,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         logger.info(f"{output_file} - 共匹配到{len(comments)}条弹幕。")
         
-        with open(output_file, 'w', encoding='utf-8-sig') as f:
+        with open(output_file, 'w', encoding='utf-8') as f:
             cls.write_ass_head(f, width, height, fontface, fontsize, alpha, styleid)
             
             for comment in comments:
@@ -433,17 +429,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     
                     if pos == 1:  # 滚动弹幕
                         track_id = cls.find_non_overlapping_track(scrolling_tracks, timeline, max_tracks)
-                        # 检查轨道是否超出屏幕区域
-                        if track_id > max_tracks:
-                            continue  # 忽略超出区域的弹幕
+                        if track_id is None:
+                            continue  # 全部轨道占用，跳过避免重叠
                         scrolling_tracks[track_id] = timeline + leave_time
                         initial_y = (track_id - 1) * fontsize + 10
                         styles = f'\\move({width}, {initial_y}, {-len(text)*fontsize}, {initial_y})'
                     elif pos == 4:  # 底部弹幕
                         track_id = cls.find_non_overlapping_track(bottom_tracks, timeline, max_tracks)
-                        # 检查轨道是否超出屏幕区域
-                        if track_id > max_tracks:
-                            continue  # 忽略超出区域的弹幕
+                        if track_id is None:
+                            continue  # 全部轨道占用，跳过避免重叠
                         bottom_tracks[track_id] = timeline + duration
                         # 底部弹幕需要根据屏幕区域调整位置
                         if screen_area == 'half':
@@ -455,9 +449,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         styles = f'\\an2\\pos({width/2}, {bottom_y})'
                     elif pos == 5:  # 顶部弹幕
                         track_id = cls.find_non_overlapping_track(top_tracks, timeline, max_tracks)
-                        # 检查轨道是否超出屏幕区域
-                        if track_id > max_tracks:
-                            continue  # 忽略超出区域的弹幕
+                        if track_id is None:
+                            continue  # 全部轨道占用，跳过避免重叠
                         top_tracks[track_id] = timeline + duration
                         styles = f'\\an8\\pos({width/2}, {50 + (track_id - 1) * fontsize})'
                     else:
@@ -621,7 +614,8 @@ class SubtitleProcessor:
                     elements = line.split(',')
                     if len(elements) >= 3:
                         elements[2] = str(int(float(elements[2]) * fontSizeRatio))
-                        style_lines[i] = ','.join(elements)
+                    # 保持原描边/阴影不变，仅调整字号
+                    style_lines[i] = ','.join(elements)
 
                 events_start = sub2_content.find('[Events]')
                 if events_start == -1:
@@ -630,6 +624,28 @@ class SubtitleProcessor:
                 events_content = sub2_content[events_start + len('[Events]'):].strip()
                 output = os.path.splitext(sub2)[0] + ".withDanmu.ass"
                 
+                # 为原字幕事件追加柔和模糊标签，增强可读性
+                def _apply_blur(events_text: str, blur_value: int = 10) -> str:
+                    lines = []
+                    for line in events_text.splitlines():
+                        if not line.startswith('Dialogue:'):
+                            lines.append(line)
+                            continue
+                        parts = line.split(',', 9)
+                        if len(parts) < 10:
+                            lines.append(line)
+                            continue
+                        text = parts[9]
+                        if text.startswith('{'):
+                            text = '{\\blur' + str(blur_value) + text[1:]
+                        else:
+                            text = '{\\blur' + str(blur_value) + '}' + text
+                        parts[9] = text
+                        lines.append(','.join(parts))
+                    return '\n'.join(lines)
+
+                events_content_with_blur = _apply_blur(events_content, blur_value=10)
+
                 with open(output, 'w', encoding='utf-8-sig') as f:
                     f.write(sub1_content)
                     f.write('\n[V4+ Styles]\n')
@@ -637,7 +653,7 @@ class SubtitleProcessor:
                     f.write('\n')
                     f.write('\n'.join(style_lines))
                     f.write('\n[Events]\n')
-                    f.write(events_content)
+                    f.write(events_content_with_blur)
                 
                 return True
                 
