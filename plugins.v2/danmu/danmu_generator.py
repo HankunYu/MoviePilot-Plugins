@@ -625,7 +625,40 @@ class SubtitleProcessor:
                 output = os.path.splitext(sub2)[0] + ".withDanmu.ass"
                 
                 # 为原字幕事件追加柔和模糊标签，增强可读性
+                # 只对普通底部字幕添加blur，特效字幕（有定位标签或特殊样式名）不添加
                 def _apply_blur(events_text: str, blur_value: int = 10) -> str:
+                    # Position tags that indicate special subtitle (not regular bottom dialogue)
+                    # Note: \fad and \t are excluded as they're commonly used in normal dialogue
+                    effect_tags = (r'\pos', r'\move', r'\org', r'\clip', r'\iclip')
+                    # Style names that typically indicate effect/sign subtitles
+                    effect_style_keywords = ('sign', 'title', 'op', 'ed', 'screen', 'note',
+                                             'comment', 'insert', 'overlap', 'flashback',
+                                             'song', 'karaoke')
+
+                    def _is_effect_subtitle(style_name: str, text: str) -> bool:
+                        """Check if this is an effect subtitle that should not have blur"""
+                        # Check style name for effect keywords
+                        style_lower = style_name.lower()
+                        for keyword in effect_style_keywords:
+                            if keyword in style_lower:
+                                return True
+                        # Check for position/effect tags in text
+                        for tag in effect_tags:
+                            if tag in text:
+                                return True
+                        # Check for \an tag with non-bottom alignment (1,2,3 are bottom)
+                        an_match = re.search(r'\\an(\d)', text)
+                        if an_match and int(an_match.group(1)) > 3:
+                            return True
+                        # Check for legacy \a tag with non-bottom alignment
+                        # \a1,\a2,\a3 are bottom; \a5,\a6,\a7 are top; \a9,\a10,\a11 are middle
+                        a_match = re.search(r'\\a(\d+)', text)
+                        if a_match:
+                            a_val = int(a_match.group(1))
+                            if a_val not in (1, 2, 3):
+                                return True
+                        return False
+
                     lines = []
                     for line in events_text.splitlines():
                         if not line.startswith('Dialogue:'):
@@ -635,7 +668,15 @@ class SubtitleProcessor:
                         if len(parts) < 10:
                             lines.append(line)
                             continue
+
+                        style_name = parts[3] if len(parts) > 3 else ''
                         text = parts[9]
+
+                        # Skip blur for effect subtitles
+                        if _is_effect_subtitle(style_name, text):
+                            lines.append(line)
+                            continue
+
                         if text.startswith('{'):
                             text = '{\\blur' + str(blur_value) + text[1:]
                         else:

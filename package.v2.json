@@ -34,12 +34,13 @@
   "Danmu": {
     "name": "弹幕刮削",
     "description": "使用弹弹play平台生成弹幕的字幕文件，实现弹幕播放。支持屏幕区域选择、.strm流媒体文件处理。",
-    "version": "1.6.1",
+    "version": "1.6.2",
     "icon": "https://raw.githubusercontent.com/HankunYu/MoviePilot-Plugins/main/icons/danmu.png",
     "color": "#3B5E8E",
     "author": "hankun",
     "level": 1,
     "history": {
+      "v1.6.2": "优化blur标签逻辑,仅对普通底部字幕添加模糊效果,特效字幕保持原样.",
       "v1.6.1": "优化弹幕算法,移除BOM头修复兼容性问题,增加模糊标签提升字幕可读性.",
       "v1.6.0": "新增手动匹配，支持单文件匹配并自动复用目录设置",
       "v1.5.0": "新增弹幕屏幕区域选择功能(全屏/半屏/1/4屏)，新增.strm流媒体文件支持，优化字幕分辨率识别，隐藏宽度/高度参数",
