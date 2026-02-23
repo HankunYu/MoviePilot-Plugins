@@ -168,11 +168,17 @@ class DanmuAPI:
                 stderr=subprocess.PIPE,
                 stdout=subprocess.PIPE
             )
-            _, stderr = process.communicate()
-            
+            try:
+                _, stderr = process.communicate(timeout=120)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+                logger.error(f"获取视频时长超时(120s): {file_path}")
+                return None
+
             stderr = stderr.decode('utf-8', errors='ignore')
             duration_match = re.search(r"Duration: (\d+):(\d+):(\d+\.\d+)", stderr)
-            
+
             if duration_match:
                 hours, minutes, seconds = map(float, duration_match.groups())
                 return hours * 3600 + minutes * 60 + seconds
@@ -311,14 +317,17 @@ class DanmuAPI:
             return None
 
     @classmethod
-    def get_comments(cls, comment_id: str) -> Optional[Dict]:
+    def get_comments(cls, comment_id: str, cache_ttl: Optional[int] = None) -> Optional[Dict]:
         """
         获取弹幕内容
         :param comment_id: 弹幕ID
+        :param cache_ttl: 缓存时间（分钟），传给中转服务器控制缓存
         :return: 弹幕数据
         """
         try:
             url = f"{cls.BASE_URL}/{comment_id}?from_id=0&with_related=true&ch_convert=0"
+            if cache_ttl is not None:
+                url += f"&cache_ttl={cache_ttl}"
             response = requests.get(url, headers=cls.HEADERS)
             if response.status_code == 200:
                 return response.json()
@@ -541,14 +550,24 @@ class SubtitleProcessor:
     @staticmethod
     def find_subtitle_file(file_path: str) -> Optional[str]:
         filename = os.path.splitext(os.path.basename(file_path))[0]
+        ass_candidates = []
+        srt_candidates = []
         for root, _, files in os.walk(os.path.dirname(file_path)):
             for file in files:
-                if (file.endswith(('.srt', '.ass', '.ssa')) and 
-                    'danmu' not in file and 
-                    file.startswith(filename)):
-                    sub2 = os.path.join(root, file)
-                    logger.info(f"找到字幕文件 - {sub2}")
-                    return sub2
+                if 'danmu' in file or not file.startswith(filename):
+                    continue
+                full_path = os.path.join(root, file)
+                if file.endswith(('.ass', '.ssa')):
+                    ass_candidates.append(full_path)
+                elif file.endswith('.srt'):
+                    srt_candidates.append(full_path)
+        # Prefer .ass/.ssa over .srt for richer style information
+        if ass_candidates:
+            logger.info(f"找到字幕文件 - {ass_candidates[0]}")
+            return ass_candidates[0]
+        if srt_candidates:
+            logger.info(f"找到字幕文件 - {srt_candidates[0]}")
+            return srt_candidates[0]
         logger.info("没找到字幕文件")
         return None
     
@@ -559,51 +578,209 @@ class SubtitleProcessor:
         return not StrmProcessor.is_strm_file(file_path)
 
     @staticmethod
+    def _convert_srt_timestamp_to_ass(srt_ts: str) -> str:
+        """Convert SRT timestamp HH:MM:SS,mmm to ASS H:MM:SS.CC"""
+        srt_ts = srt_ts.strip().replace(',', '.')
+        parts = srt_ts.split(':')
+        if len(parts) != 3:
+            return '0:00:00.00'
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        sec_parts = parts[2].split('.')
+        seconds = int(sec_parts[0])
+        ms_str = sec_parts[1] if len(sec_parts) > 1 else '0'
+        ms_str = ms_str.ljust(3, '0')[:3]  # Normalize to exactly 3 digits
+        centiseconds = int(ms_str) // 10
+        return f'{hours}:{minutes:02d}:{seconds:02d}.{centiseconds:02d}'
+
+    @staticmethod
+    def _parse_srt_to_ass_events(srt_content: str, style_name: str) -> List[str]:
+        """Parse SRT content into ASS Dialogue lines"""
+        # Strip HTML tags commonly found in SRT
+        html_tag_re = re.compile(r'<[^>]+>')
+        timestamp_re = re.compile(
+            r'(\d+:\d{2}:\d{2}[,.]\d+)\s*-->\s*(\d+:\d{2}:\d{2}[,.]\d+)'
+        )
+
+        # Normalize line endings (handles \r\n and \r)
+        srt_content = srt_content.replace('\r\n', '\n').replace('\r', '\n')
+        blocks = re.split(r'\n\s*\n', srt_content.strip())
+        lines = []
+        for block in blocks:
+            block_lines = block.strip().splitlines()
+            if len(block_lines) < 2:
+                continue
+
+            ts_match = None
+            text_start = 0
+            for i, line in enumerate(block_lines):
+                ts_match = timestamp_re.search(line)
+                if ts_match:
+                    text_start = i + 1
+                    break
+
+            if not ts_match or text_start >= len(block_lines):
+                continue
+
+            start = SubtitleProcessor._convert_srt_timestamp_to_ass(ts_match.group(1))
+            end = SubtitleProcessor._convert_srt_timestamp_to_ass(ts_match.group(2))
+
+            # Join multiline text with ASS line break \N and strip HTML tags
+            text_parts = []
+            for tl in block_lines[text_start:]:
+                cleaned = html_tag_re.sub('', tl.strip())
+                if cleaned:
+                    text_parts.append(cleaned)
+            text = r'\N'.join(text_parts)
+
+            if text:
+                lines.append(
+                    f'Dialogue: 0,{start},{end},{style_name},,0,0,0,,{text}'
+                )
+        return lines
+
+    @staticmethod
+    def _generate_srt_ass_style(width: int, fontface: str, fontsize: float) -> str:
+        """Generate an ASS style line for SRT subtitles (white text, black border, bottom center)"""
+        return (
+            f'Style: SubtitleSRT, {fontface}, {fontsize:.0f}, '
+            f'&H00FFFFFF, &H00FFFFFF, &H00000000, &H80000000, '
+            f'0, 0, 0, 0, 100, 100, 0.00, 0.00, 1, '
+            f'{max(fontsize / 25.0, 1):.0f}, 0, 2, 20, 20, 20, 0'
+        )
+
+    @staticmethod
+    def _scale_ass_events(events_text: str, ratio_x: float, ratio_y: float) -> str:
+        """Scale absolute coordinates and inline font sizes in ASS Dialogue lines.
+
+        Handles: \\pos, \\org, \\move (first 4 coords), rectangular \\clip/\\iclip,
+        and inline \\fs overrides.  Does NOT touch vector clips or \\p drawing paths.
+        """
+
+        def _scale_coord_pair(m: re.Match) -> str:
+            """Scale a 2-arg tag like \\pos(x,y) or \\org(x,y)"""
+            tag = m.group(1)
+            x = float(m.group(2)) * ratio_x
+            y = float(m.group(3)) * ratio_y
+            return f'\\{tag}({x:.2f},{y:.2f})'
+
+        def _scale_move(m: re.Match) -> str:
+            """Scale \\move(x1,y1,x2,y2[,t1,t2]) — only scale the first 4 coords"""
+            x1 = float(m.group(1)) * ratio_x
+            y1 = float(m.group(2)) * ratio_y
+            x2 = float(m.group(3)) * ratio_x
+            y2 = float(m.group(4)) * ratio_y
+            rest = m.group(5)  # optional ",t1,t2" or empty
+            return f'\\move({x1:.2f},{y1:.2f},{x2:.2f},{y2:.2f}{rest})'
+
+        def _scale_rect_clip(m: re.Match) -> str:
+            """Scale rectangular \\clip(x1,y1,x2,y2) or \\iclip(...)"""
+            tag = m.group(1)  # "clip" or "iclip"
+            x1 = float(m.group(2)) * ratio_x
+            y1 = float(m.group(3)) * ratio_y
+            x2 = float(m.group(4)) * ratio_x
+            y2 = float(m.group(5)) * ratio_y
+            return f'\\{tag}({x1:.2f},{y1:.2f},{x2:.2f},{y2:.2f})'
+
+        def _scale_fs(m: re.Match) -> str:
+            """Scale inline \\fs (but not \\fsp, \\fscx, \\fscy)"""
+            size = float(m.group(1)) * ratio_y
+            return f'\\fs{size:.0f}'
+
+        # Pre-compile patterns
+        # \pos(x,y) or \org(x,y) — closing ')' is optional for malformed ASS
+        re_coord_pair = re.compile(
+            r'\\(pos|org)\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\)?'
+        )
+        # \move(x1,y1,x2,y2[,t1,t2]) — closing ')' is optional
+        re_move = re.compile(
+            r'\\move\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,'
+            r'\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*((?:,\s*-?[\d.]+\s*,\s*-?[\d.]+\s*)?)\)?'
+        )
+        # Rectangular \clip / \iclip with exactly 4 numeric args — closing ')' is optional
+        re_rect_clip = re.compile(
+            r'\\(i?clip)\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,'
+            r'\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\)?'
+        )
+        # Inline \fs followed by digits (not \fsp, \fscx, \fscy)
+        re_fs = re.compile(r'\\fs(\d+(?:\.\d+)?)(?![a-zA-Z])')
+
+        result_lines = []
+        for line in events_text.splitlines():
+            if not line.startswith('Dialogue:'):
+                result_lines.append(line)
+                continue
+
+            # Scale Dialogue margins (parts[5]=MarginL, [6]=MarginR, [7]=MarginV)
+            parts = line.split(',', 9)
+            if len(parts) >= 10:
+                for idx, ratio in ((5, ratio_x), (6, ratio_x), (7, ratio_y)):
+                    val = parts[idx].strip()
+                    if val and int(val) != 0:
+                        parts[idx] = str(int(int(val) * ratio))
+                line = ','.join(parts)
+
+            # Scale override tags in the Text field
+            line = re_coord_pair.sub(_scale_coord_pair, line)
+            line = re_move.sub(_scale_move, line)
+            line = re_rect_clip.sub(_scale_rect_clip, line)
+            line = re_fs.sub(_scale_fs, line)
+            result_lines.append(line)
+        return '\n'.join(result_lines)
+
+    @staticmethod
     def combine_sub_ass(sub1: str, sub2: str, video_file_path: str = None) -> bool:
         if not sub1 or not sub2:
             return False
-        
+
         try:
+            # If sub2 is already a merged file, use the original subtitle instead
+            sub2_base, sub2_ext = os.path.splitext(sub2)
+            if sub2_base.endswith('.withDanmu'):
+                original_sub2 = sub2_base[:-len('.withDanmu')] + sub2_ext
+                if os.path.exists(original_sub2):
+                    logger.info(f"检测到已合并字幕，使用原始字幕: {original_sub2}")
+                    sub2 = original_sub2
+                else:
+                    logger.warning(f"已合并字幕的原始文件不存在: {original_sub2}")
+                    return False
+
             with open(sub1, 'r', encoding='utf-8-sig') as f:
                 sub1_content = f.read()
-            
+
             with open(sub2, 'rb') as f:
                 raw_data = f.read()
                 result = chardet.detect(raw_data)
                 file_encoding = result['encoding']
-            
+
             with open(sub2, 'r', encoding=file_encoding) as f:
                 sub2_content = f.read()
                 
             if os.path.splitext(sub2)[1].lower() in ['.ass', '.ssa']:
-                # 获取弹幕文件的分辨率（这是正确的分辨率）
+                # Get PlayRes from both files to compute scaling ratios
                 sub1ResX = re.search(r"PlayResX:\s*(\d+)", sub1_content)
                 sub1ResY = re.search(r"PlayResY:\s*(\d+)", sub1_content)
-                
-                # 获取原字幕文件的分辨率（可能不准确）
                 sub2ResX = re.search(r"PlayResX:\s*(\d+)", sub2_content)
                 sub2ResY = re.search(r"PlayResY:\s*(\d+)", sub2_content)
-                
-                # 如果有视频文件路径，获取真实的视频分辨率
-                if video_file_path:
-                    video_width, video_height = SubtitleProcessor.get_video_resolution(video_file_path)
-                    logger.info(f"使用视频真实分辨率: {video_width}x{video_height}")
-                    
-                    # 修正字幕文件的分辨率信息
-                    if sub2ResX and sub2ResY:
-                        old_width = int(sub2ResX.group(1))
-                        old_height = int(sub2ResY.group(1))
-                        logger.info(f"原字幕分辨率: {old_width}x{old_height}")
-                        
-                        # 如果原字幕分辨率明显不对（比如小于视频分辨率的一半），使用视频分辨率
-                        if old_width < video_width // 2 or old_height < video_height // 2:
-                            logger.warning(f"检测到字幕分辨率异常，从 {old_width}x{old_height} 修正为 {video_width}x{video_height}")
-                            sub2_content = sub2_content.replace(f"PlayResX: {old_width}", f"PlayResX: {video_width}")
-                            sub2_content = sub2_content.replace(f"PlayResY: {old_height}", f"PlayResY: {video_height}")
 
-                fontSizeRatio = 1
-                if sub1ResX and sub2ResX:
-                    fontSizeRatio = int(sub1ResX.group(1)) / int(sub2ResX.group(1)) * 0.8
+                sub1_x = int(sub1ResX.group(1)) if sub1ResX else 1920
+                sub1_y = int(sub1ResY.group(1)) if sub1ResY else 1080
+                sub2_x = int(sub2ResX.group(1)) if sub2ResX else sub1_x
+                sub2_y = int(sub2ResY.group(1)) if sub2ResY else sub1_y
+
+                # Ratio to convert sub2 coordinates into sub1 coordinate space
+                ratio_x = sub1_x / sub2_x if sub2_x else 1.0
+                ratio_y = sub1_y / sub2_y if sub2_y else 1.0
+                need_scale = not (ratio_x == 1.0 and ratio_y == 1.0)
+
+                if need_scale:
+                    logger.info(
+                        f"字幕分辨率缩放: sub2 {sub2_x}x{sub2_y} -> sub1 {sub1_x}x{sub1_y}, "
+                        f"ratio={ratio_x:.4f}x{ratio_y:.4f}"
+                    )
+
+                # Font size ratio uses Y-axis (vertical scaling) with 0.8 shrink factor
+                fontSizeRatio = ratio_y * 0.8 if need_scale else 0.8
 
                 format_match = re.search(r"Format:.+", sub2_content)
                 if not format_match:
@@ -612,9 +789,22 @@ class SubtitleProcessor:
                 style_lines = re.findall(r'Style:.*', sub2_content)
                 for i, line in enumerate(style_lines):
                     elements = line.split(',')
-                    if len(elements) >= 3:
+                    if len(elements) >= 23:
+                        # Fontsize (idx 2) — scaled with 0.8 shrink factor
                         elements[2] = str(int(float(elements[2]) * fontSizeRatio))
-                    # 保持原描边/阴影不变，仅调整字号
+                        if need_scale:
+                            # Spacing (idx 13) — horizontal
+                            elements[13] = f'{float(elements[13]) * ratio_x:.2f}'
+                            # Outline (idx 16), Shadow (idx 17) — use Y ratio
+                            elements[16] = f'{float(elements[16]) * ratio_y:.2f}'
+                            elements[17] = f'{float(elements[17]) * ratio_y:.2f}'
+                            # MarginL (idx 19), MarginR (idx 20) — horizontal
+                            elements[19] = str(int(float(elements[19]) * ratio_x))
+                            elements[20] = str(int(float(elements[20]) * ratio_x))
+                            # MarginV (idx 21) — vertical
+                            elements[21] = str(int(float(elements[21]) * ratio_y))
+                    elif len(elements) >= 3:
+                        elements[2] = str(int(float(elements[2]) * fontSizeRatio))
                     style_lines[i] = ','.join(elements)
 
                 events_start = sub2_content.find('[Events]')
@@ -622,8 +812,15 @@ class SubtitleProcessor:
                     return False
 
                 events_content = sub2_content[events_start + len('[Events]'):].strip()
+
+                # Scale absolute coordinates if sub2 PlayRes differs from sub1
+                if need_scale:
+                    events_content = SubtitleProcessor._scale_ass_events(
+                        events_content, ratio_x, ratio_y
+                    )
+
                 output = os.path.splitext(sub2)[0] + ".withDanmu.ass"
-                
+
                 # 为原字幕事件追加柔和模糊标签，增强可读性
                 # 只对普通底部字幕添加blur，特效字幕（有定位标签或特殊样式名）不添加
                 def _apply_blur(events_text: str, blur_value: int = 10) -> str:
@@ -695,9 +892,49 @@ class SubtitleProcessor:
                     f.write('\n'.join(style_lines))
                     f.write('\n[Events]\n')
                     f.write(events_content_with_blur)
-                
+
                 return True
-                
+
+            elif os.path.splitext(sub2)[1].lower() == '.srt':
+                # Parse SRT and convert to ASS events
+                dialogue_lines = SubtitleProcessor._parse_srt_to_ass_events(
+                    sub2_content, 'SubtitleSRT'
+                )
+                if not dialogue_lines:
+                    logger.warning(f"SRT字幕解析为空: {sub2}")
+                    return False
+
+                # Get resolution from danmu file for style generation
+                sub1ResX = re.search(r"PlayResX:\s*(\d+)", sub1_content)
+                width = int(sub1ResX.group(1)) if sub1ResX else 1920
+                srt_style = SubtitleProcessor._generate_srt_ass_style(
+                    width, 'Arial', 50
+                )
+
+                # Apply blur to SRT dialogue lines
+                blurred_lines = []
+                for line in dialogue_lines:
+                    parts = line.split(',', 9)
+                    if len(parts) >= 10:
+                        text = parts[9]
+                        parts[9] = '{\\blur10}' + text
+                        blurred_lines.append(','.join(parts))
+                    else:
+                        blurred_lines.append(line)
+
+                output = os.path.splitext(sub2)[0] + ".withDanmu.ass"
+                with open(output, 'w', encoding='utf-8-sig') as f:
+                    f.write(sub1_content)
+                    f.write('\n[V4+ Styles]\n')
+                    f.write('Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n')
+                    f.write(srt_style)
+                    f.write('\n[Events]\n')
+                    f.write('Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n')
+                    f.write('\n'.join(blurred_lines))
+
+                logger.info(f"SRT字幕合并完成: {output}")
+                return True
+
             return False
             
         except Exception as e:
@@ -718,7 +955,7 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
             logger.info(f"未找到对应弹幕 - {file_path}")
             return "未找到对应弹幕"
 
-        comments_data = DanmuAPI.get_comments(comment_id)
+        comments_data = DanmuAPI.get_comments(comment_id, cache_ttl=cache_ttl)
         if not comments_data:
             return "未获取到弹幕数据"
 
