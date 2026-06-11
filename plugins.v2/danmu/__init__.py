@@ -31,7 +31,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.7.0"
+    plugin_version = "1.8.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -68,6 +68,10 @@ class Danmu(_PluginBase):
     _retry_tasks = {}
     _manual_matches: Dict[str, Dict[str, Any]] = {}
     _manual_file_matches: Dict[str, Dict[str, Any]] = {}
+    # Negative cache: directories confirmed to have no manual match (avoids repeated disk checks while browsing)
+    _manual_match_misses: set = set()
+    # Danmu line-count cache: {ass_path: (mtime_ns, size, count)} — skip re-reading unchanged files
+    _danmu_count_cache: Dict[str, Tuple[int, int, int]] = {}
     _manual_match_storage_key = "manual_matches"
 
     media_chain = MediaChain()
@@ -109,6 +113,7 @@ class Danmu(_PluginBase):
 
         self._manual_matches = {}
         self._manual_file_matches = {}
+        self._manual_match_misses = set()
 
         for raw_path, info in dir_data.items():
             norm = self._normalize_path(raw_path)
@@ -212,6 +217,7 @@ class Danmu(_PluginBase):
             self._manual_matches[norm] = payload
         else:
             self._manual_matches.pop(norm, None)
+        self._manual_match_misses.discard(norm)
         self._save_manual_state()
 
     def _update_manual_file_match_cache(self, file_path: str, data: Optional[Dict[str, Any]]):
@@ -227,13 +233,22 @@ class Danmu(_PluginBase):
             self._manual_file_matches.pop(norm, None)
         self._save_manual_state()
 
-    def _get_manual_match(self, directory: str) -> Optional[Dict[str, Any]]:
-        if not directory or not os.path.isdir(directory):
+    def _get_manual_match(self, directory: str, check_legacy: bool = True) -> Optional[Dict[str, Any]]:
+        """
+        获取目录的手动匹配信息
+        :param directory: 目录路径
+        :param check_legacy: 是否检查旧版.id文件（需要列目录，浏览场景应关闭）
+        """
+        if not directory:
             return None
         norm = self._normalize_path(directory)
         cached = self._manual_matches.get(norm)
         if cached:
             return self._clone_manual_match(cached)
+        if norm in self._manual_match_misses:
+            return None
+        if not os.path.isdir(directory):
+            return None
 
         manual_path = self._manual_json_path(directory)
         if os.path.exists(manual_path):
@@ -245,11 +260,13 @@ class Danmu(_PluginBase):
             except Exception as e:
                 logger.warning(f"读取手动匹配文件失败: {e}")
 
-        legacy = self._convert_legacy_id_file(directory)
-        if legacy:
-            self._update_manual_match_cache(directory, legacy)
-            return self._clone_manual_match(self._manual_matches.get(norm))
+        if check_legacy:
+            legacy = self._convert_legacy_id_file(directory)
+            if legacy:
+                self._update_manual_match_cache(directory, legacy)
+                return self._clone_manual_match(self._manual_matches.get(norm))
 
+        self._manual_match_misses.add(norm)
         return None
 
     def _get_manual_file_match(self, file_path: str) -> Optional[Dict[str, Any]]:
@@ -581,12 +598,17 @@ class Danmu(_PluginBase):
         meta = MetaInfo(file_path)
         tmdb_id = None
         episode = None
+        tmdb_id_type = 0
         release_date = None
         use_short_cache_ttl = False
         if self._useTmdbID:
             media_info = self.media_chain.recognize_media(meta=meta)
             if media_info:
                 tmdb_id = media_info.tmdb_id
+                # Matches dandanplay upstream tmdbIdType: 0 = TV series, 1 = movie
+                if media_info.type == MediaType.MOVIE:
+                    tmdb_id_type = 1
+                    logger.info(f"识别为电影，使用电影类型TMDB匹配: {tmdb_id}")
                 if meta.episode:
                     try:
                         episode = meta.episode.split('E')[-1]
@@ -630,7 +652,8 @@ class Danmu(_PluginBase):
                 episode,
                 60 if use_short_cache_ttl else None,
                 self._screen_area,
-                manual_comment_id=manual_comment_id
+                manual_comment_id=manual_comment_id,
+                tmdb_id_type=tmdb_id_type
             )
             
             # 检查弹幕生成结果
@@ -646,7 +669,7 @@ class Danmu(_PluginBase):
             
             # 检查生成的弹幕文件
             if os.path.exists(ass_file):
-                danmu_count = self.count_danmu_lines(ass_file)
+                danmu_count = self._count_danmu_lines_cached(ass_file)
                 logger.info(f"弹幕生成完成，弹幕数量: {danmu_count}")
                 
                 # 检查弹幕数量是否满足要求
@@ -859,6 +882,24 @@ class Danmu(_PluginBase):
         """
         pass
 
+    def _count_danmu_lines_cached(self, ass_file: str, stat_result: Optional[os.stat_result] = None) -> int:
+        """
+        带缓存的弹幕数量统计，文件未变化时直接返回缓存值，避免重复整文件读取
+        :param ass_file: 弹幕文件路径
+        :param stat_result: 已有的stat结果（来自os.scandir时避免重复stat）
+        :return: 弹幕数量
+        """
+        try:
+            st = stat_result or os.stat(ass_file)
+        except OSError:
+            return 0
+        cached = self._danmu_count_cache.get(ass_file)
+        if cached and cached[0] == st.st_mtime_ns and cached[1] == st.st_size:
+            return cached[2]
+        count = self.count_danmu_lines(ass_file)
+        self._danmu_count_cache[ass_file] = (st.st_mtime_ns, st.st_size, count)
+        return count
+
     def count_danmu_lines(self, ass_file: str) -> int:
         """
         计算弹幕文件中的弹幕数量
@@ -897,7 +938,7 @@ class Danmu(_PluginBase):
             
         if not path:
             logger.debug("未设置扫描路径，返回错误")
-            return schemas.Response(success=False, message="路径不存在")
+            return schemas.Response(success=False, message="未配置刮削路径")
         
         # 处理多路径情况
         paths = [p.strip() for p in path.split('\n') if p.strip()]
@@ -955,7 +996,7 @@ class Danmu(_PluginBase):
             "children": []
         }
         if os.path.isdir(path):
-            manual_dir_match = self._get_manual_match(path)
+            manual_dir_match = self._get_manual_match(path, check_legacy=False)
             result["manual_match"] = manual_dir_match
             result["manual_scope"] = manual_dir_match.get("scope") if manual_dir_match else None
             result["directory_path"] = path
@@ -965,11 +1006,11 @@ class Danmu(_PluginBase):
                 result["manual_match"] = manual_file_match
                 result["manual_scope"] = manual_file_match.get("scope")
             else:
-                parent_manual = self._get_manual_match(os.path.dirname(path))
+                parent_manual = self._get_manual_match(os.path.dirname(path), check_legacy=False)
                 result["manual_match"] = parent_manual
                 result["manual_scope"] = parent_manual.get("scope") if parent_manual else None
             result["directory_path"] = os.path.dirname(path)
-        
+
         try:
             # 如果是文件，直接返回文件信息
             if os.path.isfile(path):
@@ -977,27 +1018,21 @@ class Danmu(_PluginBase):
                 if self._is_supported_file(path):
                     logger.debug(f"{path} 是媒体文件")
                     result["type"] = "media"
-                    result["manual_match"] = self._get_manual_match(os.path.dirname(path))
+                    result["manual_match"] = self._get_manual_match(os.path.dirname(path), check_legacy=False)
                     # 检查是否存在对应的弹幕文件
                     ass_file = f"{os.path.splitext(path)[0]}.danmu.ass"
-                    logger.debug(f"检查弹幕文件: {ass_file}")
-                    if os.path.exists(ass_file):
-                        danmu_count = self.count_danmu_lines(ass_file)
-                        result["danmu_count"] = danmu_count
-                        logger.debug(f"找到弹幕文件，数量: {danmu_count}")
-                    else:
-                        result["danmu_count"] = 0
-                        logger.debug("未找到弹幕文件")
+                    result["danmu_count"] = self._count_danmu_lines_cached(ass_file)
                 return result
-                
+
             # 扫描目录的直接子项
             logger.debug(f"{path} 是目录，开始扫描直接子项")
-            media_count = 0
-            dir_count = 0
-            
+
             try:
-                items = os.listdir(path)
-                logger.debug(f"{path} 目录中共有 {len(items)} 个项目")
+                # 单次scandir同时拿到名称和类型，避免每个条目重复stat
+                with os.scandir(path) as it:
+                    # 跳过隐藏文件和系统文件
+                    entries = [e for e in it if not e.name.startswith('.')]
+                logger.debug(f"{path} 目录中共有 {len(entries)} 个项目")
             except PermissionError:
                 logger.warning(f"无权限访问目录: {path}")
                 result["error"] = "无权限访问该目录"
@@ -1006,71 +1041,68 @@ class Danmu(_PluginBase):
                 logger.warning(f"列出目录内容失败: {path}, 错误: {str(e)}")
                 result["error"] = f"列出目录内容失败: {str(e)}"
                 return result
-            
+
             # 先处理目录，再处理文件
+            entry_map = {e.name: e for e in entries}
             directories = []
             files = []
-            
-            for item in items:
-                # 跳过隐藏文件和系统文件
-                if item.startswith('.'):
+
+            for entry in entries:
+                try:
+                    if entry.is_dir():
+                        directories.append(entry)
+                    elif entry.is_file() and self._is_supported_file(entry.path):
+                        files.append(entry)
+                except OSError:
                     continue
-                    
-                item_path = os.path.join(path, item)
-                
-                if os.path.isdir(item_path):
-                    directories.append((item, item_path))
-                elif os.path.isfile(item_path) and self._is_supported_file(item_path):
-                    files.append((item, item_path))
-            
+
+            # 子文件的目录级手动匹配就是当前目录的匹配，直接复用，不再逐文件查询
+            current_dir_manual = result.get("manual_match")
+            current_dir_scope = result.get("manual_scope")
+
             # 添加目录到结果
-            for item, item_path in sorted(directories):
-                logger.debug(f"发现目录: {item_path}")
-                dir_count += 1
+            for entry in sorted(directories, key=lambda e: e.name):
                 child = {
-                    "name": item,
-                    "path": item_path,
+                    "name": entry.name,
+                    "path": entry.path,
                     "type": "directory",
                     "children": []
                 }
-                manual_dir_match = self._get_manual_match(item_path)
+                manual_dir_match = self._get_manual_match(entry.path, check_legacy=False)
                 child["manual_match"] = manual_dir_match
                 child["manual_scope"] = manual_dir_match.get("scope") if manual_dir_match else None
-                child["directory_path"] = item_path
+                child["directory_path"] = entry.path
                 result["children"].append(child)
-            
+
             # 添加媒体文件到结果
-            for item, item_path in sorted(files):
-                logger.debug(f"发现媒体文件: {item_path}")
-                media_count += 1
+            for entry in sorted(files, key=lambda e: e.name):
                 child = {
-                    "name": item,
-                    "path": item_path,
+                    "name": entry.name,
+                    "path": entry.path,
                     "type": "media",
                     "children": []
                 }
-                file_manual = self._get_manual_file_match(item_path)
+                file_manual = self._get_manual_file_match(entry.path)
                 if file_manual:
                     child["manual_match"] = file_manual
                     child["manual_scope"] = file_manual.get("scope")
                 else:
-                    dir_manual = self._get_manual_match(os.path.dirname(item_path))
-                    child["manual_match"] = dir_manual
-                    child["manual_scope"] = dir_manual.get("scope") if dir_manual else None
-                child["directory_path"] = os.path.dirname(item_path)
-                # 检查是否存在对应的弹幕文件
-                ass_file = f"{os.path.splitext(item_path)[0]}.danmu.ass"
-                logger.debug(f"检查弹幕文件: {ass_file}")
-                if os.path.exists(ass_file):
-                    danmu_count = self.count_danmu_lines(ass_file)
-                    child["danmu_count"] = danmu_count
-                    logger.debug(f"找到弹幕文件，数量: {danmu_count}")
+                    child["manual_match"] = current_dir_manual
+                    child["manual_scope"] = current_dir_scope
+                child["directory_path"] = path
+                # 弹幕文件与媒体同目录，用本次scandir结果判断存在性，避免逐文件stat
+                ass_name = f"{os.path.splitext(entry.name)[0]}.danmu.ass"
+                ass_entry = entry_map.get(ass_name)
+                if ass_entry is not None:
+                    try:
+                        child["danmu_count"] = self._count_danmu_lines_cached(ass_entry.path, ass_entry.stat())
+                    except OSError:
+                        child["danmu_count"] = 0
                 else:
                     child["danmu_count"] = 0
-                    logger.debug(f"未找到弹幕文件: {ass_file}")
                 result["children"].append(child)
-            
-            logger.debug(f"目录 {path} 扫描完成，发现 {media_count} 个媒体文件，{dir_count} 个子目录")
+
+            logger.debug(f"目录 {path} 扫描完成，发现 {len(files)} 个媒体文件，{len(directories)} 个子目录")
             return result
         except Exception as e:
             logger.error(f"扫描路径失败: {path}, 错误: {e}")
@@ -1102,7 +1134,7 @@ class Danmu(_PluginBase):
                 return schemas.Response(success=False, message=result)
             # 正常生成
             ass_file = f"{os.path.splitext(file_path)[0]}.danmu.ass"
-            danmu_count = self.count_danmu_lines(ass_file)
+            danmu_count = self._count_danmu_lines_cached(ass_file)
             logger.info(f"生成弹幕成功，弹幕数量: {danmu_count}")
             if danmu_count == 0:
                 return schemas.Response(success=False, message="弹幕数量为0 跳过生成")
@@ -1362,7 +1394,7 @@ class Danmu(_PluginBase):
                     # 检查弹幕文件是否满足要求
                     ass_file = f"{os.path.splitext(file_path)[0]}.danmu.ass"
                     if os.path.exists(ass_file):
-                        danmu_count = self.count_danmu_lines(ass_file)
+                        danmu_count = self._count_danmu_lines_cached(ass_file)
                         if danmu_count >= self._min_danmu_count:
                             success_count += 1
                             logger.info(f"重试成功: {file_path}，弹幕数量: {danmu_count}")

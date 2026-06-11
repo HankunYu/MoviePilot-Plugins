@@ -55,7 +55,7 @@ class DanmuAPI:
     BASE_URL = 'https://dandanapi.hankun.online/api/v1'
     HEADERS = {
         'Accept': 'application/json',
-        "User-Agent": "Moviepilot/plugins 1.3.0"
+        "User-Agent": "Moviepilot/plugins 1.8.0"
     }
     MANUAL_MATCH_FILE = ".dandan.anime.json"
 
@@ -196,18 +196,22 @@ class DanmuAPI:
             return 0
 
     @staticmethod
-    def search_by_tmdb_id(tmdb_id: int, episode: Optional[int] = None) -> Optional[str]:
+    def search_by_tmdb_id(tmdb_id: int, episode: Optional[int] = None,
+                          tmdb_id_type: int = 0) -> Optional[str]:
         """
         使用TMDB ID搜索弹幕
         :param tmdb_id: TMDB ID
         :param episode: 集数
+        :param tmdb_id_type: TMDB ID类型，0=电视剧，1=电影
         :return: 弹幕ID
         """
         try:
             url = f"{DanmuAPI.BASE_URL}/search/tmdb"
             data = {
-                "tmdb_id": tmdb_id
+                "tmdb_id": tmdb_id,
+                "tmdb_id_type": tmdb_id_type
             }
+            # Server requires episode but ignores it for movies (type=1)
             if episode is not None:
                 data["episode"] = episode
             else:
@@ -227,13 +231,14 @@ class DanmuAPI:
             return None
 
     @staticmethod
-    def get_comment_id(file_path: str, use_tmdb_id: bool = False, tmdb_id: Optional[int] = None, episode: Optional[int] = None, cache_ttl: Optional[int] = None) -> Optional[str]:
+    def get_comment_id(file_path: str, use_tmdb_id: bool = False, tmdb_id: Optional[int] = None, episode: Optional[int] = None, cache_ttl: Optional[int] = None, tmdb_id_type: int = 0) -> Optional[str]:
         """
         获取弹幕ID
         :param file_path: 视频文件路径
         :param use_tmdb_id: 是否使用TMDB ID
         :param tmdb_id: TMDB ID
         :param episode: 集数
+        :param tmdb_id_type: TMDB ID类型，0=电视剧，1=电影
         :return: 弹幕ID
         """
         try:
@@ -248,7 +253,7 @@ class DanmuAPI:
                 # 对于.strm文件，强制使用TMDB ID匹配
                 if tmdb_id is not None:
                     logger.info(f"为.strm文件使用TMDB ID匹配: {tmdb_id}")
-                    comment_id = DanmuAPI.search_by_tmdb_id(tmdb_id, episode)
+                    comment_id = DanmuAPI.search_by_tmdb_id(tmdb_id, episode, tmdb_id_type)
                     if comment_id:
                         return comment_id
                 else:
@@ -291,7 +296,7 @@ class DanmuAPI:
             
             # 如果使用TMDB ID且提供了TMDB ID，尝试使用TMDB ID匹配
             if use_tmdb_id and tmdb_id is not None:
-                comment_id = DanmuAPI.search_by_tmdb_id(tmdb_id, episode)
+                comment_id = DanmuAPI.search_by_tmdb_id(tmdb_id, episode, tmdb_id_type)
                 if comment_id:
                     return comment_id
             
@@ -728,6 +733,51 @@ class SubtitleProcessor:
             result_lines.append(line)
         return '\n'.join(result_lines)
 
+    # Style-name keywords that mark effect/sign subtitles (never blurred)
+    _EFFECT_STYLE_KEYWORDS = ('sign', 'title', 'op', 'ed', 'screen', 'note',
+                              'comment', 'insert', 'overlap', 'flashback',
+                              'song', 'karaoke', 'staff', 'logo')
+    # Inline tags that mark positioned/transformed lines.
+    # \fad/\fade are common in plain dialogue and intentionally NOT listed.
+    _EFFECT_TEXT_TAGS = ('\\pos', '\\move', '\\org', '\\clip', '\\iclip',
+                         '\\fr', '\\fax', '\\fay', '\\t(')
+    _RE_DRAWING_TAG = re.compile(r'\\p\d')      # \p1 drawing mode (\pos not matched: needs a digit)
+    _RE_KARAOKE_TAG = re.compile(r'\\[kK][fo]?\d')
+
+    @classmethod
+    def _is_effect_dialogue(cls, style_name: str, text: str) -> bool:
+        """
+        判断是否为特效字幕行（定位/旋转/变换/绘图/卡拉OK等），特效行不加blur
+        :param style_name: 样式名
+        :param text: 事件文本字段
+        """
+        style_lower = style_name.lower()
+        for keyword in cls._EFFECT_STYLE_KEYWORDS:
+            if keyword in style_lower:
+                return True
+        for tag in cls._EFFECT_TEXT_TAGS:
+            if tag in text:
+                return True
+        if cls._RE_DRAWING_TAG.search(text) or cls._RE_KARAOKE_TAG.search(text):
+            return True
+        # \an non-bottom alignment (1,2,3 are bottom)
+        an_match = re.search(r'\\an(\d)', text)
+        if an_match and int(an_match.group(1)) > 3:
+            return True
+        # Legacy \a non-bottom alignment
+        a_match = re.search(r'\\a(\d+)', text)
+        if a_match and int(a_match.group(1)) not in (1, 2, 3):
+            return True
+        return False
+
+    @staticmethod
+    def _resolve_playres(content: str) -> Tuple[Optional[int], Optional[int]]:
+        """从ASS内容中解析PlayResX/PlayResY，缺失的返回None"""
+        mx = re.search(r"PlayResX:\s*(\d+)", content)
+        my = re.search(r"PlayResY:\s*(\d+)", content)
+        return (int(mx.group(1)) if mx else None,
+                int(my.group(1)) if my else None)
+
     @staticmethod
     def combine_sub_ass(sub1: str, sub2: str, video_file_path: str = None) -> bool:
         if not sub1 or not sub2:
@@ -757,142 +807,196 @@ class SubtitleProcessor:
                 sub2_content = f.read()
                 
             if os.path.splitext(sub2)[1].lower() in ['.ass', '.ssa']:
-                # Get PlayRes from both files to compute scaling ratios
-                sub1ResX = re.search(r"PlayResX:\s*(\d+)", sub1_content)
-                sub1ResY = re.search(r"PlayResY:\s*(\d+)", sub1_content)
-                sub2ResX = re.search(r"PlayResX:\s*(\d+)", sub2_content)
-                sub2ResY = re.search(r"PlayResY:\s*(\d+)", sub2_content)
+                # Reverse-merge: the original subtitle is the base and is kept
+                # byte-identical (header, styles, events untouched except the
+                # optional blur tag on plain bottom dialogue). The danmu events
+                # are rescaled INTO the original subtitle's coordinate space —
+                # danmu is machine-generated (one style + \move/\pos only), so
+                # scaling it is fully reliable, unlike scaling hand-authored
+                # effect subtitles.
 
-                sub1_x = int(sub1ResX.group(1)) if sub1ResX else 1920
-                sub1_y = int(sub1ResY.group(1)) if sub1ResY else 1080
-                sub2_x = int(sub2ResX.group(1)) if sub2ResX else sub1_x
-                sub2_y = int(sub2ResY.group(1)) if sub2ResY else sub1_y
+                # Danmu resolution: we always write PlayRes into the danmu header
+                d_x, d_y = SubtitleProcessor._resolve_playres(sub1_content)
+                d_x, d_y = d_x or 1920, d_y or 1080
 
-                # Ratio to convert sub2 coordinates into sub1 coordinate space
-                ratio_x = sub1_x / sub2_x if sub2_x else 1.0
-                ratio_y = sub1_y / sub2_y if sub2_y else 1.0
+                # Original resolution per ASS spec: both missing -> 384x288,
+                # one missing -> derived from the other at 4:3
+                s_x, s_y = SubtitleProcessor._resolve_playres(sub2_content)
+                if s_x is None and s_y is None:
+                    s_x, s_y = 384, 288
+                elif s_x is None:
+                    s_x = round(s_y * 4 / 3)
+                elif s_y is None:
+                    s_y = round(s_x * 3 / 4)
+
+                ratio_x = s_x / d_x
+                ratio_y = s_y / d_y
                 need_scale = not (ratio_x == 1.0 and ratio_y == 1.0)
-
                 if need_scale:
                     logger.info(
-                        f"字幕分辨率缩放: sub2 {sub2_x}x{sub2_y} -> sub1 {sub1_x}x{sub1_y}, "
+                        f"弹幕坐标缩放: danmu {d_x}x{d_y} -> 原字幕 {s_x}x{s_y}, "
                         f"ratio={ratio_x:.4f}x{ratio_y:.4f}"
                     )
 
-                # Font size ratio uses Y-axis (vertical scaling) with 0.8 shrink factor
-                fontSizeRatio = ratio_y * 0.8 if need_scale else 0.8
-
-                format_match = re.search(r"Format:.+", sub2_content)
-                if not format_match:
+                # Extract the danmu style line and dialogue events
+                danmu_style_match = re.search(r'^Style:.*$', sub1_content, re.MULTILINE)
+                if not danmu_style_match:
+                    logger.error(f"弹幕文件中未找到样式行: {sub1}")
                     return False
+                danmu_style_line = danmu_style_match.group()
+                danmu_event_lines = [
+                    line for line in sub1_content.splitlines()
+                    if line.startswith('Dialogue:')
+                ]
 
-                style_lines = re.findall(r'Style:.*', sub2_content)
-                for i, line in enumerate(style_lines):
-                    elements = line.split(',')
-                    if len(elements) >= 23:
-                        # Fontsize (idx 2) — scaled with 0.8 shrink factor
-                        elements[2] = str(int(float(elements[2]) * fontSizeRatio))
-                        if need_scale:
-                            # Spacing (idx 13) — horizontal
-                            elements[13] = f'{float(elements[13]) * ratio_x:.2f}'
-                            # Outline (idx 16), Shadow (idx 17) — use Y ratio
-                            elements[16] = f'{float(elements[16]) * ratio_y:.2f}'
-                            elements[17] = f'{float(elements[17]) * ratio_y:.2f}'
-                            # MarginL (idx 19), MarginR (idx 20) — horizontal
-                            elements[19] = str(int(float(elements[19]) * ratio_x))
-                            elements[20] = str(int(float(elements[20]) * ratio_x))
-                            # MarginV (idx 21) — vertical
-                            elements[21] = str(int(float(elements[21]) * ratio_y))
-                    elif len(elements) >= 3:
-                        elements[2] = str(int(float(elements[2]) * fontSizeRatio))
-                    style_lines[i] = ','.join(elements)
-
-                events_start = sub2_content.find('[Events]')
-                if events_start == -1:
-                    return False
-
-                events_content = sub2_content[events_start + len('[Events]'):].strip()
-
-                # Scale absolute coordinates if sub2 PlayRes differs from sub1
                 if need_scale:
-                    events_content = SubtitleProcessor._scale_ass_events(
-                        events_content, ratio_x, ratio_y
-                    )
+                    # Danmu style: Fontsize (idx 2) and Outline (idx 16) follow Y axis
+                    fields = danmu_style_line.split(',')
+                    if len(fields) >= 17:
+                        fields[2] = f'{max(float(fields[2]) * ratio_y, 1):.0f}'
+                        fields[16] = f'{max(float(fields[16]) * ratio_y, 0.5):.2f}'
+                        danmu_style_line = ','.join(fields)
+                    danmu_event_lines = SubtitleProcessor._scale_ass_events(
+                        '\n'.join(danmu_event_lines), ratio_x, ratio_y
+                    ).splitlines()
+
+                # Rename the danmu style if it collides with an original style name
+                danmu_style_name = danmu_style_line.split(':', 1)[1].split(',')[0].strip()
+                sub2_style_names = {
+                    line.split(':', 1)[1].split(',')[0].strip()
+                    for line in re.findall(r'^Style:.*$', sub2_content, re.MULTILINE)
+                }
+                if danmu_style_name in sub2_style_names:
+                    new_name = danmu_style_name
+                    while new_name in sub2_style_names:
+                        new_name += '_MP'
+                    fields = danmu_style_line.split(',')
+                    fields[0] = f'Style: {new_name}'
+                    danmu_style_line = ','.join(fields)
+                    renamed = []
+                    for line in danmu_event_lines:
+                        parts = line.split(',', 9)
+                        if len(parts) >= 10:
+                            parts[3] = new_name
+                            renamed.append(','.join(parts))
+                        else:
+                            renamed.append(line)
+                    danmu_event_lines = renamed
+                    logger.info(f"弹幕样式名与原字幕冲突，重命名为: {new_name}")
+
+                # Locate the original subtitle's sections to find insertion
+                # points and collect per-style alignment for the blur filter
+                sub2_lines = sub2_content.splitlines()
+                section = None
+                styles_format_idx = None    # v4+ styles Format line (danmu style goes after it)
+                events_format_idx = None    # events Format line (danmu events go after it)
+                events_fields = None        # parsed events Format fields, lowercased
+                styles_fields = None
+                style_alignments = {}       # style name -> Alignment value
+
+                for i, raw in enumerate(sub2_lines):
+                    line = raw.strip()
+                    if line.startswith('[') and line.endswith(']'):
+                        section = line.lower()
+                        continue
+                    lower = line.lower()
+                    if section in ('[v4+ styles]', '[v4 styles]', '[v4++ styles]'):
+                        if lower.startswith('format:'):
+                            styles_fields = [f.strip().lower() for f in line.split(':', 1)[1].split(',')]
+                            # Only insert our v4+ style line into a v4+ section
+                            if section != '[v4 styles]' and styles_format_idx is None:
+                                styles_format_idx = i
+                        elif lower.startswith('style:') and styles_fields:
+                            values = line.split(':', 1)[1].split(',')
+                            try:
+                                name_i = styles_fields.index('name')
+                                align_i = styles_fields.index('alignment')
+                                style_alignments[values[name_i].strip()] = int(float(values[align_i]))
+                            except (ValueError, IndexError):
+                                pass
+                    elif section == '[events]':
+                        if lower.startswith('format:') and events_format_idx is None:
+                            events_fields = [f.strip().lower() for f in line.split(':', 1)[1].split(',')]
+                            events_format_idx = i
+
+                # Danmu events use the standard v4+ field order; if the original
+                # declares a different one, fall back to a separate [Events] section
+                standard_events = ['layer', 'start', 'end', 'style', 'name',
+                                   'marginl', 'marginr', 'marginv', 'effect', 'text']
+                events_insertable = events_fields == standard_events
+
+                def _blur_dialogue(raw_line: str) -> str:
+                    """为无特效的底部对白追加柔和模糊，提升纯白字幕在亮背景下的可读性"""
+                    if not events_fields or events_fields[-1] != 'text':
+                        return raw_line
+                    text_i = len(events_fields) - 1
+                    body = raw_line.split(':', 1)[1]
+                    parts = body.split(',', text_i)
+                    if len(parts) <= text_i:
+                        return raw_line
+                    style_name = parts[events_fields.index('style')].strip() \
+                        if 'style' in events_fields else ''
+                    effect_val = parts[events_fields.index('effect')].strip() \
+                        if 'effect' in events_fields else ''
+                    text = parts[text_i]
+                    # Skip: Banner/Scroll effects, non-bottom styles, effect lines
+                    if effect_val:
+                        return raw_line
+                    if style_alignments.get(style_name) not in (None, 1, 2, 3):
+                        return raw_line
+                    if SubtitleProcessor._is_effect_dialogue(style_name, text):
+                        return raw_line
+                    if text.startswith('{'):
+                        parts[text_i] = '{\\blur10' + text[1:]
+                    else:
+                        parts[text_i] = '{\\blur10}' + text
+                    return 'Dialogue:' + ','.join(parts)
+
+                # Assemble: original lines pass through untouched (blur aside),
+                # danmu style/events are inserted right after the Format lines
+                output_lines = []
+                in_events = False
+                style_inserted = False
+                events_inserted = False
+                for i, raw in enumerate(sub2_lines):
+                    stripped = raw.strip()
+                    if stripped.startswith('[') and stripped.endswith(']'):
+                        in_events = stripped.lower() == '[events]'
+                    if in_events and raw.startswith('Dialogue:'):
+                        output_lines.append(_blur_dialogue(raw))
+                    else:
+                        output_lines.append(raw)
+                    if i == styles_format_idx:
+                        output_lines.append(danmu_style_line)
+                        style_inserted = True
+                    if i == events_format_idx and events_insertable:
+                        output_lines.extend(danmu_event_lines)
+                        events_inserted = True
+
+                # Fallbacks for non-standard structures: append separate
+                # sections at the end (renderers merge same-named sections)
+                if not style_inserted:
+                    output_lines += [
+                        '', '[V4+ Styles]',
+                        'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, '
+                        'OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, '
+                        'ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, '
+                        'Alignment, MarginL, MarginR, MarginV, Encoding',
+                        danmu_style_line
+                    ]
+                if not events_inserted:
+                    output_lines += [
+                        '', '[Events]',
+                        'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text'
+                    ]
+                    output_lines += danmu_event_lines
 
                 output = os.path.splitext(sub2)[0] + ".withDanmu.ass"
-
-                # 为原字幕事件追加柔和模糊标签，增强可读性
-                # 只对普通底部字幕添加blur，特效字幕（有定位标签或特殊样式名）不添加
-                def _apply_blur(events_text: str, blur_value: int = 10) -> str:
-                    # Position tags that indicate special subtitle (not regular bottom dialogue)
-                    # Note: \fad and \t are excluded as they're commonly used in normal dialogue
-                    effect_tags = (r'\pos', r'\move', r'\org', r'\clip', r'\iclip')
-                    # Style names that typically indicate effect/sign subtitles
-                    effect_style_keywords = ('sign', 'title', 'op', 'ed', 'screen', 'note',
-                                             'comment', 'insert', 'overlap', 'flashback',
-                                             'song', 'karaoke')
-
-                    def _is_effect_subtitle(style_name: str, text: str) -> bool:
-                        """Check if this is an effect subtitle that should not have blur"""
-                        # Check style name for effect keywords
-                        style_lower = style_name.lower()
-                        for keyword in effect_style_keywords:
-                            if keyword in style_lower:
-                                return True
-                        # Check for position/effect tags in text
-                        for tag in effect_tags:
-                            if tag in text:
-                                return True
-                        # Check for \an tag with non-bottom alignment (1,2,3 are bottom)
-                        an_match = re.search(r'\\an(\d)', text)
-                        if an_match and int(an_match.group(1)) > 3:
-                            return True
-                        # Check for legacy \a tag with non-bottom alignment
-                        # \a1,\a2,\a3 are bottom; \a5,\a6,\a7 are top; \a9,\a10,\a11 are middle
-                        a_match = re.search(r'\\a(\d+)', text)
-                        if a_match:
-                            a_val = int(a_match.group(1))
-                            if a_val not in (1, 2, 3):
-                                return True
-                        return False
-
-                    lines = []
-                    for line in events_text.splitlines():
-                        if not line.startswith('Dialogue:'):
-                            lines.append(line)
-                            continue
-                        parts = line.split(',', 9)
-                        if len(parts) < 10:
-                            lines.append(line)
-                            continue
-
-                        style_name = parts[3] if len(parts) > 3 else ''
-                        text = parts[9]
-
-                        # Skip blur for effect subtitles
-                        if _is_effect_subtitle(style_name, text):
-                            lines.append(line)
-                            continue
-
-                        if text.startswith('{'):
-                            text = '{\\blur' + str(blur_value) + text[1:]
-                        else:
-                            text = '{\\blur' + str(blur_value) + '}' + text
-                        parts[9] = text
-                        lines.append(','.join(parts))
-                    return '\n'.join(lines)
-
-                events_content_with_blur = _apply_blur(events_content, blur_value=10)
-
                 with open(output, 'w', encoding='utf-8-sig') as f:
-                    f.write(sub1_content)
-                    f.write('\n[V4+ Styles]\n')
-                    f.write(format_match.group())
+                    f.write('\n'.join(output_lines))
                     f.write('\n')
-                    f.write('\n'.join(style_lines))
-                    f.write('\n[Events]\n')
-                    f.write(events_content_with_blur)
 
+                logger.info(f"字幕合并完成（原字幕保持原样）: {output}")
                 return True
 
             elif os.path.splitext(sub2)[1].lower() == '.srt':
@@ -946,10 +1050,11 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
                    alpha: float = 0.8, duration: float = 6, onlyFromBili: bool = False,
                    use_tmdb_id: bool = False, tmdb_id: Optional[int] = None,
                    episode: Optional[int] = None, cache_ttl: Optional[int] = None,
-                   screen_area: str = 'full', manual_comment_id: Optional[str] = None) -> Optional[str]:
+                   screen_area: str = 'full', manual_comment_id: Optional[str] = None,
+                   tmdb_id_type: int = 0) -> Optional[str]:
     try:
         comment_id = manual_comment_id or DanmuAPI.get_comment_id(
-            file_path, use_tmdb_id, tmdb_id, episode, cache_ttl
+            file_path, use_tmdb_id, tmdb_id, episode, cache_ttl, tmdb_id_type
         )
         if not comment_id:
             logger.info(f"未找到对应弹幕 - {file_path}")

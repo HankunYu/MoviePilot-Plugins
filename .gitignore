@@ -170,4 +170,5 @@ CLAUDE.md
 .claude/
 claude-*
 .claude-*
-plugins.v2/IdentifierHelper/node_modules
+# Frontend build dependencies (any plugin)
+node_modules/

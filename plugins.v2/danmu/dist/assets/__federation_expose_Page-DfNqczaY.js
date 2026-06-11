@@ -44,10 +44,18 @@ const _hoisted_25 = {
   key: 2,
   class: "text-center py-4"
 };
-const _hoisted_26 = { class: "text-caption text-grey mb-2" };
-const _hoisted_27 = { key: 0 };
-const _hoisted_28 = { key: 1 };
-const _hoisted_29 = { key: 2 };
+const _hoisted_26 = {
+  key: 3,
+  class: "text-center py-4"
+};
+const _hoisted_27 = {
+  key: 4,
+  class: "text-center py-4"
+};
+const _hoisted_28 = { class: "text-caption text-grey mb-2" };
+const _hoisted_29 = { key: 0 };
+const _hoisted_30 = { key: 1 };
+const _hoisted_31 = { key: 2 };
 
 const {ref,reactive,onMounted,onUnmounted,computed} = await importShared('vue');
 
@@ -93,6 +101,7 @@ const scrapingStatus = reactive({
 const directoryContent = ref(null);
 const currentPath = ref('');
 const loading = ref(false);
+const notConfigured = ref(false);
 const pathHistory = ref([]);
 
 // 搜索关键字
@@ -182,7 +191,8 @@ async function navigateToPath(path) {
   try {
     loading.value = true;
     error.value = null;
-    
+    notConfigured.value = false;
+
     // 如果是空路径，加载根目录
     if (!path) {
       const data = await props.api.get('plugin/Danmu/scan_path');
@@ -194,7 +204,12 @@ async function navigateToPath(path) {
           pathHistory.value = [];
         }
       } else {
-        error.value = data?.message || '加载根目录失败';
+        const msg = data?.message || '';
+        if (msg.includes('未配置')) {
+          notConfigured.value = true;
+        } else {
+          error.value = msg || '加载根目录失败';
+        }
       }
     } else {
       // 加载指定路径
@@ -451,9 +466,8 @@ async function clearManualMatch(item, scopeOverride = null, keepDialog = false) 
 
 // 初始化
 onMounted(async () => {
-  await getStatus();
-  // 加载根目录
-  await navigateToPath('');
+  // 状态与根目录并行加载
+  await Promise.all([getStatus(), navigateToPath('')]);
 });
 
 // 清理
@@ -887,33 +901,56 @@ return (_ctx, _cache) => {
                                       ]))
                                     : _createCommentVNode("", true)
                                 ]))
-                              : (!directoryContent.value && error.value)
+                              : (loading.value)
                                 ? (_openBlock(), _createElementBlock("div", _hoisted_24, [
-                                    _createVNode(_component_v_alert, {
-                                      type: "error",
-                                      density: "compact",
-                                      class: "mb-2 text-caption",
-                                      variant: "tonal"
-                                    }, {
-                                      default: _withCtx(() => [
-                                        _createTextVNode(_toDisplayString(error.value), 1)
-                                      ]),
-                                      _: 1
-                                    })
+                                    _createVNode(_component_v_progress_linear, {
+                                      indeterminate: "",
+                                      color: "primary",
+                                      class: "mb-2"
+                                    }),
+                                    _cache[23] || (_cache[23] = _createElementVNode("div", { class: "text-caption text-grey" }, "正在扫描目录，请稍候...", -1))
                                   ]))
-                                : (_openBlock(), _createElementBlock("div", _hoisted_25, [
-                                    _createVNode(_component_v_alert, {
-                                      type: "info",
-                                      density: "compact",
-                                      class: "mb-2 text-caption",
-                                      variant: "tonal"
-                                    }, {
-                                      default: _withCtx(() => _cache[23] || (_cache[23] = [
-                                        _createTextVNode(" 请先在配置中设置刮削路径 ")
-                                      ])),
-                                      _: 1
-                                    })
-                                  ]))
+                                : (notConfigured.value)
+                                  ? (_openBlock(), _createElementBlock("div", _hoisted_25, [
+                                      _createVNode(_component_v_alert, {
+                                        type: "info",
+                                        density: "compact",
+                                        class: "mb-2 text-caption",
+                                        variant: "tonal"
+                                      }, {
+                                        default: _withCtx(() => _cache[24] || (_cache[24] = [
+                                          _createTextVNode(" 请先在配置中设置刮削路径 ")
+                                        ])),
+                                        _: 1
+                                      })
+                                    ]))
+                                  : (error.value)
+                                    ? (_openBlock(), _createElementBlock("div", _hoisted_26, [
+                                        _createVNode(_component_v_alert, {
+                                          type: "error",
+                                          density: "compact",
+                                          class: "mb-2 text-caption",
+                                          variant: "tonal"
+                                        }, {
+                                          default: _withCtx(() => [
+                                            _createTextVNode(_toDisplayString(error.value), 1)
+                                          ]),
+                                          _: 1
+                                        })
+                                      ]))
+                                    : (_openBlock(), _createElementBlock("div", _hoisted_27, [
+                                        _createVNode(_component_v_alert, {
+                                          type: "info",
+                                          density: "compact",
+                                          class: "mb-2 text-caption",
+                                          variant: "tonal"
+                                        }, {
+                                          default: _withCtx(() => _cache[25] || (_cache[25] = [
+                                            _createTextVNode(" 请先在配置中设置刮削路径 ")
+                                          ])),
+                                          _: 1
+                                        })
+                                      ]))
                           ]),
                           _: 1
                         })
@@ -939,7 +976,7 @@ return (_ctx, _cache) => {
               variant: "text",
               size: "small"
             }, {
-              default: _withCtx(() => _cache[24] || (_cache[24] = [
+              default: _withCtx(() => _cache[26] || (_cache[26] = [
                 _createTextVNode("配置")
               ])),
               _: 1
@@ -952,7 +989,7 @@ return (_ctx, _cache) => {
               variant: "text",
               size: "small"
             }, {
-              default: _withCtx(() => _cache[25] || (_cache[25] = [
+              default: _withCtx(() => _cache[27] || (_cache[27] = [
                 _createTextVNode("关闭")
               ])),
               _: 1
@@ -972,14 +1009,14 @@ return (_ctx, _cache) => {
         _createVNode(_component_v_card, null, {
           default: _withCtx(() => [
             _createVNode(_component_v_card_title, { class: "text-subtitle-1" }, {
-              default: _withCtx(() => _cache[26] || (_cache[26] = [
+              default: _withCtx(() => _cache[28] || (_cache[28] = [
                 _createTextVNode(" 手动匹配弹幕 ")
               ])),
               _: 1
             }),
             _createVNode(_component_v_card_text, null, {
               default: _withCtx(() => [
-                _createElementVNode("div", _hoisted_26, " 当前选择：" + _toDisplayString(manualTargetItem.value?.name || '未选择文件'), 1),
+                _createElementVNode("div", _hoisted_28, " 当前选择：" + _toDisplayString(manualTargetItem.value?.name || '未选择文件'), 1),
                 (manualExistingMatch.value)
                   ? (_openBlock(), _createBlock(_component_v_alert, {
                       key: 0,
@@ -1061,7 +1098,7 @@ return (_ctx, _cache) => {
                           loading: manualSearchLoading.value,
                           onClick: performManualSearch
                         }, {
-                          default: _withCtx(() => _cache[27] || (_cache[27] = [
+                          default: _withCtx(() => _cache[29] || (_cache[29] = [
                             _createTextVNode(" 搜索 ")
                           ])),
                           _: 1
@@ -1119,7 +1156,7 @@ return (_ctx, _cache) => {
                       variant: "tonal",
                       class: "mb-2 text-caption"
                     }, {
-                      default: _withCtx(() => _cache[28] || (_cache[28] = [
+                      default: _withCtx(() => _cache[30] || (_cache[30] = [
                         _createTextVNode(" 未找到匹配结果，请调整关键字后再试。 ")
                       ])),
                       _: 1
@@ -1157,13 +1194,13 @@ return (_ctx, _cache) => {
                                 default: _withCtx(() => [
                                   _createTextVNode(_toDisplayString(anime.typeDescription || '未知类型') + " ", 1),
                                   (anime.episodeCount)
-                                    ? (_openBlock(), _createElementBlock("span", _hoisted_27, " · " + _toDisplayString(anime.episodeCount) + " 集", 1))
+                                    ? (_openBlock(), _createElementBlock("span", _hoisted_29, " · " + _toDisplayString(anime.episodeCount) + " 集", 1))
                                     : _createCommentVNode("", true),
                                   (anime.rating)
-                                    ? (_openBlock(), _createElementBlock("span", _hoisted_28, " · 评分 " + _toDisplayString(anime.rating), 1))
+                                    ? (_openBlock(), _createElementBlock("span", _hoisted_30, " · 评分 " + _toDisplayString(anime.rating), 1))
                                     : _createCommentVNode("", true),
                                   (anime.startDate)
-                                    ? (_openBlock(), _createElementBlock("span", _hoisted_29, " · " + _toDisplayString(formatDate(anime.startDate)), 1))
+                                    ? (_openBlock(), _createElementBlock("span", _hoisted_31, " · " + _toDisplayString(formatDate(anime.startDate)), 1))
                                     : _createCommentVNode("", true)
                                 ]),
                                 _: 2
@@ -1188,7 +1225,7 @@ return (_ctx, _cache) => {
                       variant: "text",
                       onClick: _cache[9] || (_cache[9] = $event => (clearManualMatch(manualTargetItem.value, manualExistingScope.value || (manualTargetItem.value?.type === 'directory' ? 'directory' : 'file'), true)))
                     }, {
-                      default: _withCtx(() => _cache[29] || (_cache[29] = [
+                      default: _withCtx(() => _cache[31] || (_cache[31] = [
                         _createTextVNode(" 清除匹配 ")
                       ])),
                       _: 1
@@ -1199,7 +1236,7 @@ return (_ctx, _cache) => {
                   variant: "text",
                   onClick: closeManualDialog
                 }, {
-                  default: _withCtx(() => _cache[30] || (_cache[30] = [
+                  default: _withCtx(() => _cache[32] || (_cache[32] = [
                     _createTextVNode("取消")
                   ])),
                   _: 1
@@ -1210,7 +1247,7 @@ return (_ctx, _cache) => {
                   loading: manualSaving.value,
                   onClick: confirmManualMatch
                 }, {
-                  default: _withCtx(() => _cache[31] || (_cache[31] = [
+                  default: _withCtx(() => _cache[33] || (_cache[33] = [
                     _createTextVNode(" 保存 ")
                   ])),
                   _: 1
@@ -1229,6 +1266,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-3bacb9fc"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-7bf5842a"]]);
 
 export { Page as default };

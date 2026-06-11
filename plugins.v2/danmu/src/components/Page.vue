@@ -195,12 +195,25 @@
                   </div>
                 </div>
                 
+                <!-- 初次加载中 -->
+                <div v-else-if="loading" class="text-center py-4">
+                  <v-progress-linear indeterminate color="primary" class="mb-2"></v-progress-linear>
+                  <div class="text-caption text-grey">正在扫描目录，请稍候...</div>
+                </div>
+
+                <!-- 未设置路径提示 -->
+                <div v-else-if="notConfigured" class="text-center py-4">
+                  <v-alert type="info" density="compact" class="mb-2 text-caption" variant="tonal">
+                    请先在配置中设置刮削路径
+                  </v-alert>
+                </div>
+
                 <!-- 错误提示 -->
-                <div v-else-if="!directoryContent && error" class="text-center py-4">
+                <div v-else-if="error" class="text-center py-4">
                   <v-alert type="error" density="compact" class="mb-2 text-caption" variant="tonal">{{ error }}</v-alert>
                 </div>
-                
-                <!-- 未设置路径提示 -->
+
+                <!-- 默认提示 -->
                 <div v-else class="text-center py-4">
                   <v-alert type="info" density="compact" class="mb-2 text-caption" variant="tonal">
                     请先在配置中设置刮削路径
@@ -401,6 +414,7 @@ const scrapingStatus = reactive({
 const directoryContent = ref(null);
 const currentPath = ref('');
 const loading = ref(false);
+const notConfigured = ref(false);
 const pathHistory = ref([]);
 
 // 搜索关键字
@@ -490,7 +504,8 @@ async function navigateToPath(path) {
   try {
     loading.value = true;
     error.value = null;
-    
+    notConfigured.value = false;
+
     // 如果是空路径，加载根目录
     if (!path) {
       const data = await props.api.get('plugin/Danmu/scan_path');
@@ -502,7 +517,12 @@ async function navigateToPath(path) {
           pathHistory.value = [];
         }
       } else {
-        error.value = data?.message || '加载根目录失败';
+        const msg = data?.message || '';
+        if (msg.includes('未配置')) {
+          notConfigured.value = true;
+        } else {
+          error.value = msg || '加载根目录失败';
+        }
       }
     } else {
       // 加载指定路径
@@ -759,9 +779,8 @@ async function clearManualMatch(item, scopeOverride = null, keepDialog = false) 
 
 // 初始化
 onMounted(async () => {
-  await getStatus();
-  // 加载根目录
-  await navigateToPath('');
+  // 状态与根目录并行加载
+  await Promise.all([getStatus(), navigateToPath('')]);
 });
 
 // 清理
