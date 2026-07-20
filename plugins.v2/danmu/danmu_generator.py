@@ -55,9 +55,12 @@ class DanmuAPI:
     BASE_URL = 'https://dandanapi.hankun.online/api/v1'
     HEADERS = {
         'Accept': 'application/json',
-        "User-Agent": "Moviepilot/plugins 1.8.0"
+        "User-Agent": "Moviepilot/plugins 1.9.0"
     }
     MANUAL_MATCH_FILE = ".dandan.anime.json"
+    # (connect, read) timeout for all dandan API calls; without this a hung
+    # request blocks a worker thread forever and stalls batch scraping
+    TIMEOUT = (10, 60)
 
     @classmethod
     def _manual_file_path(cls, directory: str) -> str:
@@ -70,6 +73,24 @@ class DanmuAPI:
         except (TypeError, ValueError):
             value = 1
         return value if value > 0 else 1
+
+    @staticmethod
+    def _apply_episode_offset(episode: Optional[int], offset: Any) -> Optional[int]:
+        """
+        Shift local episode number to the dandanplay-side numbering.
+        Local episode + offset = dandanplay episode, clamped to >= 1.
+        """
+        try:
+            offset_int = int(offset)
+        except (TypeError, ValueError):
+            return episode
+        if offset_int == 0:
+            return episode
+        try:
+            episode_int = int(episode)
+        except (TypeError, ValueError):
+            episode_int = 1
+        return max(1, episode_int + offset_int)
 
     @classmethod
     def _compose_comment_id(cls, anime_id: Any, episode: Optional[int]) -> Optional[str]:
@@ -216,7 +237,8 @@ class DanmuAPI:
                 data["episode"] = episode
             else:
                 data["episode"] = 1
-            response = requests.post(url, json=data, headers=DanmuAPI.HEADERS)
+            response = requests.post(url, json=data, headers=DanmuAPI.HEADERS,
+                                     timeout=DanmuAPI.TIMEOUT)
             if response.status_code == 200:
                 result = response.json()
                 if result.get("success") and not result.get("hasMore"):
@@ -277,9 +299,12 @@ class DanmuAPI:
             video_dir = os.path.dirname(file_path)
             manual_mapping = DanmuAPI._load_manual_mapping(video_dir)
             if manual_mapping:
+                manual_episode = DanmuAPI._apply_episode_offset(
+                    episode, manual_mapping.get("episodeOffset")
+                )
                 manual_comment = DanmuAPI._compose_comment_id(
                     manual_mapping.get("animeId") or manual_mapping.get("anime_id"),
-                    episode
+                    manual_episode
                 )
                 if manual_comment:
                     logger.info(f"使用目录手动匹配ID: {manual_comment}")
@@ -287,7 +312,8 @@ class DanmuAPI:
             
             # 使用 match API
             url = f"{DanmuAPI.BASE_URL}/match"
-            response = requests.post(url, json=video_info.__dict__, headers=DanmuAPI.HEADERS)
+            response = requests.post(url, json=video_info.__dict__, headers=DanmuAPI.HEADERS,
+                                     timeout=DanmuAPI.TIMEOUT)
             
             if response.status_code == 200:
                 result = response.json()
@@ -333,7 +359,7 @@ class DanmuAPI:
             url = f"{cls.BASE_URL}/{comment_id}?from_id=0&with_related=true&ch_convert=0"
             if cache_ttl is not None:
                 url += f"&cache_ttl={cache_ttl}"
-            response = requests.get(url, headers=cls.HEADERS)
+            response = requests.get(url, headers=cls.HEADERS, timeout=cls.TIMEOUT)
             if response.status_code == 200:
                 return response.json()
             logger.error(f"获取弹幕失败: {response.text}")

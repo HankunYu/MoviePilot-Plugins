@@ -90,6 +90,19 @@
               class="search-field"
               style="max-width: 200px;"
             ></v-text-field>
+            <v-btn
+              v-if="currentPath && directoryContent && directoryContent.type === 'directory'"
+              color="primary"
+              size="small"
+              variant="tonal"
+              class="ml-2"
+              prepend-icon="mdi-download-multiple"
+              :loading="batchStarting"
+              :disabled="scrapingStatus.running"
+              @click="scrapeCurrentDirectory"
+            >
+              刮削本目录
+            </v-btn>
           </v-card-title>
           <v-card-text class="px-3 py-2">
             <v-row>
@@ -127,6 +140,15 @@
                           {{ manualChipText(item) }}
                         </v-chip>
                       </div>
+                      <v-btn
+                        icon="mdi-download-multiple"
+                        size="small"
+                        variant="text"
+                        color="primary"
+                        class="mr-1"
+                        :disabled="scrapingStatus.running"
+                        @click.stop="scrapeDirectory(item.path)"
+                      ></v-btn>
                       <v-btn
                         icon="mdi-magnify"
                         size="small"
@@ -251,6 +273,7 @@
             class="mb-2 text-caption"
           >
             已匹配（{{ scopeLabel(manualExistingScope) }}）：{{ manualExistingMatch.animeTitle || `ID ${manualExistingMatch.animeId}` }}
+            <span v-if="manualExistingOffset">（集数偏移 {{ formatOffset(manualExistingOffset) }}）</span>
           </v-alert>
           <v-alert
             v-if="manualSearchError"
@@ -315,6 +338,19 @@
                 <v-radio label="仅当前文件" value="file"></v-radio>
                 <v-radio label="整目录" value="directory"></v-radio>
               </v-radio-group>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col cols="12" md="5">
+              <v-text-field
+                v-model="manualEpisodeOffset"
+                label="集数偏移"
+                type="number"
+                density="compact"
+                variant="outlined"
+                hint="本地集数 + 偏移 = 弹弹集数，如本地 13 对应弹弹 1 则填 -12"
+                persistent-hint
+              ></v-text-field>
             </v-col>
           </v-row>
           <v-alert
@@ -392,6 +428,7 @@ const emit = defineEmits(['close', 'switch']);
 const error = ref(null);
 const successMessage = ref(null);
 const running = ref(false);
+const batchStarting = ref(false);
 let statusTimer = null;
 
 // 状态数据
@@ -438,10 +475,12 @@ const manualSearchPerformed = ref(false);
 const manualSelected = ref(null);
 const manualSaving = ref(false);
 const manualScope = ref('directory');
+const manualEpisodeOffset = ref(0);
 
 const manualTargetItem = computed(() => manualContext.value?.item || null);
 const manualExistingMatch = computed(() => manualTargetItem.value?.manual_match || null);
 const manualExistingScope = computed(() => manualExistingMatch.value?.scope || null);
+const manualExistingOffset = computed(() => Number(manualExistingMatch.value?.episodeOffset) || 0);
 
 // 计算属性：过滤后的项目
 const filteredItems = computed(() => {
@@ -569,6 +608,11 @@ function closeManualDialog() {
   manualContext.value = null;
   manualSelected.value = null;
   manualScope.value = 'directory';
+  manualEpisodeOffset.value = 0;
+}
+
+function formatOffset(offset) {
+  return offset > 0 ? `+${offset}` : `${offset}`;
 }
 
 function scopeLabel(scope) {
@@ -588,7 +632,9 @@ function manualChipText(item) {
   if (!item?.manual_match) return '';
   const scopeText = item.manual_scope === 'file' ? '【单文件】' : '';
   const title = item.manual_match.animeTitle || `ID ${item.manual_match.animeId}`;
-  return `${scopeText}${title}`;
+  const offset = Number(item.manual_match.episodeOffset) || 0;
+  const offsetText = offset ? `（偏移${formatOffset(offset)}）` : '';
+  return `${scopeText}${title}${offsetText}`;
 }
 
 function resolveDirectoryPath(item) {
@@ -613,6 +659,7 @@ function openManualMatch(item) {
   manualSearchLoading.value = false;
   manualSaving.value = false;
   manualSelected.value = item.manual_match ? { ...item.manual_match } : null;
+  manualEpisodeOffset.value = Number(item.manual_match?.episodeOffset) || 0;
   const existingScope = item.manual_scope || item.manual_match?.scope;
   if (item.type === 'directory') {
     manualScope.value = 'directory';
@@ -678,10 +725,12 @@ async function confirmManualMatch() {
     const directoryPath = scope === 'directory'
       ? resolveDirectoryPath(targetItem)
       : undefined;
+    const offset = parseInt(manualEpisodeOffset.value, 10) || 0;
     const payload = {
       file_path: scope === 'file' ? targetItem.path : undefined,
       directory: directoryPath,
       scope,
+      episodeOffset: offset,
       anime: manualSelected.value
     };
     const res = await props.api.post('plugin/Danmu/manual_match', payload);
@@ -711,6 +760,53 @@ function formatDate(dateStr) {
     return (dateStr || '').split('T')[0] || dateStr;
   }
   return date.toISOString().split('T')[0];
+}
+
+// 批量刮削目录
+async function scrapeDirectory(path) {
+  if (!path) return;
+  error.value = null;
+  batchStarting.value = true;
+  try {
+    const res = await props.api.get('plugin/Danmu/scrape_directory', {
+      params: { directory_path: path }
+    });
+    if (res && res.success) {
+      successMessage.value = res.message || '已开始批量刮削';
+      await getStatus();
+      startStatusPolling();
+    } else {
+      error.value = res?.message || '启动批量刮削失败';
+    }
+  } catch (err) {
+    console.error('启动批量刮削失败:', err);
+    error.value = '启动批量刮削失败，请检查网络或API';
+  } finally {
+    batchStarting.value = false;
+  }
+}
+
+function scrapeCurrentDirectory() {
+  scrapeDirectory(currentPath.value);
+}
+
+function startStatusPolling() {
+  if (statusTimer) return;
+  statusTimer = setInterval(async () => {
+    await getStatus();
+    if (!scrapingStatus.running) {
+      stopStatusPolling();
+      successMessage.value = `批量刮削完成：成功 ${scrapingStatus.success}，失败 ${scrapingStatus.failed}，共 ${scrapingStatus.total}`;
+      await navigateToPath(currentPath.value);
+    }
+  }, 3000);
+}
+
+function stopStatusPolling() {
+  if (statusTimer) {
+    clearInterval(statusTimer);
+    statusTimer = null;
+  }
 }
 
 // 生成弹幕
@@ -781,11 +877,15 @@ async function clearManualMatch(item, scopeOverride = null, keepDialog = false) 
 onMounted(async () => {
   // 状态与根目录并行加载
   await Promise.all([getStatus(), navigateToPath('')]);
+  // 页面打开时如有刮削任务在跑（如定时全局刮削），继续跟踪进度
+  if (scrapingStatus.running) {
+    startStatusPolling();
+  }
 });
 
 // 清理
 onUnmounted(() => {
-  // 移除不需要的清理代码
+  stopStatusPolling();
 });
 </script>
 
