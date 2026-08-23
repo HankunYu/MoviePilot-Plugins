@@ -81,6 +81,7 @@ const emit = __emit;
 // 状态变量
 const error = ref(null);
 const successMessage = ref(null);
+const infoMessage = ref(null);
 const running = ref(false);
 const batchStarting = ref(false);
 let statusTimer = null;
@@ -97,6 +98,8 @@ const scrapingStatus = reactive({
   processed: 0,
   success: 0,
   failed: 0,
+  absent: 0,
+  empty: 0,
   deferred: 0,
   skipped: 0,
   current_file: "",
@@ -185,6 +188,8 @@ async function getStatus(isPolling = false) {
         processed: data.processed,
         success: data.success,
         failed: data.failed,
+        absent: data.absent || 0,
+        empty: data.empty || 0,
         deferred: data.deferred || 0,
         skipped: data.skipped || 0,
         current_file: data.current_file,
@@ -433,6 +438,7 @@ function formatDate(dateStr) {
 async function scrapeDirectory(path) {
   if (!path) return;
   error.value = null;
+  infoMessage.value = null;
   batchStarting.value = true;
   try {
     const res = await props.api.get('plugin/Danmu/scrape_directory', {
@@ -457,6 +463,18 @@ function scrapeCurrentDirectory() {
   scrapeDirectory(currentPath.value);
 }
 
+// 无收录占比过高时给一句解释：这类内容弹弹play 本来就没有，
+// 再扫一次或做手动匹配都不会有结果
+function buildCoverageHint() {
+  const { absent, total } = scrapingStatus;
+  if (!absent || !total) return null;
+  const ratio = absent / total;
+  if (ratio < 0.5) return null;
+  return `本次 ${absent}/${total} 个文件在弹弹play 无收录（${Math.round(ratio * 100)}%）。`
+    + '弹弹play 以番剧弹幕为主，国产剧、综艺、欧美剧等通常没有收录——'
+    + '这类文件重复刮削或手动匹配都不会有结果。';
+}
+
 function startStatusPolling() {
   if (statusTimer) return;
   statusFailures = 0;
@@ -471,10 +489,14 @@ function startStatusPolling() {
     }
     if (!scrapingStatus.running) {
       stopStatusPolling();
-      successMessage.value = `批量刮削完成：成功 ${scrapingStatus.success}，失败 ${scrapingStatus.failed}`
+      successMessage.value = `批量刮削完成：成功 ${scrapingStatus.success}`
+        + (scrapingStatus.absent ? `，无收录 ${scrapingStatus.absent}` : '')
+        + (scrapingStatus.empty ? `，暂无弹幕 ${scrapingStatus.empty}` : '')
+        + `，失败 ${scrapingStatus.failed}`
         + (scrapingStatus.deferred ? `，限流跳过 ${scrapingStatus.deferred}` : '')
         + (scrapingStatus.skipped ? `，无法判定 ${scrapingStatus.skipped}` : '')
         + `，共 ${scrapingStatus.total}`;
+      infoMessage.value = buildCoverageHint();
       await navigateToPath(currentPath.value);
     }
   }, 3000);
@@ -490,14 +512,20 @@ function stopStatusPolling() {
 // 生成弹幕
 async function generateDanmu(item) {
   error.value = null; // 清空旧错误
+  infoMessage.value = null;
   try {
     item.generating = true;
     const result = await props.api.get('plugin/Danmu/generate_danmu', {
       params: { file_path: item.path }
     });
-    if (result && result.success) {
+    const outcome = result?.data?.outcome;
+    if (outcome === 'absent' || outcome === 'empty') {
+      // 不是失败：报成错误会诱导用户去重扫、去做手动匹配，而这些都不可能奏效
+      infoMessage.value = outcome === 'absent'
+        ? '弹弹play 未收录该内容，因此没有弹幕可用（不是匹配失败）'
+        : '该内容已收录，但目前还没有弹幕，之后可能会有';
+    } else if (result && result.success) {
       successMessage.value = '弹幕生成成功';
-      // 重新加载当前目录以更新弹幕计数
       await navigateToPath(currentPath.value);
     } else {
       console.log('后端返回：', result);
@@ -640,6 +668,21 @@ return (_ctx, _cache) => {
                   _: 1
                 }))
               : _createCommentVNode("", true),
+            (infoMessage.value)
+              ? (_openBlock(), _createBlock(_component_v_alert, {
+                  key: 2,
+                  type: "info",
+                  density: "compact",
+                  class: "mb-2 text-caption",
+                  variant: "tonal",
+                  closable: ""
+                }, {
+                  default: _withCtx(() => [
+                    _createTextVNode(_toDisplayString(infoMessage.value), 1)
+                  ]),
+                  _: 1
+                }))
+              : _createCommentVNode("", true),
             _createVNode(_component_v_card, {
               flat: "",
               class: "rounded mb-3 border status-card"
@@ -692,7 +735,7 @@ return (_ctx, _cache) => {
             }),
             (scrapingStatus.running)
               ? (_openBlock(), _createBlock(_component_v_card, {
-                  key: 2,
+                  key: 3,
                   flat: "",
                   class: "rounded mb-3 border status-card"
                 }, {
@@ -1423,6 +1466,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-1c8a1d1f"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-7fcf3d40"]]);
 
 export { Page as default };

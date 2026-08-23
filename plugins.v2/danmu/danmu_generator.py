@@ -5,11 +5,12 @@ import re
 import hashlib
 import subprocess
 import json
+import shutil
 import threading
 import time
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from app.log import logger
 
 
@@ -26,6 +27,59 @@ class DanmuThrottled(Exception):
         self.status_code = status_code
         prefix = f"HTTP {status_code}" if status_code else "本地限速"
         super().__init__(f"弹弹API暂时不可用（{prefix}），约 {retry_after:.0f} 秒后可重试")
+
+
+_warned_reasons = set()
+_warn_lock = threading.Lock()
+
+
+def _warn_once(key: str, message: str):
+    """
+    同一类环境问题只告警一次。批量刮削动辄上千文件，
+    逐文件重复同一句话只会把信号淹掉。
+    """
+    with _warn_lock:
+        if key in _warned_reasons:
+            return
+        _warned_reasons.add(key)
+    logger.warning(message)
+
+
+@dataclass
+class SeriesLookup:
+    """整季查询的结局。status: ok / absent / truncated / unknown"""
+    status: str
+    entries: List[Dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def usable(self) -> bool:
+        """只有 ok 才能用来定位——truncated 的列表是残缺的，套公式会静默错位"""
+        return self.status == "ok"
+
+
+@dataclass
+class DanmuResult:
+    """
+    一次刮削的结果分类。取代原来「返回值既可能是文件路径、又可能是失败原因」
+    的字符串协议——调用方不必再靠 startswith/endswith 猜发生了什么。
+
+    outcome:
+      ok      —— 已生成弹幕文件
+      absent  —— 弹弹play 未收录该内容（拿不到 episodeId）。**不是失败**
+      empty   —— 已收录但服务端弹幕数为 0，弹幕可能之后才有
+      failed  —— 真的出错了（网络、数据异常等），值得重试
+    """
+    outcome: str
+    message: str = ""
+    output_file: Optional[str] = None
+    comment_id: Optional[str] = None
+    # 服务端返回的弹幕数（本地过滤前），判断「有没有弹幕」只能用这个，
+    # 不能用本地 .ass 行数——后者掺了 onlyFromBili 之类的本地过滤
+    danmu_count: int = 0
+
+    @property
+    def is_ok(self) -> bool:
+        return self.outcome == "ok"
 
 
 class DanmuUnresolvable(Exception):
@@ -357,49 +411,6 @@ class DanmuAPI:
         except Exception as e:
             logger.error(f"写入手动匹配文件失败: {e}")
 
-    @classmethod
-    def _load_manual_mapping(cls, directory: str) -> Optional[Dict[str, Any]]:
-        if not directory or not os.path.isdir(directory):
-            return None
-
-        manual_path = cls._manual_file_path(directory)
-        if os.path.exists(manual_path):
-            try:
-                with open(manual_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                anime_id = data.get("animeId") or data.get("anime_id")
-                if anime_id is not None:
-                    return data
-            except Exception as e:
-                logger.warning(f"读取手动匹配文件失败: {e}")
-
-        # 兼容旧的 .id 文件
-        try:
-            for file in os.listdir(directory):
-                if not file.endswith('.id'):
-                    continue
-                legacy_path = os.path.join(directory, file)
-                try:
-                    anime_id = int(os.path.splitext(file)[0])
-                except (TypeError, ValueError):
-                    logger.warning(f"忽略无法解析的ID文件: {legacy_path}")
-                    continue
-                data = {
-                    "animeId": anime_id,
-                    "source": "legacy-id-file",
-                    "updatedAt": datetime.now().isoformat(timespec="seconds")
-                }
-                cls._write_manual_mapping(directory, data)
-                try:
-                    os.remove(legacy_path)
-                    logger.info(f"已转换旧的ID文件并移除: {legacy_path}")
-                except Exception as err:
-                    logger.warning(f"移除旧ID文件失败: {err}")
-                return data
-        except Exception as e:
-            logger.warning(f"检查手动匹配目录失败: {e}")
-
-        return None
     @staticmethod
     def calculate_md5_of_first_16MB(file_path: str) -> str:
         md5 = hashlib.md5()
@@ -413,14 +424,53 @@ class DanmuAPI:
             logger.error(f"计算MD5失败: {e}")
             return ""
 
+    _ffmpeg_available: Optional[bool] = None
+    _ffmpeg_lock = threading.Lock()
+
+    @classmethod
+    def ffmpeg_available(cls) -> bool:
+        """
+        ffmpeg 是否可用，只探测一次。
+        它决定要不要做哈希匹配，而哈希匹配的前置开销（读 16MB、spawn 进程）
+        是**每个文件**都要付的——没有 ffmpeg 时这些开销全是白费。
+        """
+        if cls._ffmpeg_available is None:
+            with cls._ffmpeg_lock:
+                if cls._ffmpeg_available is None:
+                    cls._ffmpeg_available = shutil.which("ffmpeg") is not None
+                    if not cls._ffmpeg_available:
+                        _warn_once(
+                            "ffmpeg-missing",
+                            "未找到 ffmpeg，无法获取视频时长，哈希匹配将被跳过，"
+                            "改为仅使用 TMDB 匹配。这不影响已收录内容的刮削，"
+                            "但会降低命中率；如需恢复请在容器/主机中安装 ffmpeg 并确保在 PATH 中"
+                        )
+        return cls._ffmpeg_available
+
+    @classmethod
+    def reset_environment_probe(cls) -> None:
+        """插件重载时重新探测——用户可能刚装上 ffmpeg"""
+        with cls._ffmpeg_lock:
+            cls._ffmpeg_available = None
+
     @staticmethod
     def get_video_duration(file_path: str) -> Optional[float]:
         try:
-            process = subprocess.Popen(
-                ['ffmpeg', '-i', file_path],
-                stderr=subprocess.PIPE,
-                stdout=subprocess.PIPE
-            )
+            try:
+                process = subprocess.Popen(
+                    ['ffmpeg', '-i', file_path],
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE
+                )
+            except FileNotFoundError:
+                # 这是环境问题而不是文件问题，而且会影响每一个文件——
+                # 只说一次，说清楚怎么办
+                _warn_once(
+                    "ffmpeg-missing",
+                    "未找到 ffmpeg，无法获取视频时长。哈希匹配将被跳过，"
+                    "只能依赖 TMDB 匹配；请确认容器/主机中已安装 ffmpeg 并在 PATH 中"
+                )
+                return None
             try:
                 _, stderr = process.communicate(timeout=120)
             except subprocess.TimeoutExpired:
@@ -447,6 +497,172 @@ class DanmuAPI:
         except Exception as e:
             logger.error(f"获取文件大小失败: {e}")
             return 0
+
+    # 特典编码分段：9000-9099=S特别篇、9100-9199=C(OP/ED)、9400-9499=O其他。
+    # 未观测到 92xx/93xx，遇到就当未知、不猜。
+    SPECIAL_SEGMENTS = ((9000, "S"), (9100, "C"), (9400, "O"))
+
+    @classmethod
+    def decode_episode_id(cls, episode_id: Any) -> Optional[Dict[str, Any]]:
+        """
+        从 episodeId 还原集号。整季查询的响应里没有 episodeNumber 字段，
+        只能靠编码规则 `episodeId = animeId * 10000 + 集内序号` 反推。
+        :return: {"kind": regular/S/C/O/unknown, "number": int}；无法解析返回None
+        """
+        try:
+            value = int(episode_id)
+        except (TypeError, ValueError):
+            return None
+        lo = value % 10000
+        if lo <= cls.MAX_REGULAR_EPISODE:
+            # 0 是合法的第0集（放送前特番/序章），不是异常
+            return {"kind": "regular", "number": lo}
+        for base, kind in cls.SPECIAL_SEGMENTS:
+            if base <= lo < base + 100:
+                return {"kind": kind, "number": lo - base}
+        return {"kind": "unknown", "number": None}
+
+    @classmethod
+    def _parse_series_entry(cls, anime: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        把整季查询里的一个条目整理成本地结构。
+        正片集号来自 episodeId 解码；若解码出的顺序与数组顺序矛盾，
+        退回按数组顺序编号（服务端只验证过两部剧，留个防御）。
+        """
+        episodes = []
+        for item in anime.get("episodes") or []:
+            decoded = cls.decode_episode_id(item.get("episodeId"))
+            if not decoded:
+                continue
+            episodes.append({
+                "episodeId": str(item.get("episodeId")),
+                "title": item.get("episodeTitle"),
+                "kind": decoded["kind"],
+                "number": decoded["number"],
+            })
+
+        regulars = [e for e in episodes if e["kind"] == "regular"]
+        numbers = [e["number"] for e in regulars]
+        if numbers != sorted(numbers):
+            logger.warning(
+                f"条目 {anime.get('animeId')} 解码出的集号与列表顺序矛盾，退回按顺序编号"
+            )
+            for index, ep in enumerate(regulars, start=1):
+                ep["number"] = index
+
+        return {
+            "animeId": anime.get("animeId"),
+            "animeTitle": anime.get("animeTitle"),
+            "episodes": episodes,
+            # 推导季偏移时只能数正片：特典混在里面会让整季错位
+            "regularCount": len(regulars),
+        }
+
+    @classmethod
+    def search_series(cls, tmdb_id: int, tmdb_id_type: int = 0) -> "SeriesLookup":
+        """
+        整季查询：省略 episode 参数，一次拿到该作品在弹弹play 的全部条目
+        及各自完整剧集列表。
+
+        四种结局必须分开，合并任意两个都会出问题：
+          ok        —— 拿到完整列表，可据此零请求定位
+          absent    —— 空列表，确认无收录（权威结论）
+          truncated —— hasMore 置位。服务端在总集数约 201 处截断，**条目和集数
+                       一起丢**，此时套偏移公式会静默错位几百集（实测火影疾风传
+                       条目内第1集其实是 TMDB 第221集）。必须整批作废走逐集。
+          unknown   —— 请求失败，什么都不能推断，尤其不能缓存
+        :raises DanmuThrottled: 被限流
+        """
+        try:
+            response = DanmuAPI._request(
+                "POST", f"{cls.BASE_URL}/search/tmdb",
+                json_body={"tmdb_id": tmdb_id, "tmdb_id_type": tmdb_id_type}
+            )
+            if response is None or response.status_code != 200:
+                return SeriesLookup("unknown")
+            result = response.json()
+            if not result.get("success"):
+                return SeriesLookup("unknown")
+            if result.get("hasMore"):
+                logger.info(
+                    f"整季结果被截断（tmdb={tmdb_id}，长番超出服务端返回上限），"
+                    f"该作品改走逐集匹配"
+                )
+                return SeriesLookup("truncated")
+            entries = [cls._parse_series_entry(a) for a in (result.get("animes") or [])]
+            return SeriesLookup("ok" if entries else "absent", entries)
+        except DanmuThrottled:
+            raise
+        except Exception as e:
+            logger.error(f"整季查询失败 tmdb={tmdb_id}: {e}")
+            return SeriesLookup("unknown")
+
+    @staticmethod
+    def _find_in_entry(entry: Dict[str, Any], kind: str, number: int) -> Optional[str]:
+        for ep in entry.get("episodes") or []:
+            if ep["kind"] == kind and ep["number"] == number:
+                return ep["episodeId"]
+        return None
+
+    @classmethod
+    def locate_episode(cls, series: List[Dict[str, Any]], season: Optional[int],
+                       episode: Optional[int]) -> Optional[str]:
+        """
+        在整季结果里定位本地文件对应的 episodeId。
+
+        弹弹play 按「条目」组织（通常一季一个条目），每个条目的集号都从 1 开始，
+        所以必须有季号才能定位。返回 None 表示这一集确实不在列表里——
+        这是**确定性结论**，不需要再发请求去问。
+
+        :param series: search_series 的结果
+        :param season: 本地季号（TMDB 的 Season 0 表示特典）
+        :param episode: 本地集号
+        """
+        if not series:
+            return None
+        # 电影或无集数信息：取正片那一集。电影条目里往往混着十几段 S 类花絮
+        # （访谈、首映、制作特辑），取 episodes[0] 只是碰巧正片排在第一位，
+        # 顺序一变就会给用户放一段花絮的弹幕
+        if episode is None:
+            for entry in series:
+                for ep in entry.get("episodes") or []:
+                    if ep["kind"] == "regular":
+                        return ep["episodeId"]
+            return None
+
+        # TMDB 的 Season 0 是特典。弹弹play 把特典细分成 S/C/O 三段，
+        # 而 Season 0 是扁平的——默认映射到 S 段（特别篇），
+        # C 段是 OP/ED、O 段多为剧场版，很少作为独立文件进媒体库
+        if season == 0:
+            for entry in series:
+                found = cls._find_in_entry(entry, "S", episode)
+                if found:
+                    return found
+            return None
+
+        index = (season - 1) if season else 0
+        # 1) 季号能对上条目，且该条目里有这一集
+        if 0 <= index < len(series):
+            found = cls._find_in_entry(series[index], "regular", episode)
+            if found:
+                return found
+
+        # 2) TMDB 连续计数、弹弹按季重置：减掉前面各季的**正片**数量。
+        #    只数正片是关键——特典混进来会让整季偏移多算，且不会报错
+        if 0 <= index < len(series):
+            consumed = sum(e.get("regularCount", 0) for e in series[:index])
+            found = cls._find_in_entry(series[index], "regular", episode - consumed)
+            if found:
+                logger.info(
+                    f"按连续集数推导偏移 -{consumed}：本地第 {episode} 集 "
+                    f"→ 条目内第 {episode - consumed} 集"
+                )
+                return found
+
+        # 3) 只有一个条目时，季号可能不可靠，直接按集号找一次
+        if len(series) == 1:
+            return cls._find_in_entry(series[0], "regular", episode)
+        return None
 
     @staticmethod
     def search_by_tmdb_id(tmdb_id: int, episode: Optional[int] = None,
@@ -501,22 +717,8 @@ class DanmuAPI:
         :return: 弹幕ID
         """
         try:
-            # 目录手动匹配优先于一切：它本地就能拼出弹幕ID，不需要任何请求，
-            # 也不需要算文件hash和视频时长。必须放在 .strm 分支之前，
-            # 否则 .strm 文件永远走不到这里，目录手动匹配对它静默失效。
-            manual_mapping = DanmuAPI._load_manual_mapping(os.path.dirname(file_path))
-            if manual_mapping:
-                manual_episode = DanmuAPI._apply_episode_offset(
-                    episode, manual_mapping.get("episodeOffset")
-                )
-                manual_comment = DanmuAPI._compose_comment_id(
-                    manual_mapping.get("animeId") or manual_mapping.get("anime_id"),
-                    manual_episode
-                )
-                if manual_comment:
-                    logger.info(f"使用目录手动匹配ID: {manual_comment}")
-                    return manual_comment
-                logger.warning(f"目录手动匹配数据无效，回退常规匹配: {manual_mapping}")
+            # 手动匹配（含目录级）由插件层统一解析后经 manual_comment_id 传入，
+            # 这里只负责向服务端查询，不再自己读盘
 
             # 检查是否为.strm文件
             if StrmProcessor.is_strm_file(file_path):
@@ -536,26 +738,53 @@ class DanmuAPI:
                 logger.info(f"为.strm文件使用TMDB ID匹配: {tmdb_id}")
                 return DanmuAPI.search_by_tmdb_id(tmdb_id, episode, tmdb_id_type)
 
-            # 普通视频文件的处理逻辑
-            file_name = os.path.basename(file_path)
-            file_size = DanmuAPI.get_file_size(file_path)
-            file_hash = DanmuAPI.calculate_md5_of_first_16MB(file_path)
+            # 普通视频文件的处理逻辑。
+            # /match 靠 文件名+哈希+大小+时长 四要素识别，缺任何一项都必然失败——
+            # 「算不出来」和「值就是这个」不是一回事，不能拿占位值去发请求。
+            # 没有 ffmpeg 时时长一定拿不到，所以连 16MB 哈希都不必算，直接走 TMDB
+            missing = []
+            # ffmpeg 缺失已由 ffmpeg_available() 给出完整诊断（是什么/后果/怎么办），
+            # 这里不再重复说一遍同一个根因
+            ffmpeg_missing = not DanmuAPI.ffmpeg_available()
+            if ffmpeg_missing:
+                logger.debug(f"未安装 ffmpeg，跳过哈希匹配: {file_path}")
+            else:
+                file_name = os.path.basename(file_path)
+                file_size = DanmuAPI.get_file_size(file_path)
+                file_hash = DanmuAPI.calculate_md5_of_first_16MB(file_path)
+                duration = DanmuAPI.get_video_duration(file_path)
+                if not file_hash:
+                    missing.append("文件哈希")
+                if not file_size:
+                    missing.append("文件大小")
+                if duration is None:
+                    missing.append("视频时长（该文件无法解析）")
 
-            video_info = VideoInfo(
-                file_name=file_name,
-                file_hash=file_hash,
-                file_size=file_size,
-                video_duration=int(DanmuAPI.get_video_duration(file_path) or 0)
-            )
+            if missing and not ffmpeg_missing:
+                reason = "、".join(missing)
+                # 同一个原因只醒目地说一次；逐文件的细节留给 debug
+                _warn_once(
+                    f"match-missing:{reason}",
+                    f"缺少 {reason}，跳过哈希匹配，改由 TMDB 匹配。"
+                    f"首个受影响文件: {file_path}"
+                )
+                logger.debug(f"跳过哈希匹配，缺少 {reason}: {file_path}")
 
-            # 使用 match API
-            url = f"{DanmuAPI.BASE_URL}/match"
-            response = DanmuAPI._request("POST", url, json_body=video_info.__dict__)
-
-            if response is not None and response.status_code == 200:
-                result = response.json()
-                if result.get("isMatched") and result.get("matches"):
-                    return str(result["matches"][0]["episodeId"])
+            if not missing and not ffmpeg_missing:
+                video_info = VideoInfo(
+                    file_name=file_name,
+                    file_hash=file_hash,
+                    file_size=file_size,
+                    video_duration=int(duration)
+                )
+                response = DanmuAPI._request(
+                    "POST", f"{DanmuAPI.BASE_URL}/match",
+                    json_body=video_info.__dict__
+                )
+                if response is not None and response.status_code == 200:
+                    result = response.json()
+                    if result.get("isMatched") and result.get("matches"):
+                        return str(result["matches"][0]["episodeId"])
 
             # 如果使用TMDB ID且提供了TMDB ID，尝试使用TMDB ID匹配
             if use_tmdb_id and tmdb_id is not None:
@@ -1424,29 +1653,33 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
                    use_tmdb_id: bool = False, tmdb_id: Optional[int] = None,
                    episode: Optional[int] = None, cache_ttl: Optional[int] = None,
                    screen_area: str = 'full', manual_comment_id: Optional[str] = None,
-                   tmdb_id_type: int = 0, min_danmu_count: int = 100) -> Optional[str]:
+                   tmdb_id_type: int = 0, min_danmu_count: int = 100) -> DanmuResult:
     try:
         comment_id = manual_comment_id or DanmuAPI.get_comment_id(
             file_path, use_tmdb_id, tmdb_id, episode, tmdb_id_type
         )
         if not comment_id:
-            logger.info(f"未找到对应弹幕 - {file_path}")
-            return "未找到对应弹幕"
+            # 问过了，弹弹play 没有这个内容。这不是失败，重试也不会变
+            logger.info(f"弹弹play未收录该内容 - {file_path}")
+            return DanmuResult("absent", message="弹弹play未收录该内容")
 
         comments_data = DanmuAPI.get_comments(comment_id, cache_ttl=cache_ttl)
         if not comments_data:
-            return "未获取到弹幕数据"
+            return DanmuResult("failed", message="未获取到弹幕数据", comment_id=comment_id)
 
         raw_comments = comments_data.get("comments")
         if not isinstance(raw_comments, list):
             logger.warning(f"弹幕数据格式异常，缺少comments列表 - {file_path}")
-            return "未获取到弹幕数据"
+            return DanmuResult("failed", message="弹幕数据格式异常", comment_id=comment_id)
 
         comments = sorted(raw_comments, key=_comment_timeline)
+        server_count = len(comments)
 
-        if len(comments) == 0:
-            logger.info(f"弹幕数量为0，跳过生成 - {file_path}")
-            return f"弹幕数量为0，跳过生成 - {file_path}"
+        if server_count == 0:
+            # 条目是有的，只是还没有人发弹幕——新番常见，之后可能会有
+            logger.info(f"该内容已收录但暂时没有弹幕 - {file_path}")
+            return DanmuResult("empty", message="已收录，但暂时没有弹幕",
+                               comment_id=comment_id)
 
         # 优先B站弹幕（不足则回退全部来源）
         if onlyFromBili:
@@ -1481,11 +1714,12 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
             else:
                 logger.error(f'未找到原生字幕，跳过合并 - {file_path}')
 
-        return output_file
+        return DanmuResult("ok", output_file=output_file,
+                           comment_id=comment_id, danmu_count=server_count)
 
     except (DanmuThrottled, DanmuUnresolvable):
         # 交由插件层处理：既不算失败，也不进重试列表
         raise
     except Exception as e:
         logger.error(f"生成弹幕失败: {e}")
-        return f"生成弹幕失败: {str(e)}"
+        return DanmuResult("failed", message=f"生成弹幕失败: {str(e)}")

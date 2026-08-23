@@ -9,7 +9,7 @@ from app.core.metainfo import MetaInfo
 from app.core.config import settings
 from app import schemas
 from app.schemas.types import MediaType, EventType, SystemConfigKey
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from typing import Any, List, Dict, Tuple, Optional
 import subprocess
@@ -31,7 +31,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.10.0"
+    plugin_version = "1.11.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -61,17 +61,37 @@ class Danmu(_PluginBase):
     _enable_strm = True  # 是否启用.strm文件刮削
     # 新增重试相关配置
     _min_danmu_count = 100  # 最小弹幕数量要求 - 硬编码
-    _max_retry_times = 10  # 最大重试次数 - 硬编码
+    # 复查退避（小时）：按结局分档，随连续未成功次数指数增长，只有间隔上限、
+    # 没有次数上限——「老片后来被收录」永远覆盖得到，只是不必每 3 小时问一次
+    _backoff_base_hours = {
+        "failed": 1,     # 网络/数据异常，多半是暂时的
+        "empty": 3,      # 已收录但暂无弹幕，新番很快会有
+        "absent": 24,    # 确认无收录，弹弹play 很少突然补上
+    }
+    _backoff_ok_recent_hours = 6       # 新番已有弹幕，但还会继续涨
+    _backoff_cap_recent_hours = 24     # 新番退避封顶
+    _backoff_cap_hours = 24 * 30       # 其余封顶
     _enable_retry_task = True  # 是否启用重试任务
     _stop_wait_seconds = 30  # stop_service 等待批量刮削收尾的最长时间
     _ui_acquire_timeout = 10  # UI请求等待限速令牌的上限，超时即提示稍后再试
     
-    # 重试任务列表 - 存储格式: {file_path: {"retry_count": int, "last_attempt": datetime, "file_path": str}}
-    _retry_tasks = {}
-    # 重试任务并发保护；批量刮削期间将逐文件的配置保存合并为最后一次
-    _retry_lock = threading.Lock()
-    _retry_save_deferred = False
-    _retry_save_pending = False
+    # 刮削状态库：{file_path: {verdict, comment_id, danmu_count, attempts,
+    #                        last_attempt, last_success, release_date, render}}
+    # 存 save_data 而非配置——配置每次保存都整体重写，大库上万条会拖垮它
+    _scrape_state: Dict[str, Dict[str, Any]] = {}
+    _scrape_state_key = "scrape_state"
+    # init_plugin 暂存的旧版 retry_tasks，仅用于一次性迁移
+    _legacy_retry_tasks: Optional[str] = None
+    _state_lock = threading.Lock()
+    _state_save_deferred = False
+    _state_save_pending = False
+    # 系列级缓存：{f"{tmdb_id}:{type}": {series, fetched_at, ttl_hours}}
+    _series_cache: Dict[str, Dict[str, Any]] = {}
+    _series_cache_key = "series_cache"
+    _series_save_pending = False
+    _series_ttl_recent_hours = 6           # 新番：条目和弹幕都还在变
+    _series_ttl_hours_default = 24 * 30    # 已收录的完结作品
+    _series_ttl_absent_hours = 24 * 30     # 确认无收录，但仍定期复查
     # 正在刮削中的文件集合，防止同一文件被并发刮削写坏弹幕文件
     _inflight_lock = threading.Lock()
     _inflight_files: set = set()
@@ -86,6 +106,8 @@ class Danmu(_PluginBase):
         "processed": 0,
         "success": 0,
         "failed": 0,
+        "absent": 0,
+        "empty": 0,
         "deferred": 0,
         "skipped": 0,
         "current_file": None,
@@ -294,11 +316,16 @@ class Danmu(_PluginBase):
             self._manual_file_matches.pop(norm, None)
         self._save_manual_state()
 
-    def _get_manual_match(self, directory: str, check_legacy: bool = True) -> Optional[Dict[str, Any]]:
+    def _get_manual_match(self, directory: str, check_legacy: bool = True,
+                          use_miss_cache: bool = True) -> Optional[Dict[str, Any]]:
         """
         获取目录的手动匹配信息
         :param directory: 目录路径
         :param check_legacy: 是否检查旧版.id文件（需要列目录，浏览场景应关闭）
+        :param use_miss_cache: 是否信任「该目录没有手动匹配」的负缓存。
+                               刮削时应关闭：用户可能直接在磁盘上放了
+                               .dandan.anime.json，负缓存会让它一直不生效。
+                               浏览时保留，那只是徽标晚一次刷新。
         """
         if not directory:
             return None
@@ -306,7 +333,7 @@ class Danmu(_PluginBase):
         cached = self._manual_matches.get(norm)
         if cached:
             return self._clone_manual_match(cached)
-        if norm in self._manual_match_misses:
+        if use_miss_cache and norm in self._manual_match_misses:
             return None
         if not os.path.isdir(directory):
             return None
@@ -328,6 +355,35 @@ class Danmu(_PluginBase):
                 return self._clone_manual_match(self._manual_matches.get(norm))
 
         self._manual_match_misses.add(norm)
+        return None
+
+    def _resolve_manual_comment_id(self, file_path: str, episode: Optional[int]) -> Optional[str]:
+        """
+        解析该文件的手动匹配，拼出弹幕ID。单文件匹配优先于所属目录的匹配。
+
+        手动匹配的解析统一收在插件层这一处：它需要 MetaInfo 的上下文，也需要
+        插件的匹配缓存，而 generator 两者都没有——此前目录级匹配放在 generator 里
+        每次读盘，还导致它对 .strm 文件整条路径都走不到。
+        :param file_path: 媒体文件路径
+        :param episode: 本地集号（会应用集数偏移）
+        :return: 弹幕ID；没有手动匹配或数据无效时返回None，调用方走常规匹配
+        """
+        for match, scope in (
+            (self._get_manual_file_match(file_path), "单文件"),
+            (self._get_manual_match(os.path.dirname(file_path), use_miss_cache=False), "目录"),
+        ):
+            if not match:
+                continue
+            manual_episode = generator.DanmuAPI._apply_episode_offset(
+                episode, match.get("episodeOffset")
+            )
+            comment_id = generator.DanmuAPI._compose_comment_id(
+                match.get("animeId"), manual_episode
+            )
+            if comment_id:
+                logger.info(f"使用{scope}手动匹配ID: {comment_id}")
+                return comment_id
+            logger.warning(f"{scope}手动匹配无法拼出弹幕ID，回退常规匹配: {match}")
         return None
 
     def _get_manual_file_match(self, file_path: str) -> Optional[Dict[str, Any]]:
@@ -390,35 +446,16 @@ class Danmu(_PluginBase):
         self._stop_event.clear()
         # 让弹弹API的User-Agent跟随插件版本，避免版本号多处手工同步
         generator.DanmuAPI.set_client_version(self.plugin_version)
-        # 重新加载时清空上一轮遗留的限流闸门
+        # 重新加载时清空上一轮遗留的限流闸门，并重新探测环境
+        # （用户可能刚装上 ffmpeg）
         generator.DanmuAPI.reset_gate()
+        generator.DanmuAPI.reset_environment_probe()
         if config:
             self._apply_config(config)
-            # 加载重试任务列表
-            retry_tasks_str = config.get("retry_tasks", "{}")
-            try:
-                loaded_tasks = json.loads(retry_tasks_str)
-                # 将字符串日期转换为datetime对象，并添加缺失字段的默认值
-                parsed_tasks = {}
-                for file_path, task_info in loaded_tasks.items():
-                    try:
-                        parsed_tasks[file_path] = {
-                            "retry_count": task_info.get("retry_count", 1),
-                            "last_attempt": datetime.fromisoformat(task_info.get("last_attempt", datetime.now().isoformat())),
-                            "file_path": task_info.get("file_path", file_path),
-                            "last_danmu_count": task_info.get("last_danmu_count", 0)
-                        }
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"跳过无效的重试任务 {file_path}: {e}")
-                        continue
-                with self._retry_lock:
-                    self._retry_tasks = parsed_tasks
-                logger.info(f"加载了 {len(parsed_tasks)} 个重试任务")
-            except (json.JSONDecodeError, ValueError, TypeError) as e:
-                logger.warning(f"加载重试任务失败，使用空列表: {e}")
-                with self._retry_lock:
-                    self._retry_tasks = {}
-        # 加载手动匹配缓存
+            self._legacy_retry_tasks = config.get("retry_tasks")
+        # 加载刮削状态库与手动匹配缓存
+        self._load_scrape_state()
+        self._load_series_cache()
         self._load_manual_matches()
         if self._enabled:
             logger.info("弹幕加载插件已启用")
@@ -620,24 +657,10 @@ class Danmu(_PluginBase):
             "enable_strm": self._enable_strm
         }
         
-    def _dump_retry_tasks(self) -> str:
-        """将重试任务序列化为配置中存储的JSON字符串"""
-        retry_tasks_for_save = {}
-        with self._retry_lock:
-            for file_path, task_info in self._retry_tasks.items():
-                retry_tasks_for_save[file_path] = {
-                    "retry_count": task_info["retry_count"],
-                    "last_attempt": task_info["last_attempt"].isoformat(),
-                    "file_path": task_info["file_path"],
-                    "last_danmu_count": task_info.get("last_danmu_count", 0)
-                }
-        return json.dumps(retry_tasks_for_save)
-
     def _persist_config(self):
         """将当前内存配置连同重试任务写回系统配置（所有落盘的唯一入口）"""
-        config = self._get_config()
-        config["retry_tasks"] = self._dump_retry_tasks()
-        self.update_config(config)
+        # 刮削状态另存 save_data，不再塞进配置——配置每次保存都整体重写
+        self.update_config(self._get_config())
 
     def _save_config(self, config: dict):
         """保存配置"""
@@ -671,17 +694,17 @@ class Danmu(_PluginBase):
             **progress
         }
 
-    def generate_danmu(self, file_path: str) -> Optional[str]:
+    def generate_danmu(self, file_path: str) -> generator.DanmuResult:
         """
         生成弹幕文件（同一文件同时只允许一个刮削，防止并发写坏弹幕文件）
         :param file_path: 视频文件路径
-        :return: 生成的弹幕文件路径，如果失败则返回None或失败原因字符串
+        :return: 刮削结果分类
         """
         norm = self._normalize_path(file_path) or file_path
         with self._inflight_lock:
             if norm in self._inflight_files:
                 logger.info(f"文件正在刮削中，跳过重复请求: {file_path}")
-                return "文件正在刮削中，跳过重复请求"
+                return generator.DanmuResult("failed", message="文件正在刮削中，跳过重复请求")
             self._inflight_files.add(norm)
         try:
             return self._generate_danmu_impl(file_path)
@@ -707,10 +730,11 @@ class Danmu(_PluginBase):
             logger.warning(f"集号无法解析: {episode!r}")
             return None
 
-    def _generate_danmu_impl(self, file_path: str) -> Optional[str]:
+    def _generate_danmu_impl(self, file_path: str) -> generator.DanmuResult:
         meta = MetaInfo(file_path)
         tmdb_id = None
         episode = None
+        season = None
         tmdb_id_type = 0
         release_date = None
         use_short_cache_ttl = False
@@ -723,31 +747,24 @@ class Danmu(_PluginBase):
                     tmdb_id_type = 1
                     logger.info(f"识别为电影，使用电影类型TMDB匹配: {tmdb_id}")
                 episode = self._parse_episode(meta)
+                season = getattr(meta, "begin_season", None)
                 release_date = media_info.release_date
-                if release_date:
-                    try:
-                        release_datetime = datetime.strptime(release_date, '%Y-%m-%d')
-                        is_recent = (datetime.now() - release_datetime).days < 90
-                        if is_recent:
-                            logger.info(f"媒体 {tmdb_id} 是最近90天内发布的内容,使用短缓存")
-                            use_short_cache_ttl = True
-                    except ValueError:
-                        logger.warning(f"无效的发布日期格式: {release_date},使用默认缓存时间")
-    
-        manual_comment_id = None
-        manual_file_match = self._get_manual_file_match(file_path)
-        if manual_file_match:
-            manual_episode = generator.DanmuAPI._apply_episode_offset(
-                episode, manual_file_match.get("episodeOffset")
-            )
-            manual_comment_id = generator.DanmuAPI._compose_comment_id(
-                manual_file_match.get("animeId"),
-                manual_episode
-            )
-            if manual_comment_id:
-                logger.info(f"使用单文件手动匹配ID: {manual_comment_id}")
-            else:
-                logger.warning(f"单文件手动匹配生成弹幕ID失败: {manual_file_match}")
+                if self._is_recent_release(release_date):
+                    logger.info(f"媒体 {tmdb_id} 是最近90天内发布的内容,使用短缓存")
+                    use_short_cache_ttl = True
+
+        manual_comment_id = self._resolve_manual_comment_id(file_path, episode)
+        if not manual_comment_id:
+            # 整季查询排在 /match 之前：命中缓存时定位一集是零请求，
+            # 且「这一集在不在列表里」本身就是确定性答案，不必再问服务端。
+            # /match 只在这里解决不了时兜底（拿不到 tmdb_id、集号映射不上）
+            manual_comment_id = self._locate_via_series(
+                tmdb_id, tmdb_id_type, season, episode, release_date, file_path)
+            if manual_comment_id is self._SERIES_ABSENT:
+                absent = generator.DanmuResult("absent", message="弹弹play未收录该内容")
+                # 这条结论同样要落状态库，否则整季查询判出的 absent 反而不会被记住
+                self._record_scrape_state(file_path, absent, release_date)
+                return absent
 
         try:
             result = generator.danmu_generator(
@@ -769,38 +786,18 @@ class Danmu(_PluginBase):
                 min_danmu_count=self._min_danmu_count
             )
             
-            # 检查弹幕生成结果
-            ass_file = f"{os.path.splitext(file_path)[0]}.danmu.ass"
-            danmu_count = 0
-            
-            # 如果返回字符串且包含弹幕数量为0，说明是失败原因
-            if isinstance(result, str) and result.startswith('弹幕数量为0'):
-                logger.info(result)
-                # 检查是否需要添加到重试任务
-                self._add_to_retry_if_needed(file_path, 0)
-                return result
-            
-            # 检查生成的弹幕文件
-            if os.path.exists(ass_file):
-                danmu_count = self._count_danmu_lines_cached(ass_file)
-                logger.info(f"弹幕生成完成，弹幕数量: {danmu_count}")
-                
-                # 检查弹幕数量是否满足要求
-                if self._enable_retry_task and danmu_count < self._min_danmu_count:
-                    logger.warning(f"弹幕数量 ({danmu_count}) 少于最小要求 ({self._min_danmu_count})，添加到重试任务")
-                    self._add_to_retry_if_needed(file_path, danmu_count)
-                else:
-                    # 弹幕数量满足要求，如果之前在重试列表中则移除
-                    with self._retry_lock:
-                        removed = self._retry_tasks.pop(file_path, None)
-                    if removed:
-                        logger.info(f"弹幕数量满足要求，从重试任务中移除: {file_path}")
-                        self._save_retry_tasks()
+            # 弹幕数量判断只能用服务端返回的数量（过滤前），
+            # 本地 .ass 行数掺了 onlyFromBili 之类的本地过滤，不能用来推断服务端状态
+            if result.is_ok and result.danmu_count >= self._min_danmu_count:
+                logger.info(f"弹幕生成完成，弹幕数量: {result.danmu_count}")
             else:
-                logger.warning(f"弹幕文件不存在: {ass_file}")
-                # 没有生成弹幕文件，添加到重试任务
-                self._add_to_retry_if_needed(file_path, 0)
-                
+                # ok 但数量不足、empty（已收录暂无弹幕）、absent、failed 都留待复查。
+                # absent 目前也进重试列表以保留「弹弹play 之后收录了」的恢复路径，
+                # v1.11.0 的状态库会用系列级退避取代这个每 3 小时一次的轮询。
+                if result.outcome != "ok":
+                    logger.info(f"{result.message} - {file_path}")
+            self._record_scrape_state(file_path, result, release_date)
+
             return result
         except generator.DanmuThrottled:
             # 服务端拒绝了请求，这不代表没有弹幕：不进重试列表，否则服务端
@@ -811,59 +808,332 @@ class Danmu(_PluginBase):
             raise
         except Exception as e:
             logger.error(f"生成弹幕失败: {e}")
-            # 生成失败，添加到重试任务
-            self._add_to_retry_if_needed(file_path, 0)
-            return f"生成弹幕失败: {str(e)}"
+            failure = generator.DanmuResult("failed", message=f"生成弹幕失败: {str(e)}")
+            self._record_scrape_state(file_path, failure, release_date)
+            return failure
 
-    def _add_to_retry_if_needed(self, file_path: str, danmu_count: int):
-        """
-        根据弹幕数量判断是否需要添加到重试任务
-        :param file_path: 文件路径
-        :param danmu_count: 弹幕数量
-        """
-        if not self._enable_retry_task:
+    # ------------------------------------------------------------------
+    # 刮削状态库
+    #
+    # 每个文件记三档，失效条件各不相同：
+    #   识别状态 comment_id —— 只有弹弹play 重编条目才失效
+    #   内容状态 danmu_count（服务端返回、本地过滤前）—— 随时间失效
+    #   渲染状态 render —— 产出该 .ass 时的配置，配置一改就失效
+    # 此前这三样一样都没存，导致「没收录 / 收录了但没弹幕 / 没刮过」在磁盘上
+    # 完全不可分辨（都是没有 .ass 文件），只能每轮全部重问。
+    # ------------------------------------------------------------------
+
+    def _render_signature(self) -> Dict[str, Any]:
+        """当前影响弹幕文件产出的配置，用于判断存量 .ass 是否需要重新生成"""
+        return {
+            "onlyFromBili": self._onlyFromBili,
+            "screen_area": self._screen_area,
+            "fontsize": self._fontsize,
+            "alpha": self._alpha,
+            "duration": self._duration,
+            "width": self._width,
+            "height": self._height,
+        }
+
+    def _load_scrape_state(self):
+        """加载状态库；首次运行时从旧的 retry_tasks 配置迁移"""
+        stored = self.get_data(self._scrape_state_key)
+        # 先清空：插件重载时不能把上一轮的内存状态留下来
+        with self._state_lock:
+            self._scrape_state = {}
+        if isinstance(stored, dict) and stored:
+            with self._state_lock:
+                self._scrape_state = {
+                    self._normalize_path(k): v for k, v in stored.items()
+                    if isinstance(v, dict) and self._normalize_path(k)
+                }
+            logger.info(f"加载了 {len(self._scrape_state)} 条刮削状态")
             return
+        migrated = self._migrate_retry_tasks()
+        if migrated:
+            logger.info(f"已从旧的重试任务迁移 {migrated} 条刮削状态")
+            self._flush_scrape_state(force=True)
 
-        with self._retry_lock:
-            # 检查文件是否已在重试列表中
-            if file_path in self._retry_tasks:
-                # 更新重试次数和最后尝试时间
-                self._retry_tasks[file_path]["retry_count"] += 1
-                self._retry_tasks[file_path]["last_attempt"] = datetime.now()
+    def _migrate_retry_tasks(self) -> int:
+        """把旧版存在配置里的 retry_tasks 迁进状态库"""
+        raw = getattr(self, "_legacy_retry_tasks", None)
+        if not raw:
+            return 0
+        try:
+            legacy = json.loads(raw)
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            logger.warning(f"旧重试任务无法解析，跳过迁移: {e}")
+            return 0
+        if not isinstance(legacy, dict):
+            return 0
+        with self._state_lock:
+            for file_path, task in legacy.items():
+                norm = self._normalize_path(file_path)
+                if not norm or not isinstance(task, dict):
+                    continue
+                self._scrape_state[norm] = {
+                    "verdict": "failed",
+                    "comment_id": None,
+                    "danmu_count": int(task.get("last_danmu_count", 0) or 0),
+                    "attempts": int(task.get("retry_count", 1) or 1),
+                    "last_attempt": task.get("last_attempt"),
+                    "last_success": None,
+                    "release_date": None,
+                    "render": None,
+                }
+            return len(self._scrape_state)
 
-                # 检查是否达到最大重试次数
-                if self._retry_tasks[file_path]["retry_count"] >= self._max_retry_times:
-                    logger.warning(f"文件 {file_path} 达到最大重试次数 ({self._max_retry_times})，从重试列表中移除")
-                    del self._retry_tasks[file_path]
-                else:
-                    logger.info(f"更新重试任务: {file_path}，重试次数: {self._retry_tasks[file_path]['retry_count']}")
-            else:
-                # 添加新的重试任务
-                if danmu_count < self._min_danmu_count:
-                    self._retry_tasks[file_path] = {
-                        "retry_count": 1,
-                        "last_attempt": datetime.now(),
-                        "file_path": file_path,
-                        "last_danmu_count": danmu_count
-                    }
-                    logger.info(f"添加新的重试任务: {file_path}，当前弹幕数量: {danmu_count}")
-
-        # 保存重试任务到配置
-        self._save_retry_tasks()
-
-    def _save_retry_tasks(self):
+    def _flush_scrape_state(self, force: bool = False):
         """
-        保存重试任务列表到配置（批量刮削期间只标记待保存，结束时统一落盘一次）
+        落盘状态库。批量刮削期间只标记待保存、结束时统一写一次——
+        大库有上万条，每个文件都整体重写会拖垮批量刮削。
         """
         try:
-            with self._retry_lock:
-                if self._retry_save_deferred:
-                    self._retry_save_pending = True
-                    return
-            self._persist_config()
-            logger.debug("重试任务列表已保存到配置")
+            if not force:
+                with self._state_lock:
+                    if self._state_save_deferred:
+                        self._state_save_pending = True
+                        return
+            with self._state_lock:
+                snapshot = copy.deepcopy(self._scrape_state)
+            self.save_data(self._scrape_state_key, snapshot)
+            logger.debug(f"刮削状态已保存（{len(snapshot)} 条）")
         except Exception as e:
-            logger.error(f"保存重试任务失败: {e}")
+            logger.error(f"保存刮削状态失败: {e}")
+
+    def _compute_next_check(self, verdict: str, attempts: int, satisfied: bool,
+                            release_date: Optional[str]) -> str:
+        """
+        算出下次复查时间。指数退避取代了原来的「重试 10 次就放弃」——
+        那个硬截断既会在新番弹幕正涨时提前放弃，又会被下一次全局刮削原样加回来，
+        形成无限循环。退避没有上限次数，只有间隔上限，所以「老片后来被收录」
+        这类情况永远覆盖得到，只是不必每 3 小时问一次。
+        """
+        recent = self._is_recent_release(release_date)
+        if satisfied:
+            # 已经拿到足量弹幕：新番弹幕还会涨，老内容基本不会再变
+            hours = self._backoff_ok_recent_hours if recent else self._backoff_cap_hours
+        else:
+            base = self._backoff_base_hours.get(verdict, 6)
+            hours = base * (2 ** max(0, attempts - 1))
+            hours = min(hours, self._backoff_cap_recent_hours if recent
+                        else self._backoff_cap_hours)
+        return (datetime.now() + timedelta(hours=hours)).isoformat(timespec="seconds")
+
+    def _is_due(self, entry: Optional[Dict[str, Any]]) -> bool:
+        """
+        该文件是否到了该处理的时候。
+        没有状态（从没刮过）、退避到期、或者产出 .ass 时的配置已经变了，都算到期。
+        """
+        if not entry:
+            return True
+        if entry.get("render") and entry["render"] != self._render_signature():
+            return True
+        next_check = entry.get("next_check")
+        if not next_check:
+            return True
+        try:
+            return datetime.now() >= datetime.fromisoformat(next_check)
+        except (TypeError, ValueError):
+            return True
+
+    def _needs_retry(self, entry: Dict[str, Any]) -> bool:
+        """该条目是否仍需复查"""
+        if not self._enable_retry_task:
+            return False
+        if entry.get("verdict") == "ok" and \
+                int(entry.get("danmu_count", 0)) >= self._min_danmu_count:
+            return False
+        return self._is_due(entry)
+
+    def _record_scrape_state(self, file_path: str, result: generator.DanmuResult,
+                             release_date: Optional[str] = None):
+        """
+        记录一次刮削结果。
+        :param result: generator 返回的结果分类
+        :param release_date: 媒体发布日期，供后续按新番/老番决定复查频率
+        """
+        norm = self._normalize_path(file_path) or file_path
+        satisfied = result.is_ok and result.danmu_count >= self._min_danmu_count
+        now = datetime.now().isoformat(timespec="seconds")
+        with self._state_lock:
+            entry = dict(self._scrape_state.get(norm) or {})
+            if satisfied:
+                attempts = 0
+            else:
+                # 只增不重置：它是退避的指数，不再是「重试几次就放弃」的计数
+                attempts = int(entry.get("attempts", 0)) + 1
+            effective_release = release_date or entry.get("release_date")
+            entry.update({
+                "verdict": result.outcome,
+                "comment_id": result.comment_id or entry.get("comment_id"),
+                "danmu_count": result.danmu_count,
+                "attempts": attempts,
+                "last_attempt": now,
+                "release_date": effective_release,
+                "next_check": self._compute_next_check(
+                    result.outcome, attempts, satisfied, effective_release),
+            })
+            if satisfied:
+                entry["last_success"] = now
+                entry["render"] = self._render_signature()
+            self._scrape_state[norm] = entry
+        self._flush_scrape_state()
+
+    # ------------------------------------------------------------------
+    # 系列级缓存
+    #
+    # 「弹弹play 有没有这部剧」是剧的属性，不是集的属性。整季查询一次就能
+    # 得到权威答案，缓存之后该剧所有文件都不必再打识别请求——178 集的剧
+    # 从 178 次问变成 1 次。空结果同样缓存（确认无收录），但有 TTL，
+    # 以便「老片后来被收录」仍能覆盖到。
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _series_key(tmdb_id: Any, tmdb_id_type: int) -> str:
+        return f"{tmdb_id}:{tmdb_id_type}"
+
+    def _series_ttl_hours(self, release_date: Optional[str], found: bool) -> int:
+        """新番弹幕与条目都还在变，复查勤一些；完结老番隔很久看一次就够"""
+        if self._is_recent_release(release_date):
+            return self._series_ttl_recent_hours
+        return self._series_ttl_hours_default if found else self._series_ttl_absent_hours
+
+    @staticmethod
+    def _is_recent_release(release_date: Optional[str]) -> bool:
+        if not release_date:
+            return False
+        try:
+            return (datetime.now() - datetime.strptime(release_date, '%Y-%m-%d')).days < 90
+        except (TypeError, ValueError):
+            return False
+
+    def _get_series(self, tmdb_id: Any, tmdb_id_type: int,
+                    release_date: Optional[str]) -> Optional["generator.SeriesLookup"]:
+        """
+        取该作品的整季结果，命中缓存则零请求。
+        :return: SeriesLookup；None 表示这次什么都没问出来（不缓存）
+        """
+        if tmdb_id is None:
+            return None
+        key = self._series_key(tmdb_id, tmdb_id_type)
+        with self._state_lock:
+            cached = self._series_cache.get(key)
+        if cached:
+            fetched_at = cached.get("fetched_at")
+            ttl = cached.get("ttl_hours", self._series_ttl_hours_default)
+            try:
+                age = datetime.now() - datetime.fromisoformat(fetched_at)
+                if age.total_seconds() < ttl * 3600:
+                    return generator.SeriesLookup(
+                        cached.get("status", "ok"), cached.get("series") or []
+                    )
+            except (TypeError, ValueError):
+                pass
+
+        lookup = generator.DanmuAPI.search_series(tmdb_id, tmdb_id_type)
+        if lookup.status == "unknown":
+            # 什么都没问出来：不写缓存，否则会把一次网络抖动固化成「无收录」
+            return None
+        # truncated 也必须缓存：长番每个文件都重问一次整季，比不用整季查询还差
+        with self._state_lock:
+            self._series_cache[key] = {
+                "status": lookup.status,
+                "series": lookup.entries,
+                "fetched_at": datetime.now().isoformat(timespec="seconds"),
+                "ttl_hours": self._series_ttl_hours(release_date, lookup.usable),
+            }
+        if lookup.status == "absent":
+            logger.info(f"弹弹play 未收录该作品（tmdb={tmdb_id}），已记入系列级缓存")
+        elif lookup.status == "ok":
+            total = sum(len(e.get("episodes") or []) for e in lookup.entries)
+            logger.info(f"整季查询命中（tmdb={tmdb_id}）：{len(lookup.entries)} 个条目，共 {total} 集")
+        self._flush_series_cache()
+        return lookup
+
+    def _load_series_cache(self):
+        stored = self.get_data(self._series_cache_key)
+        with self._state_lock:
+            self._series_cache = stored if isinstance(stored, dict) else {}
+        if self._series_cache:
+            logger.info(f"加载了 {len(self._series_cache)} 条系列级缓存")
+
+    def _flush_series_cache(self, force: bool = False):
+        """与状态库同样的合并写盘策略"""
+        try:
+            if not force:
+                with self._state_lock:
+                    if self._state_save_deferred:
+                        self._series_save_pending = True
+                        return
+            with self._state_lock:
+                snapshot = copy.deepcopy(self._series_cache)
+            self.save_data(self._series_cache_key, snapshot)
+        except Exception as e:
+            logger.error(f"保存系列级缓存失败: {e}")
+
+    # 用一个哨兵区分「整季查询确认无收录」和「整季查询帮不上忙，走兜底」
+    _SERIES_ABSENT = "__series_absent__"
+
+    def _locate_via_series(self, tmdb_id: Any, tmdb_id_type: int, season: Optional[int],
+                           episode: Optional[int], release_date: Optional[str],
+                           file_path: str) -> Optional[str]:
+        """
+        用整季结果定位这一集。
+        :return: 弹幕ID；_SERIES_ABSENT 表示整部确认无收录；
+                 None 表示整季查询解决不了，交给 /match 兜底
+        """
+        if tmdb_id is None:
+            return None
+        try:
+            lookup = self._get_series(tmdb_id, tmdb_id_type, release_date)
+        except generator.DanmuThrottled:
+            raise
+        if lookup is None:
+            return None
+
+        if lookup.status == "truncated":
+            # 结果被截断，条目和集数一起丢了。此时任何按序号的推导都可能
+            # 静默错位几百集，只能整批作废交给逐集匹配
+            return None
+
+        if lookup.status == "absent":
+            if tmdb_id_type == 1:
+                # 该接口对电影的覆盖不完整（服务端实测有电影在这里查不到、
+                # 却能从 bangumi 侧查到），所以电影的空结果不足以下「无收录」的
+                # 结论，交给 /match 用文件哈希再兜一次
+                logger.info(f"电影在整季接口无结果，回退常规匹配: {os.path.basename(file_path)}")
+                return None
+            return self._SERIES_ABSENT
+
+        if not lookup.usable:
+            return None
+
+        comment_id = generator.DanmuAPI.locate_episode(lookup.entries, season, episode)
+        if comment_id:
+            logger.info(f"整季结果命中，零请求定位: {comment_id}")
+            return comment_id
+        # 剧是有的，但这一集不在权威列表里——大概率是本地集号识别有问题，
+        # 交给 /match 用文件哈希兜一次，它不依赖集号
+        logger.info(
+            f"整季列表中没有 S{season}E{episode}，回退常规匹配: {os.path.basename(file_path)}"
+        )
+        return None
+
+    def _forget_scrape_state(self, file_path: str) -> bool:
+        """删除某个文件的刮削状态（文件已不存在、或确认无需再复查）"""
+        norm = self._normalize_path(file_path) or file_path
+        with self._state_lock:
+            removed = self._scrape_state.pop(norm, None) is not None
+        if removed:
+            self._flush_scrape_state()
+        return removed
+
+    def _retry_candidates(self) -> List[Tuple[str, Dict[str, Any]]]:
+        """当前仍需复查的条目"""
+        with self._state_lock:
+            return [(path, dict(entry)) for path, entry in self._scrape_state.items()
+                    if self._needs_retry(entry)]
 
     def update_path(self, path: str) -> schemas.Response:
         """
@@ -896,6 +1166,24 @@ class Danmu(_PluginBase):
                     collected.append(file_path)
         return collected
 
+    def _filter_due(self, files: List[str], force: bool) -> Tuple[List[str], int]:
+        """
+        按退避计划筛掉还没到复查时间的文件。
+        这是请求量真正降下来的地方：确认无收录的老内容不再每 3 小时问一遍。
+        :param force: 用户显式要求重刮时跳过筛选
+        :return: (待处理文件, 被跳过数量)
+        """
+        if force:
+            return files, 0
+        due = []
+        for file_path in files:
+            norm = self._normalize_path(file_path) or file_path
+            with self._state_lock:
+                entry = self._scrape_state.get(norm)
+            if self._is_due(entry):
+                due.append(file_path)
+        return due, len(files) - len(due)
+
     def _start_scrape_batch(self, files: List[str], label: str) -> bool:
         """
         启动后台批量刮削，已有任务运行时返回False
@@ -912,6 +1200,8 @@ class Danmu(_PluginBase):
                 "processed": 0,
                 "success": 0,
                 "failed": 0,
+                "absent": 0,
+                "empty": 0,
                 "deferred": 0,
                 "skipped": 0,
                 "current_file": None,
@@ -930,12 +1220,12 @@ class Danmu(_PluginBase):
     def _scrape_file(self, file_path: str) -> str:
         """
         刮削单个文件并归类结果
-        :return: ok（生成成功）/ failed（真失败，值得重试）/
+        :return: ok（生成成功）/ absent（弹弹play 未收录，不是失败）/
+                 empty（已收录但暂无弹幕）/ failed（真失败，值得重试）/
                  deferred（被服务端限流，稍后重试）/ skipped（重试也不会改变结果）
         """
         try:
-            result = self.generate_danmu(file_path)
-            return "ok" if isinstance(result, str) and result.endswith('.danmu.ass') else "failed"
+            return self.generate_danmu(file_path).outcome
         except generator.DanmuThrottled as e:
             # 被限流不是失败：既不计入重试次数，也不该判定为「没有弹幕」
             logger.warning(f"刮削被限流，本次跳过: {file_path}: {e}")
@@ -953,6 +1243,8 @@ class Danmu(_PluginBase):
             self._scrape_progress["processed"] += 1
             if outcome == "ok":
                 self._scrape_progress["success"] += 1
+            elif outcome in ("absent", "empty"):
+                self._scrape_progress[outcome] += 1
             elif outcome == "deferred":
                 self._scrape_progress["deferred"] += 1
             elif outcome == "skipped":
@@ -963,9 +1255,10 @@ class Danmu(_PluginBase):
     def _run_scrape_batch(self, files: List[str], label: str):
         logger.info(f"开始批量刮削（{label}），共 {len(files)} 个文件")
         # 批量期间不逐文件回写配置，结束后统一保存一次重试任务
-        with self._retry_lock:
-            self._retry_save_deferred = True
-            self._retry_save_pending = False
+        with self._state_lock:
+            self._state_save_deferred = True
+            self._state_save_pending = False
+            self._series_save_pending = False
         threading_list = []
         stopped = False
         try:
@@ -1006,19 +1299,24 @@ class Danmu(_PluginBase):
                 self._scrape_progress["running"] = False
                 self._scrape_progress["current_file"] = None
                 summary = dict(self._scrape_progress)
-            with self._retry_lock:
-                self._retry_save_deferred = False
-                retry_save_pending = self._retry_save_pending
-                self._retry_save_pending = False
-            if retry_save_pending:
-                self._save_retry_tasks()
+            with self._state_lock:
+                self._state_save_deferred = False
+                state_save_pending = self._state_save_pending
+                series_save_pending = self._series_save_pending
+                self._state_save_pending = False
+                self._series_save_pending = False
+            if state_save_pending:
+                self._flush_scrape_state()
+            if series_save_pending:
+                self._flush_series_cache()
         logger.info(
             f"批量刮削{'中止' if stopped else '完成'}（{label}）：成功 {summary['success']}，"
+            f"无收录 {summary['absent']}，暂无弹幕 {summary['empty']}，"
             f"失败 {summary['failed']}，限流跳过 {summary['deferred']}，"
             f"无法判定 {summary['skipped']}，共 {summary['total']}"
         )
 
-    def scrape_directory(self, directory_path: str = None) -> schemas.Response:
+    def scrape_directory(self, directory_path: str = None, force: bool = False) -> schemas.Response:
         """
         刮削指定目录下所有媒体文件
         """
@@ -1032,15 +1330,24 @@ class Danmu(_PluginBase):
         files = self._collect_media_files(directory_path)
         if not files:
             return schemas.Response(success=False, message="目录下没有支持的媒体文件")
+        files, skipped = self._filter_due(files, force)
+        if not files:
+            return schemas.Response(
+                success=True,
+                message=f"{skipped} 个文件都还没到复查时间，本次无需刮削",
+                data={"total": 0, "skipped": skipped}
+            )
         if not self._start_scrape_batch(files, f"目录 {directory_path}"):
             return schemas.Response(success=False, message="已有刮削任务进行中，请稍后再试")
+        message = f"已开始刮削，共 {len(files)} 个文件"
+        if skipped:
+            message += f"（{skipped} 个未到复查时间已跳过）"
         return schemas.Response(
-            success=True,
-            message=f"已开始刮削，共 {len(files)} 个文件",
-            data={"total": len(files)}
+            success=True, message=message,
+            data={"total": len(files), "skipped": skipped}
         )
 
-    def generate_danmu_global(self):
+    def generate_danmu_global(self, force: bool = False):
         """
         全局刮削弹幕
         """
@@ -1060,12 +1367,21 @@ class Danmu(_PluginBase):
 
         if not files:
             return schemas.Response(success=False, message="未找到支持的媒体文件")
+        files, skipped = self._filter_due(files, force)
+        if not files:
+            return schemas.Response(
+                success=True,
+                message=f"{skipped} 个文件都还没到复查时间，本次无需刮削",
+                data={"total": 0, "skipped": skipped}
+            )
         if not self._start_scrape_batch(files, "全局"):
             return schemas.Response(success=False, message="已有刮削任务进行中")
+        message = f"已开始刮削，共 {len(files)} 个文件"
+        if skipped:
+            message += f"（{skipped} 个未到复查时间已跳过）"
         return schemas.Response(
-            success=True,
-            message=f"已开始刮削，共 {len(files)} 个文件",
-            data={"total": len(files)}
+            success=True, message=message,
+            data={"total": len(files), "skipped": skipped}
         )
     
     @eventmanager.register(EventType.TransferComplete)
@@ -1389,25 +1705,20 @@ class Danmu(_PluginBase):
             
         try:
             result = self.generate_danmu(file_path)
-            if result is None:
-                return schemas.Response(success=False, message="弹幕生成失败")
-            # 如果是字符串且不是弹幕文件路径，说明是失败原因
-            if isinstance(result, str) and not result.endswith('.ass'):
-                return schemas.Response(success=False, message=result)
-            # 正常生成
-            ass_file = f"{os.path.splitext(file_path)[0]}.danmu.ass"
-            danmu_count = self._count_danmu_lines_cached(ass_file)
-            logger.info(f"生成弹幕成功，弹幕数量: {danmu_count}")
-            if danmu_count == 0:
-                return schemas.Response(success=False, message="弹幕数量为0 跳过生成")
-            return schemas.Response(
-                success=True,
-                message="弹幕生成成功",
-                data={
-                    "danmu_count": danmu_count,
-                    "file_path": file_path
-                }
-            )
+            # outcome 一并返回，前端据此区分「成功 / 无收录 / 暂无弹幕 / 失败」。
+            # absent 与 empty 不是错误——把它们报成失败会让用户去做
+            # 重扫、手动匹配这些不可能奏效的操作
+            data = {
+                "outcome": result.outcome,
+                "danmu_count": result.danmu_count,
+                "file_path": file_path
+            }
+            if result.is_ok:
+                logger.info(f"生成弹幕成功，弹幕数量: {result.danmu_count}")
+                return schemas.Response(success=True, message="弹幕生成成功", data=data)
+            if result.outcome == "failed":
+                return schemas.Response(success=False, message=result.message, data=data)
+            return schemas.Response(success=True, message=result.message, data=data)
         except generator.DanmuThrottled as e:
             logger.warning(f"生成弹幕被限流: {file_path}: {e}")
             return schemas.Response(success=False, message=str(e))
@@ -1610,25 +1921,23 @@ class Danmu(_PluginBase):
         获取重试任务列表
         :return: 重试任务列表
         """
-        # 转换datetime对象为字符串以便前端显示
         display_tasks = {}
-        with self._retry_lock:
-            for file_path, task_info in self._retry_tasks.items():
-                display_tasks[file_path] = {
-                    "retry_count": task_info["retry_count"],
-                    "last_attempt": task_info["last_attempt"].strftime("%Y-%m-%d %H:%M:%S"),
-                    "file_path": task_info["file_path"],
-                    "last_danmu_count": task_info.get("last_danmu_count", 0)
-                }
-        
+        for file_path, entry in self._retry_candidates():
+            display_tasks[file_path] = {
+                "retry_count": entry.get("attempts", 0),
+                "last_attempt": entry.get("last_attempt"),
+                "file_path": file_path,
+                "last_danmu_count": entry.get("danmu_count", 0),
+                "verdict": entry.get("verdict"),
+            }
+
         return schemas.Response(
             success=True,
             message=f"获取到 {len(display_tasks)} 个重试任务",
             data={
                 "tasks": display_tasks,
                 "total": len(display_tasks),
-                "min_danmu_count": self._min_danmu_count,
-                "max_retry_times": self._max_retry_times
+                "min_danmu_count": self._min_danmu_count
             }
         )
 
@@ -1637,20 +1946,18 @@ class Danmu(_PluginBase):
         处理重试任务
         :return: 处理结果
         """
-        if not self._retry_tasks:
+        tasks_to_process = self._retry_candidates()
+        if not tasks_to_process:
             return schemas.Response(success=True, message="没有待处理的重试任务")
-        
-        logger.info(f"开始处理 {len(self._retry_tasks)} 个重试任务")
+
+        logger.info(f"开始处理 {len(tasks_to_process)} 个重试任务")
         processed_count = 0
         success_count = 0
         failed_count = 0
         removed_count = 0
-        
-        # 创建副本以避免在迭代时修改字典
-        with self._retry_lock:
-            tasks_to_process = list(self._retry_tasks.items())
 
         deferred_count = 0
+        absent_count = 0
         for file_path, task_info in tasks_to_process:
             if self._stop_event.is_set():
                 logger.info("收到停止信号，中止重试任务处理")
@@ -1667,20 +1974,11 @@ class Danmu(_PluginBase):
             # 检查文件是否仍然存在
             if not os.path.exists(file_path):
                 logger.warning(f"重试任务文件不存在，移除: {file_path}")
-                with self._retry_lock:
-                    self._retry_tasks.pop(file_path, None)
+                self._forget_scrape_state(file_path)
                 removed_count += 1
                 continue
 
-            # 检查是否达到最大重试次数
-            if task_info["retry_count"] >= self._max_retry_times:
-                logger.warning(f"文件 {file_path} 已达到最大重试次数 ({self._max_retry_times})，移除")
-                with self._retry_lock:
-                    self._retry_tasks.pop(file_path, None)
-                removed_count += 1
-                continue
-            
-            logger.info(f"处理重试任务: {file_path} (第 {task_info['retry_count'] + 1} 次尝试)")
+            logger.info(f"处理重试任务: {file_path} (第 {task_info.get('attempts', 0) + 1} 次尝试)")
             
             try:
                 # 生成弹幕（这会自动更新重试任务状态）
@@ -1688,23 +1986,15 @@ class Danmu(_PluginBase):
                 processed_count += 1
                 
                 # 检查结果
-                if result and not (isinstance(result, str) and result.startswith('弹幕数量为0')):
-                    # 检查弹幕文件是否满足要求
-                    ass_file = f"{os.path.splitext(file_path)[0]}.danmu.ass"
-                    if os.path.exists(ass_file):
-                        danmu_count = self._count_danmu_lines_cached(ass_file)
-                        if danmu_count >= self._min_danmu_count:
-                            success_count += 1
-                            logger.info(f"重试成功: {file_path}，弹幕数量: {danmu_count}")
-                        else:
-                            failed_count += 1
-                            logger.info(f"重试失败: {file_path}，弹幕数量仍不足: {danmu_count}")
-                    else:
-                        failed_count += 1
-                        logger.warning(f"重试失败: {file_path}，弹幕文件不存在")
+                if result.is_ok and result.danmu_count >= self._min_danmu_count:
+                    success_count += 1
+                    logger.info(f"重试成功: {file_path}，弹幕数量: {result.danmu_count}")
+                elif result.outcome == "absent":
+                    absent_count += 1
+                    logger.info(f"弹弹play未收录，无需重试: {file_path}")
                 else:
                     failed_count += 1
-                    logger.warning(f"重试失败: {file_path}，{result}")
+                    logger.info(f"重试未成功: {file_path}，{result.message or '弹幕数量仍不足'}")
 
             except generator.DanmuThrottled as e:
                 # 不计入失败，重试次数也没有增加，下轮原样再来
@@ -1712,21 +2002,19 @@ class Danmu(_PluginBase):
                 logger.warning(f"重试被限流，本轮跳过: {file_path}: {e}")
             except generator.DanmuUnresolvable as e:
                 # 条件不变结果就不变，留在列表里只会每轮空转，直接移除
-                with self._retry_lock:
-                    self._retry_tasks.pop(file_path, None)
+                self._forget_scrape_state(file_path)
                 removed_count += 1
                 logger.info(f"重试无法改变结果，从重试列表移除: {e}")
             except Exception as e:
                 logger.error(f"处理重试任务失败: {file_path}，错误: {e}")
                 failed_count += 1
         
-        # 保存更新后的重试任务列表
-        self._save_retry_tasks()
+        self._flush_scrape_state()
         
         result_message = (
             f"重试任务处理完成。处理: {processed_count}, 成功: {success_count}, "
-            f"失败: {failed_count}, 限流跳过: {deferred_count}, 移除: {removed_count}, "
-            f"剩余: {len(self._retry_tasks)}"
+            f"失败: {failed_count}, 无收录: {absent_count}, 限流跳过: {deferred_count}, "
+            f"移除: {removed_count}, 剩余: {len(self._retry_candidates())}"
         )
         logger.info(result_message)
 
@@ -1737,9 +2025,10 @@ class Danmu(_PluginBase):
                 "processed": processed_count,
                 "success": success_count,
                 "failed": failed_count,
+                "absent": absent_count,
                 "deferred": deferred_count,
                 "removed": removed_count,
-                "remaining": len(self._retry_tasks)
+                "remaining": len(self._retry_candidates())
             }
         )
 
@@ -1748,10 +2037,12 @@ class Danmu(_PluginBase):
         清空重试任务
         :return: 清空结果
         """
-        with self._retry_lock:
-            task_count = len(self._retry_tasks)
-            self._retry_tasks = {}
-        self._save_retry_tasks()
+        candidates = self._retry_candidates()
+        task_count = len(candidates)
+        for file_path, _ in candidates:
+            with self._state_lock:
+                self._scrape_state.pop(file_path, None)
+        self._flush_scrape_state()
         
         logger.info(f"已清空 {task_count} 个重试任务")
         return schemas.Response(
@@ -1768,10 +2059,8 @@ class Danmu(_PluginBase):
         if not file_path:
             return schemas.Response(success=False, message="文件路径不能为空")
             
-        with self._retry_lock:
-            removed = self._retry_tasks.pop(file_path, None)
+        removed = self._forget_scrape_state(file_path)
         if removed:
-            self._save_retry_tasks()
             logger.info(f"重试任务已移除: {file_path}")
             return schemas.Response(
                 success=True,
@@ -1792,11 +2081,12 @@ class Danmu(_PluginBase):
                 logger.debug("弹幕插件或重试任务功能未启用，跳过定时处理")
                 return
                 
-            if not self._retry_tasks:
+            pending = len(self._retry_candidates())
+            if not pending:
                 logger.debug("没有待处理的重试任务")
                 return
-                
-            logger.info(f"定时任务开始处理 {len(self._retry_tasks)} 个重试任务")
+
+            logger.info(f"定时任务开始处理 {pending} 个重试任务")
             
             # 调用现有的处理重试任务方法
             result = self.process_retry_tasks()
