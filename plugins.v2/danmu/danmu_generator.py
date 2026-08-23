@@ -5,10 +5,85 @@ import re
 import hashlib
 import subprocess
 import json
+import threading
+import time
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple, Any
 from dataclasses import dataclass
 from app.log import logger
+
+
+class DanmuThrottled(Exception):
+    """
+    服务端拒绝了本次请求（429 限速/日预算，或 503 配额熔断）。
+
+    这表示传输层被拒绝，**不代表内容不存在**，因此调用方不得据此判定
+    「未找到弹幕」，也不得计入重试次数。
+    """
+
+    def __init__(self, retry_after: float, status_code: Optional[int] = None):
+        self.retry_after = retry_after
+        self.status_code = status_code
+        prefix = f"HTTP {status_code}" if status_code else "本地限速"
+        super().__init__(f"弹弹API暂时不可用（{prefix}），约 {retry_after:.0f} 秒后可重试")
+
+
+class DanmuUnresolvable(Exception):
+    """
+    本次无法判定弹幕归属，且重试不会改变结果（如 .strm 文件缺少 TMDB ID）。
+
+    与 DanmuThrottled 的区别：限流是暂时的，稍后重试有意义；这里是持久的，
+    条件不变就永远是同一个结果，因此不得进入重试列表。两者都不等于「没有弹幕」。
+    """
+
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
+class _TokenBucket:
+    """
+    进程级令牌桶。所有弹弹API请求共用一个桶，刮削线程在此排队，
+    这样限流与刮削并发数解耦——本地的 ffprobe/MD5/合并字幕不该被限流拖慢。
+    """
+
+    def __init__(self, rate_per_minute: float, burst: int):
+        self._rate = rate_per_minute / 60.0
+        self._burst = float(burst)
+        self._tokens = float(burst)
+        self._updated = time.monotonic()
+        self._lock = threading.Lock()
+
+    def _take_locked(self) -> float:
+        """取一个令牌，成功返回0，否则返回需要等待的秒数"""
+        now = time.monotonic()
+        self._tokens = min(self._burst, self._tokens + (now - self._updated) * self._rate)
+        self._updated = now
+        if self._tokens >= 1:
+            self._tokens -= 1
+            return 0.0
+        return (1 - self._tokens) / self._rate
+
+    def acquire(self, timeout: Optional[float] = None) -> bool:
+        """
+        取一个令牌
+        :param timeout: 最长等待秒数，None表示一直等（后台刮削用）；
+                        UI请求应传入较小值以便快速失败
+        :return: 是否取到令牌
+        """
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            with self._lock:
+                wait = self._take_locked()
+            if wait <= 0:
+                return True
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                wait = min(wait, remaining)
+            time.sleep(wait)
+
 
 @dataclass
 class VideoInfo:
@@ -53,32 +128,187 @@ class StrmProcessor:
 
 class DanmuAPI:
     BASE_URL = 'https://dandanapi.hankun.online/api/v1'
+    # Version suffix is filled in by set_client_version() from the plugin class,
+    # so the plugin version lives in exactly one place
     HEADERS = {
         'Accept': 'application/json',
-        "User-Agent": "Moviepilot/plugins 1.9.0"
+        "User-Agent": "Moviepilot/plugins"
     }
     MANUAL_MATCH_FILE = ".dandan.anime.json"
     # (connect, read) timeout for all dandan API calls; without this a hung
     # request blocks a worker thread forever and stalls batch scraping
     TIMEOUT = (10, 60)
 
+    # 客户端限速：与服务端搜索类限速对齐（30 请求/分钟）。
+    # 服务端契约：nginx 限速返回 429 且不带 Retry-After；应用层日预算超额
+    # 返回 429 带 Retry-After；配额熔断返回 503 带 Retry-After。
+    RATE_PER_MINUTE = 30
+    RATE_BURST = 5
+    # 服务端没给 Retry-After 时的兜底退避
+    DEFAULT_RETRY_AFTER = 60
+    MAX_RETRY_AFTER = 3600
+    # 闸门关闭时长在此值以内就地等待，超过则让调用方中止本批
+    GATE_WAIT_MAX = 120
+
+    _bucket = _TokenBucket(RATE_PER_MINUTE, RATE_BURST)
+    _session: Optional[requests.Session] = None
+    _session_lock = threading.Lock()
+    # 进程级限流闸门：任一线程撞到429/503即关闸，其余线程发请求前先看闸
+    _gate_lock = threading.Lock()
+    _blocked_until = 0.0
+
+    @classmethod
+    def _get_session(cls) -> requests.Session:
+        """复用连接，避免每次请求都重新握手TLS"""
+        if cls._session is None:
+            with cls._session_lock:
+                if cls._session is None:
+                    cls._session = requests.Session()
+        return cls._session
+
+    @classmethod
+    def blocked_seconds(cls) -> float:
+        """闸门剩余关闭时长，0表示当前可以发请求"""
+        with cls._gate_lock:
+            return max(0.0, cls._blocked_until - time.monotonic())
+
+    @classmethod
+    def _close_gate(cls, retry_after: float) -> None:
+        with cls._gate_lock:
+            until = time.monotonic() + retry_after
+            if until > cls._blocked_until:
+                cls._blocked_until = until
+
+    @classmethod
+    def reset_gate(cls) -> None:
+        """插件重新加载时清空闸门"""
+        with cls._gate_lock:
+            cls._blocked_until = 0.0
+
+    @classmethod
+    def _parse_retry_after(cls, response: requests.Response) -> float:
+        """
+        解析 Retry-After。nginx 限速那层不带这个头，读不到用兜底值。
+        """
+        raw = response.headers.get("Retry-After")
+        if raw:
+            try:
+                return max(1.0, min(float(raw), cls.MAX_RETRY_AFTER))
+            except (TypeError, ValueError):
+                # HTTP-date 形式的 Retry-After 不常见，直接走兜底
+                logger.debug(f"无法解析Retry-After: {raw}")
+        return float(cls.DEFAULT_RETRY_AFTER)
+
+    @classmethod
+    def _wait_for_gate(cls, acquire_timeout: Optional[float]) -> None:
+        """
+        等待闸门打开。关闭时长超过 GATE_WAIT_MAX（或超过调用方允许的等待时间）
+        时抛出 DanmuThrottled，由调用方决定中止。
+        """
+        blocked = cls.blocked_seconds()
+        if blocked <= 0:
+            return
+        limit = cls.GATE_WAIT_MAX if acquire_timeout is None else min(cls.GATE_WAIT_MAX, acquire_timeout)
+        if blocked > limit:
+            raise DanmuThrottled(blocked)
+        logger.info(f"弹弹API限流中，等待 {blocked:.0f} 秒后继续")
+        time.sleep(blocked)
+
+    @classmethod
+    def _request(cls, method: str, url: str, *, json_body: Optional[Dict] = None,
+                 params: Optional[Dict] = None,
+                 acquire_timeout: Optional[float] = None) -> Optional[requests.Response]:
+        """
+        所有弹弹API请求的唯一入口：闸门 -> 令牌桶 -> 发送 -> 限流判定。
+        :param method: HTTP方法
+        :param url: 完整URL
+        :param json_body: POST的JSON体
+        :param params: 查询参数
+        :param acquire_timeout: 最长等待秒数，None表示后台刮削可一直等；
+                                UI请求应传入较小值以便快速失败
+        :return: 响应对象；网络异常返回None
+        :raises DanmuThrottled: 服务端限流/熔断，或本地令牌等待超时
+        """
+        # 最多两次尝试：首次撞到短时限流时，等闸门开了再补一次
+        for attempt in range(2):
+            cls._wait_for_gate(acquire_timeout)
+            if not cls._bucket.acquire(timeout=acquire_timeout):
+                raise DanmuThrottled(60.0 / cls.RATE_PER_MINUTE)
+            try:
+                response = cls._get_session().request(
+                    method, url, json=json_body, params=params,
+                    headers=cls.HEADERS, timeout=cls.TIMEOUT
+                )
+            except requests.RequestException as e:
+                logger.error(f"请求弹弹API失败 {url}: {e}")
+                return None
+
+            if response.status_code not in (429, 503):
+                return response
+
+            retry_after = cls._parse_retry_after(response)
+            cls._close_gate(retry_after)
+            logger.warning(
+                f"弹弹API返回 {response.status_code}，{retry_after:.0f} 秒内暂停请求: {url}"
+            )
+            if attempt == 0 and retry_after <= cls.GATE_WAIT_MAX:
+                continue
+            raise DanmuThrottled(retry_after, response.status_code)
+
+        # 两次尝试都被限流
+        raise DanmuThrottled(cls.blocked_seconds() or cls.DEFAULT_RETRY_AFTER)
+
+    @classmethod
+    def set_client_version(cls, version: Optional[str]) -> None:
+        """
+        Sync the API User-Agent with the plugin version so it is declared in
+        one place only (the plugin class) instead of being kept in step by hand.
+        """
+        if not version:
+            return
+        cls.HEADERS = {**cls.HEADERS, "User-Agent": f"Moviepilot/plugins {version}"}
+
     @classmethod
     def _manual_file_path(cls, directory: str) -> str:
         return os.path.join(directory, cls.MANUAL_MATCH_FILE)
 
-    @staticmethod
-    def _normalize_episode(episode: Optional[int]) -> int:
+    # 弹幕ID编码：episodeId = animeId * 10000 + 集内序号。
+    # 序号 0..8999 是正片（第0集是合法的放送前特番/序章）；
+    # 9000-9099=S特别篇、9100-9199=C(OP/ED)、9400-9499=O其他；
+    # >=10000 会进位到 animeId+1，也就是**另一部作品**。
+    # 边界钉在编码规则上，不能用「合理集数」之类的启发式——真实长番集号已达
+    # 3000+ 且还在涨，任何经验阈值迟早会静默拒掉真实集数。
+    MAX_REGULAR_EPISODE = 8999
+
+    @classmethod
+    def _normalize_episode(cls, episode: Optional[int]) -> Optional[int]:
+        """
+        校验集号能否用于拼接正片弹幕ID。
+        :return: 有效集号；无法判定时返回None，由调用方回退常规匹配。
+                 **绝不夹取**——夹取会把「无法判定」变成「自信地给了个错答案」。
+        """
+        # 无集数信息（电影、单条目作品）按第1集处理，这是弹弹play的编码约定
+        if episode is None or episode == "":
+            return 1
         try:
             value = int(episode)
         except (TypeError, ValueError):
-            value = 1
-        return value if value > 0 else 1
+            logger.warning(f"集数无法解析，放弃拼接弹幕ID: {episode}")
+            return None
+        if value < 0 or value > cls.MAX_REGULAR_EPISODE:
+            logger.warning(
+                f"集号 {value} 超出正片编码范围 0-{cls.MAX_REGULAR_EPISODE}，"
+                f"放弃拼接弹幕ID（>=9000 会落进特典段，>=10000 会指向另一部作品）"
+            )
+            return None
+        return value
 
     @staticmethod
     def _apply_episode_offset(episode: Optional[int], offset: Any) -> Optional[int]:
         """
         Shift local episode number to the dandanplay-side numbering.
-        Local episode + offset = dandanplay episode, clamped to >= 1.
+        Local episode + offset = dandanplay episode, clamped to >= 0
+        (episode 0 is a legitimate pre-broadcast special, not an error).
         """
         try:
             offset_int = int(offset)
@@ -90,7 +320,7 @@ class DanmuAPI:
             episode_int = int(episode)
         except (TypeError, ValueError):
             episode_int = 1
-        return max(1, episode_int + offset_int)
+        return max(0, episode_int + offset_int)
 
     @classmethod
     def _compose_comment_id(cls, anime_id: Any, episode: Optional[int]) -> Optional[str]:
@@ -99,6 +329,8 @@ class DanmuAPI:
         except (TypeError, ValueError):
             return None
         episode_int = cls._normalize_episode(episode)
+        if episode_int is None:
+            return None
         return str(anime_id_int * 10000 + episode_int)
 
     @classmethod
@@ -237,9 +469,8 @@ class DanmuAPI:
                 data["episode"] = episode
             else:
                 data["episode"] = 1
-            response = requests.post(url, json=data, headers=DanmuAPI.HEADERS,
-                                     timeout=DanmuAPI.TIMEOUT)
-            if response.status_code == 200:
+            response = DanmuAPI._request("POST", url, json_body=data)
+            if response is not None and response.status_code == 200:
                 result = response.json()
                 if result.get("success") and not result.get("hasMore"):
                     animes = result.get("animes", [])
@@ -248,14 +479,20 @@ class DanmuAPI:
                         if episodes and len(episodes) > 0:
                             return str(episodes[0].get("episodeId"))
             return None
+        except DanmuThrottled:
+            # 被限流不等于没有内容，必须原样抛出让上层区分
+            raise
         except Exception as e:
             logger.error(f"使用TMDB ID搜索弹幕失败: {e}")
             return None
 
     @staticmethod
-    def get_comment_id(file_path: str, use_tmdb_id: bool = False, tmdb_id: Optional[int] = None, episode: Optional[int] = None, cache_ttl: Optional[int] = None, tmdb_id_type: int = 0) -> Optional[str]:
+    def get_comment_id(file_path: str, use_tmdb_id: bool = False, tmdb_id: Optional[int] = None,
+                       episode: Optional[int] = None, tmdb_id_type: int = 0) -> Optional[str]:
         """
-        获取弹幕ID
+        获取弹幕ID。
+        注意这一层没有缓存参数：服务端的 /match 与 /search/tmdb 都不接受 TTL，
+        ID 层的缓存应当做在客户端（本地刮削状态库）。
         :param file_path: 视频文件路径
         :param use_tmdb_id: 是否使用TMDB ID
         :param tmdb_id: TMDB ID
@@ -264,40 +501,10 @@ class DanmuAPI:
         :return: 弹幕ID
         """
         try:
-            # 检查是否为.strm文件
-            if StrmProcessor.is_strm_file(file_path):
-                logger.info(f"检测到.strm文件: {file_path}")
-                # 读取.strm文件内容
-                strm_url = StrmProcessor.get_strm_url(file_path)
-                if strm_url:
-                    logger.info(f"STRM文件指向: {strm_url}")
-                
-                # 对于.strm文件，强制使用TMDB ID匹配
-                if tmdb_id is not None:
-                    logger.info(f"为.strm文件使用TMDB ID匹配: {tmdb_id}")
-                    comment_id = DanmuAPI.search_by_tmdb_id(tmdb_id, episode, tmdb_id_type)
-                    if comment_id:
-                        return comment_id
-                else:
-                    logger.warning(f".strm文件未提供TMDB ID，无法进行弹幕匹配: {file_path}")
-                
-                # .strm文件如果没有TMDB ID，直接返回None
-                return None
-            
-            # 普通视频文件的处理逻辑
-            file_name = os.path.basename(file_path)
-            file_size = DanmuAPI.get_file_size(file_path)
-            file_hash = DanmuAPI.calculate_md5_of_first_16MB(file_path)
-            
-            video_info = VideoInfo(
-                file_name=file_name,
-                file_hash=file_hash,
-                file_size=file_size,
-                video_duration=int(DanmuAPI.get_video_duration(file_path) or 0)
-            )
-            
-            video_dir = os.path.dirname(file_path)
-            manual_mapping = DanmuAPI._load_manual_mapping(video_dir)
+            # 目录手动匹配优先于一切：它本地就能拼出弹幕ID，不需要任何请求，
+            # 也不需要算文件hash和视频时长。必须放在 .strm 分支之前，
+            # 否则 .strm 文件永远走不到这里，目录手动匹配对它静默失效。
+            manual_mapping = DanmuAPI._load_manual_mapping(os.path.dirname(file_path))
             if manual_mapping:
                 manual_episode = DanmuAPI._apply_episode_offset(
                     episode, manual_mapping.get("episodeOffset")
@@ -309,24 +516,56 @@ class DanmuAPI:
                 if manual_comment:
                     logger.info(f"使用目录手动匹配ID: {manual_comment}")
                     return manual_comment
-            
+                logger.warning(f"目录手动匹配数据无效，回退常规匹配: {manual_mapping}")
+
+            # 检查是否为.strm文件
+            if StrmProcessor.is_strm_file(file_path):
+                logger.info(f"检测到.strm文件: {file_path}")
+                # 读取.strm文件内容
+                strm_url = StrmProcessor.get_strm_url(file_path)
+                if strm_url:
+                    logger.info(f"STRM文件指向: {strm_url}")
+
+                # .strm 文件没有本地视频数据，无法走 hash 匹配，只能靠 TMDB ID
+                if tmdb_id is None:
+                    # 零请求就能得出的结论：条件不变，重试多少次都是同样结果
+                    raise DanmuUnresolvable(
+                        f".strm文件缺少TMDB ID，无法匹配弹幕（请检查媒体识别或开启「使用TMDB ID」）: {file_path}"
+                    )
+
+                logger.info(f"为.strm文件使用TMDB ID匹配: {tmdb_id}")
+                return DanmuAPI.search_by_tmdb_id(tmdb_id, episode, tmdb_id_type)
+
+            # 普通视频文件的处理逻辑
+            file_name = os.path.basename(file_path)
+            file_size = DanmuAPI.get_file_size(file_path)
+            file_hash = DanmuAPI.calculate_md5_of_first_16MB(file_path)
+
+            video_info = VideoInfo(
+                file_name=file_name,
+                file_hash=file_hash,
+                file_size=file_size,
+                video_duration=int(DanmuAPI.get_video_duration(file_path) or 0)
+            )
+
             # 使用 match API
             url = f"{DanmuAPI.BASE_URL}/match"
-            response = requests.post(url, json=video_info.__dict__, headers=DanmuAPI.HEADERS,
-                                     timeout=DanmuAPI.TIMEOUT)
-            
-            if response.status_code == 200:
+            response = DanmuAPI._request("POST", url, json_body=video_info.__dict__)
+
+            if response is not None and response.status_code == 200:
                 result = response.json()
                 if result.get("isMatched") and result.get("matches"):
                     return str(result["matches"][0]["episodeId"])
-            
+
             # 如果使用TMDB ID且提供了TMDB ID，尝试使用TMDB ID匹配
             if use_tmdb_id and tmdb_id is not None:
                 comment_id = DanmuAPI.search_by_tmdb_id(tmdb_id, episode, tmdb_id_type)
                 if comment_id:
                     return comment_id
-            
+
             return None
+        except (DanmuThrottled, DanmuUnresolvable):
+            raise
         except Exception as e:
             logger.error(f"获取弹幕ID失败: {e}")
             return None
@@ -348,6 +587,30 @@ class DanmuAPI:
             return None
 
     @classmethod
+    def search_anime(cls, keyword: str, anime_type: Optional[str] = None,
+                     acquire_timeout: Optional[float] = None) -> Dict:
+        """
+        搜索弹弹番剧（UI手动匹配用）
+        :param keyword: 搜索关键字
+        :param anime_type: 作品类型，all或空表示不限
+        :param acquire_timeout: 限速等待上限，UI调用应传入较小值以便快速失败
+        :return: 服务端返回的JSON
+        :raises DanmuThrottled: 被限流
+        :raises RuntimeError: HTTP错误或网络异常
+        """
+        params = {"keyword": keyword}
+        if anime_type and anime_type != "all":
+            params["type"] = anime_type
+        response = cls._request("GET", f"{cls.BASE_URL}/search/anime",
+                                params=params, acquire_timeout=acquire_timeout)
+        if response is None:
+            raise RuntimeError("网络异常，请稍后再试")
+        if response.status_code != 200:
+            logger.error(f"搜索弹弹失败，HTTP {response.status_code}: {response.text}")
+            raise RuntimeError(f"搜索失败: HTTP {response.status_code}")
+        return response.json()
+
+    @classmethod
     def get_comments(cls, comment_id: str, cache_ttl: Optional[int] = None) -> Optional[Dict]:
         """
         获取弹幕内容
@@ -359,11 +622,15 @@ class DanmuAPI:
             url = f"{cls.BASE_URL}/{comment_id}?from_id=0&with_related=true&ch_convert=0"
             if cache_ttl is not None:
                 url += f"&cache_ttl={cache_ttl}"
-            response = requests.get(url, headers=cls.HEADERS, timeout=cls.TIMEOUT)
+            response = cls._request("GET", url)
+            if response is None:
+                return None
             if response.status_code == 200:
                 return response.json()
             logger.error(f"获取弹幕失败: {response.text}")
             return None
+        except DanmuThrottled:
+            raise
         except Exception as e:
             logger.error(f"获取弹幕失败: {e}")
             return None
@@ -434,25 +701,25 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         scrolling_tracks = {}
         top_tracks = {}
         bottom_tracks = {}
+        dropped_full = 0
 
         logger.info(f"{output_file} - 共匹配到{len(comments)}条弹幕。")
-        
+
         with open(output_file, 'w', encoding='utf-8') as f:
             cls.write_ass_head(f, width, height, fontface, fontsize, alpha, styleid)
-            
+
             for comment in comments:
                 try:
-                    p = comment.get('p', '').split(',')
+                    p = str(comment.get('p', '')).split(',')
                     if len(p) < 3:
                         logger.warning(f"弹幕数据格式不正确: {comment}")
                         continue
-                    
+
                     timeline = float(p[0])
                     pos = int(p[1])
                     color = int(p[2])
                     text = comment.get('m', '')
-                    user = str(p[3])
-                    
+
                     if not text:
                         continue
                         
@@ -470,6 +737,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     if pos == 1:  # 滚动弹幕
                         track_id = cls.find_non_overlapping_track(scrolling_tracks, timeline, max_tracks)
                         if track_id is None:
+                            dropped_full += 1
                             continue  # 全部轨道占用，跳过避免重叠
                         scrolling_tracks[track_id] = timeline + leave_time
                         initial_y = (track_id - 1) * fontsize + 10
@@ -477,6 +745,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     elif pos == 4:  # 底部弹幕
                         track_id = cls.find_non_overlapping_track(bottom_tracks, timeline, max_tracks)
                         if track_id is None:
+                            dropped_full += 1
                             continue  # 全部轨道占用，跳过避免重叠
                         bottom_tracks[track_id] = timeline + duration
                         # 底部弹幕需要根据屏幕区域调整位置
@@ -490,6 +759,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     elif pos == 5:  # 顶部弹幕
                         track_id = cls.find_non_overlapping_track(top_tracks, timeline, max_tracks)
                         if track_id is None:
+                            dropped_full += 1
                             continue  # 全部轨道占用，跳过避免重叠
                         top_tracks[track_id] = timeline + duration
                         styles = f'\\an8\\pos({width/2}, {50 + (track_id - 1) * fontsize})'
@@ -500,7 +770,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 except Exception as e:
                     logger.error(f"处理弹幕数据失败: {e}, 弹幕数据: {comment}")
                     continue
-            
+
+            if dropped_full:
+                logger.info(
+                    f"{dropped_full}/{len(comments)} 条弹幕因 {max_tracks} 条轨道全部占用被丢弃，"
+                    f"可减小字体或扩大弹幕区域"
+                )
             logger.info('弹幕生成成功 - ' + output_file)
 
 class SubtitleProcessor:
@@ -579,26 +854,47 @@ class SubtitleProcessor:
                     break
 
     @staticmethod
+    def _matches_video_name(sub_name: str, video_stem: str) -> bool:
+        """
+        判断字幕文件是否属于该视频。
+        名称需与视频名完全相同，或以「视频名 + 非字母数字分隔符」开头，
+        否则 Ep1 会误命中 Ep10.zh.ass。
+        :param sub_name: 字幕文件名（不含目录）
+        :param video_stem: 视频文件名（不含扩展名）
+        """
+        stem = os.path.splitext(sub_name)[0]
+        if stem == video_stem:
+            return True
+        if not stem.startswith(video_stem):
+            return False
+        return not stem[len(video_stem)].isalnum()
+
+    @staticmethod
     def find_subtitle_file(file_path: str) -> Optional[str]:
-        filename = os.path.splitext(os.path.basename(file_path))[0]
+        video_dir = os.path.dirname(file_path)
+        video_stem = os.path.splitext(os.path.basename(file_path))[0]
         ass_candidates = []
         srt_candidates = []
-        for root, _, files in os.walk(os.path.dirname(file_path)):
+        for root, _, files in os.walk(video_dir):
             for file in files:
-                if 'danmu' in file or not file.startswith(filename):
+                # 跳过本插件产物（.danmu.ass 与 .withDanmu.ass）
+                if 'danmu' in file.lower():
+                    continue
+                if not SubtitleProcessor._matches_video_name(file, video_stem):
                     continue
                 full_path = os.path.join(root, file)
+                # 同目录字幕优先于子目录（如 Subs/），同级则按文件名排序保证结果稳定
+                candidate = (0 if root == video_dir else 1, file, full_path)
                 if file.endswith(('.ass', '.ssa')):
-                    ass_candidates.append(full_path)
+                    ass_candidates.append(candidate)
                 elif file.endswith('.srt'):
-                    srt_candidates.append(full_path)
+                    srt_candidates.append(candidate)
         # Prefer .ass/.ssa over .srt for richer style information
-        if ass_candidates:
-            logger.info(f"找到字幕文件 - {ass_candidates[0]}")
-            return ass_candidates[0]
-        if srt_candidates:
-            logger.info(f"找到字幕文件 - {srt_candidates[0]}")
-            return srt_candidates[0]
+        for candidates in (ass_candidates, srt_candidates):
+            if candidates:
+                chosen = min(candidates)[2]
+                logger.info(f"找到字幕文件 - {chosen}")
+                return chosen
         logger.info("没找到字幕文件")
         return None
     
@@ -1071,16 +1367,67 @@ class SubtitleProcessor:
             logger.error(f"合并字幕失败: {e}")
             return False
 
+def _comment_fields(comment: Any) -> List[str]:
+    """
+    取出弹幕的p字段分量，格式为 时间,模式,颜色,用户
+    """
+    if not isinstance(comment, dict):
+        return []
+    return str(comment.get('p', '')).split(',')
+
+
+def _comment_timeline(comment: Any) -> float:
+    """
+    排序用的弹幕时间，解析失败按0处理，避免单条脏数据让整次刮削失败
+    """
+    fields = _comment_fields(comment)
+    if not fields:
+        return 0.0
+    try:
+        return float(fields[0])
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _is_bili_comment(comment: Any) -> bool:
+    """
+    判断弹幕是否来自B站（用户字段带[BiliBili]标记）
+    """
+    fields = _comment_fields(comment)
+    return len(fields) > 3 and '[BiliBili]' in fields[3]
+
+
+def _prefer_bili_comments(comments: List[Dict], min_count: int) -> List[Dict]:
+    """
+    优先使用B站弹幕，B站弹幕不足时回退全部来源。
+
+    实测绝大多数剧集根本没有B站来源的弹幕，若按「仅B站」严格过滤，
+    这些文件会写出空弹幕并反复重试，而重试永远改变不了结果。
+    回退只在严格模式下本来就拿不到弹幕时触发，所以不会让任何人变差。
+    :param comments: 全部来源的弹幕
+    :param min_count: B站弹幕低于此数量即视为不足（复用最小弹幕数要求）
+    """
+    bili_comments = [comment for comment in comments if _is_bili_comment(comment)]
+    if len(bili_comments) >= min_count:
+        logger.info(f"使用B站弹幕 {len(bili_comments)} 条（全部来源 {len(comments)} 条）")
+        return bili_comments
+    logger.info(
+        f"B站弹幕仅 {len(bili_comments)} 条，少于 {min_count} 条，"
+        f"回退使用全部来源 {len(comments)} 条"
+    )
+    return comments
+
+
 def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
                    fontface: str = 'Arial', fontsize: float = 50,
                    alpha: float = 0.8, duration: float = 6, onlyFromBili: bool = False,
                    use_tmdb_id: bool = False, tmdb_id: Optional[int] = None,
                    episode: Optional[int] = None, cache_ttl: Optional[int] = None,
                    screen_area: str = 'full', manual_comment_id: Optional[str] = None,
-                   tmdb_id_type: int = 0) -> Optional[str]:
+                   tmdb_id_type: int = 0, min_danmu_count: int = 100) -> Optional[str]:
     try:
         comment_id = manual_comment_id or DanmuAPI.get_comment_id(
-            file_path, use_tmdb_id, tmdb_id, episode, cache_ttl, tmdb_id_type
+            file_path, use_tmdb_id, tmdb_id, episode, tmdb_id_type
         )
         if not comment_id:
             logger.info(f"未找到对应弹幕 - {file_path}")
@@ -1090,16 +1437,20 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
         if not comments_data:
             return "未获取到弹幕数据"
 
-        comments = sorted(comments_data["comments"], key=lambda x: float(x['p'].split(',')[0]))
-        
+        raw_comments = comments_data.get("comments")
+        if not isinstance(raw_comments, list):
+            logger.warning(f"弹幕数据格式异常，缺少comments列表 - {file_path}")
+            return "未获取到弹幕数据"
+
+        comments = sorted(raw_comments, key=_comment_timeline)
+
         if len(comments) == 0:
             logger.info(f"弹幕数量为0，跳过生成 - {file_path}")
             return f"弹幕数量为0，跳过生成 - {file_path}"
 
-        # 过滤B站弹幕
+        # 优先B站弹幕（不足则回退全部来源）
         if onlyFromBili:
-            comments = [comment for comment in comments if '[BiliBili]' in comment['p'].split(',')[3]]
-            logger.info(f"过滤后剩余{len(comments)}条B站弹幕")
+            comments = _prefer_bili_comments(comments, min_danmu_count)
 
         output_file = os.path.splitext(file_path)[0] + '.danmu.ass'
         
@@ -1132,6 +1483,9 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
 
         return output_file
 
+    except (DanmuThrottled, DanmuUnresolvable):
+        # 交由插件层处理：既不算失败，也不进重试列表
+        raise
     except Exception as e:
         logger.error(f"生成弹幕失败: {e}")
         return f"生成弹幕失败: {str(e)}"

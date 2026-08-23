@@ -18,7 +18,6 @@ import threading
 import time
 import json
 import copy
-import requests
 from app.plugins.danmu import danmu_generator as generator
    
 
@@ -32,7 +31,7 @@ class Danmu(_PluginBase):
     # 主题色
     plugin_color = "#3B5E8E"
     # 插件版本
-    plugin_version = "1.9.0"
+    plugin_version = "1.10.0"
     # 插件作者
     plugin_author = "hankun"
     # 作者主页
@@ -64,6 +63,8 @@ class Danmu(_PluginBase):
     _min_danmu_count = 100  # 最小弹幕数量要求 - 硬编码
     _max_retry_times = 10  # 最大重试次数 - 硬编码
     _enable_retry_task = True  # 是否启用重试任务
+    _stop_wait_seconds = 30  # stop_service 等待批量刮削收尾的最长时间
+    _ui_acquire_timeout = 10  # UI请求等待限速令牌的上限，超时即提示稍后再试
     
     # 重试任务列表 - 存储格式: {file_path: {"retry_count": int, "last_attempt": datetime, "file_path": str}}
     _retry_tasks = {}
@@ -76,12 +77,17 @@ class Danmu(_PluginBase):
     _inflight_files: set = set()
     # 批量刮削进度状态（含全局定时刮削与目录刮削）
     _scrape_lock = threading.Lock()
+    # 插件停止信号；批量刮削与重试任务在每个文件前检查，保证 stop_service 能收尾
+    _stop_event = threading.Event()
+    _scrape_thread: Optional[threading.Thread] = None
     _scrape_progress: Dict[str, Any] = {
         "running": False,
         "total": 0,
         "processed": 0,
         "success": 0,
         "failed": 0,
+        "deferred": 0,
+        "skipped": 0,
         "current_file": None,
         "started_at": None,
         "duration": 0
@@ -107,6 +113,35 @@ class Danmu(_PluginBase):
 
     def _manual_json_path(self, directory: str) -> str:
         return os.path.join(directory, self._manual_match_filename)
+
+    def _configured_roots(self) -> List[str]:
+        """
+        配置的刮削根路径列表（绝对化并折叠 ..；不解析符号链接，
+        以免软链接方式整理的媒体库被判为越界）
+        """
+        if not self._path:
+            return []
+        return [os.path.abspath(os.path.normpath(p.strip()))
+                for p in self._path.split('\n') if p.strip()]
+
+    def _resolve_in_roots(self, path: Optional[str]) -> Optional[str]:
+        """
+        将API传入的路径限制在配置的根路径内
+        :param path: 外部传入的路径
+        :return: 规范化后的绝对路径；越界或未配置根路径时返回None
+        """
+        if not path:
+            return None
+        roots = self._configured_roots()
+        if not roots:
+            logger.warning("未配置刮削路径，拒绝访问任意路径")
+            return None
+        target = os.path.abspath(os.path.normpath(path))
+        for root in roots:
+            if target == root or target.startswith(root + os.sep):
+                return target
+        logger.warning(f"路径超出配置的刮削范围，已拒绝: {path}")
+        return None
 
     def _save_manual_state(self):
         try:
@@ -319,22 +354,46 @@ class Danmu(_PluginBase):
             return self._enable_strm
         return False
     
+    @staticmethod
+    def _clamp_max_threads(value: Any) -> int:
+        """
+        并发数只影响本地开销（ffprobe取时长、算MD5、生成与合并字幕），
+        对服务端的压力由请求层令牌桶控制，两者互不替代
+        """
+        try:
+            return max(1, min(int(value), 32))
+        except (TypeError, ValueError):
+            logger.warning(f"并发数配置无效({value})，使用默认值10")
+            return 10
+
+    def _apply_config(self, config: dict):
+        """
+        将配置字典写入内存属性（不含重试任务，重试任务只在加载时解析）
+        """
+        self._enabled = config.get("enabled", False)
+        self._width = config.get("width", 1920)
+        self._height = config.get("height", 1080)
+        # self._fontface = config.get("fontface")
+        self._fontsize = config.get("fontsize", 50)
+        self._alpha = config.get("alpha", 0.8)
+        self._duration = config.get("duration", 15)
+        self._path = config.get("path", "")
+        self._max_threads = self._clamp_max_threads(config.get("max_threads", 10))
+        self._onlyFromBili = config.get("onlyFromBili", False)
+        self._useTmdbID = config.get("useTmdbID", True)
+        self._auto_scrape = config.get("auto_scrape", False)
+        self._enable_retry_task = config.get("enable_retry_task", True)
+        self._screen_area = config.get("screen_area", "full")
+        self._enable_strm = config.get("enable_strm", True)
+
     def init_plugin(self, config: dict = None):
+        self._stop_event.clear()
+        # 让弹弹API的User-Agent跟随插件版本，避免版本号多处手工同步
+        generator.DanmuAPI.set_client_version(self.plugin_version)
+        # 重新加载时清空上一轮遗留的限流闸门
+        generator.DanmuAPI.reset_gate()
         if config:
-            self._enabled = config.get("enabled", False)
-            self._width = config.get("width", 1920)
-            self._height = config.get("height", 1080)
-            # self._fontface = config.get("fontface")
-            self._fontsize = config.get("fontsize", 50)
-            self._alpha = config.get("alpha", 0.8)
-            self._duration = config.get("duration", 15)
-            self._path = config.get("path", "")
-            self._onlyFromBili = config.get("onlyFromBili", False)
-            self._useTmdbID = config.get("useTmdbID", True)
-            self._auto_scrape = config.get("auto_scrape", False)
-            self._enable_retry_task = config.get("enable_retry_task", True)
-            self._screen_area = config.get("screen_area", "full")
-            self._enable_strm = config.get("enable_strm", True)
+            self._apply_config(config)
             # 加载重试任务列表
             retry_tasks_str = config.get("retry_tasks", "{}")
             try:
@@ -552,6 +611,7 @@ class Danmu(_PluginBase):
             "alpha": self._alpha,
             "duration": self._duration,
             "path": self._path,
+            "max_threads": self._max_threads,
             "onlyFromBili": self._onlyFromBili,
             "useTmdbID": self._useTmdbID,
             "auto_scrape": self._auto_scrape,
@@ -560,52 +620,30 @@ class Danmu(_PluginBase):
             "enable_strm": self._enable_strm
         }
         
+    def _dump_retry_tasks(self) -> str:
+        """将重试任务序列化为配置中存储的JSON字符串"""
+        retry_tasks_for_save = {}
+        with self._retry_lock:
+            for file_path, task_info in self._retry_tasks.items():
+                retry_tasks_for_save[file_path] = {
+                    "retry_count": task_info["retry_count"],
+                    "last_attempt": task_info["last_attempt"].isoformat(),
+                    "file_path": task_info["file_path"],
+                    "last_danmu_count": task_info.get("last_danmu_count", 0)
+                }
+        return json.dumps(retry_tasks_for_save)
+
+    def _persist_config(self):
+        """将当前内存配置连同重试任务写回系统配置（所有落盘的唯一入口）"""
+        config = self._get_config()
+        config["retry_tasks"] = self._dump_retry_tasks()
+        self.update_config(config)
+
     def _save_config(self, config: dict):
         """保存配置"""
         try:
-            self._enabled = config.get("enabled", False)
-            self._width = config.get("width", 1920)
-            self._height = config.get("height", 1080)
-            self._fontsize = config.get("fontsize", 50)
-            self._alpha = config.get("alpha", 0.8)
-            self._duration = config.get("duration", 15)
-            self._path = config.get("path", "")
-            self._onlyFromBili = config.get("onlyFromBili", False)
-            self._useTmdbID = config.get("useTmdbID", True)
-            self._auto_scrape = config.get("auto_scrape", False)
-            self._enable_retry_task = config.get("enable_retry_task", True)
-            self._screen_area = config.get("screen_area", "full")
-            self._enable_strm = config.get("enable_strm", True)
-            
-            # 准备重试任务数据
-            retry_tasks_for_save = {}
-            with self._retry_lock:
-                for file_path, task_info in self._retry_tasks.items():
-                    retry_tasks_for_save[file_path] = {
-                        "retry_count": task_info["retry_count"],
-                        "last_attempt": task_info["last_attempt"].isoformat(),
-                        "file_path": task_info["file_path"],
-                        "last_danmu_count": task_info.get("last_danmu_count", 0)
-                    }
-            
-            # 保存到系统配置
-            self.update_config({
-                "enabled": self._enabled,
-                "width": self._width,
-                "height": self._height,
-                "fontsize": self._fontsize,
-                "alpha": self._alpha,
-                "duration": self._duration,
-                "path": self._path,
-                "onlyFromBili": self._onlyFromBili,
-                "useTmdbID": self._useTmdbID,
-                "auto_scrape": self._auto_scrape,
-                "enable_retry_task": self._enable_retry_task,
-                "screen_area": self._screen_area,
-                "enable_strm": self._enable_strm,
-                "retry_tasks": json.dumps(retry_tasks_for_save)
-            })
-            
+            self._apply_config(config)
+            self._persist_config()
             return schemas.Response(success=True, message="配置已保存")
         except Exception as e:
             logger.error(f"保存配置失败: {e}")
@@ -651,6 +689,24 @@ class Danmu(_PluginBase):
             with self._inflight_lock:
                 self._inflight_files.discard(norm)
 
+    @staticmethod
+    def _parse_episode(meta: Any) -> Optional[int]:
+        """
+        取媒体识别结果中的集号。
+        直接用 begin_episode 而非解析 episode 字符串：双集文件（E13-E14）
+        天然取首集，也不会把合法的第0集当成假值丢掉。
+        :param meta: MetaInfo 识别结果
+        :return: 集号；无集数信息（如电影）时返回None
+        """
+        episode = getattr(meta, "begin_episode", None)
+        if episode is None:
+            return None
+        try:
+            return int(episode)
+        except (TypeError, ValueError):
+            logger.warning(f"集号无法解析: {episode!r}")
+            return None
+
     def _generate_danmu_impl(self, file_path: str) -> Optional[str]:
         meta = MetaInfo(file_path)
         tmdb_id = None
@@ -666,11 +722,7 @@ class Danmu(_PluginBase):
                 if media_info.type == MediaType.MOVIE:
                     tmdb_id_type = 1
                     logger.info(f"识别为电影，使用电影类型TMDB匹配: {tmdb_id}")
-                if meta.episode:
-                    try:
-                        episode = meta.episode.split('E')[-1]
-                    except Exception:
-                        episode = None
+                episode = self._parse_episode(meta)
                 release_date = media_info.release_date
                 if release_date:
                     try:
@@ -713,7 +765,8 @@ class Danmu(_PluginBase):
                 60 if use_short_cache_ttl else None,
                 self._screen_area,
                 manual_comment_id=manual_comment_id,
-                tmdb_id_type=tmdb_id_type
+                tmdb_id_type=tmdb_id_type,
+                min_danmu_count=self._min_danmu_count
             )
             
             # 检查弹幕生成结果
@@ -749,6 +802,13 @@ class Danmu(_PluginBase):
                 self._add_to_retry_if_needed(file_path, 0)
                 
             return result
+        except generator.DanmuThrottled:
+            # 服务端拒绝了请求，这不代表没有弹幕：不进重试列表，否则服务端
+            # 每拦一次客户端就多排一次重试，越限流请求越多
+            raise
+        except generator.DanmuUnresolvable:
+            # 条件不变则结果不变，重试没有意义，同样不进重试列表
+            raise
         except Exception as e:
             logger.error(f"生成弹幕失败: {e}")
             # 生成失败，添加到重试任务
@@ -800,33 +860,26 @@ class Danmu(_PluginBase):
                 if self._retry_save_deferred:
                     self._retry_save_pending = True
                     return
-                # 将datetime对象转换为字符串以便JSON序列化
-                retry_tasks_for_save = {}
-                for file_path, task_info in self._retry_tasks.items():
-                    retry_tasks_for_save[file_path] = {
-                        "retry_count": task_info["retry_count"],
-                        "last_attempt": task_info["last_attempt"].isoformat(),
-                        "file_path": task_info["file_path"],
-                        "last_danmu_count": task_info.get("last_danmu_count", 0)
-                    }
-
-            # 获取当前配置
-            current_config = self._get_config()
-            current_config["retry_tasks"] = json.dumps(retry_tasks_for_save)
-
-            # 更新配置
-            self.update_config(current_config)
+            self._persist_config()
             logger.debug("重试任务列表已保存到配置")
         except Exception as e:
             logger.error(f"保存重试任务失败: {e}")
 
-    def update_path(self, path: str):
+    def update_path(self, path: str) -> schemas.Response:
         """
-        更新路径
+        更新刮削路径
         """
-        self._path = path
-        logger.info(f"更新路径: {self._path}")
-        
+        if path is None:
+            return schemas.Response(success=False, message="缺少路径参数")
+        try:
+            self._path = path
+            self._persist_config()
+            logger.info(f"更新路径: {self._path}")
+            return schemas.Response(success=True, message="路径已更新", data={"path": self._path})
+        except Exception as e:
+            logger.error(f"更新路径失败: {e}")
+            return schemas.Response(success=False, message=f"更新路径失败: {str(e)}")
+
     def _collect_media_files(self, path: str) -> List[str]:
         """
         收集路径下所有支持的媒体文件（目录则递归）
@@ -847,6 +900,9 @@ class Danmu(_PluginBase):
         """
         启动后台批量刮削，已有任务运行时返回False
         """
+        if self._stop_event.is_set():
+            logger.warning("插件正在停止，拒绝启动批量刮削")
+            return False
         with self._scrape_lock:
             if self._scrape_progress.get("running"):
                 return False
@@ -856,6 +912,8 @@ class Danmu(_PluginBase):
                 "processed": 0,
                 "success": 0,
                 "failed": 0,
+                "deferred": 0,
+                "skipped": 0,
                 "current_file": None,
                 "started_at": time.time(),
                 "duration": 0
@@ -865,20 +923,40 @@ class Danmu(_PluginBase):
             args=(files, label),
             daemon=True
         )
+        self._scrape_thread = thread
         thread.start()
         return True
 
-    def _scrape_one(self, file_path: str):
+    def _scrape_file(self, file_path: str) -> str:
+        """
+        刮削单个文件并归类结果
+        :return: ok（生成成功）/ failed（真失败，值得重试）/
+                 deferred（被服务端限流，稍后重试）/ skipped（重试也不会改变结果）
+        """
         try:
             result = self.generate_danmu(file_path)
-            ok = isinstance(result, str) and result.endswith('.danmu.ass')
+            return "ok" if isinstance(result, str) and result.endswith('.danmu.ass') else "failed"
+        except generator.DanmuThrottled as e:
+            # 被限流不是失败：既不计入重试次数，也不该判定为「没有弹幕」
+            logger.warning(f"刮削被限流，本次跳过: {file_path}: {e}")
+            return "deferred"
+        except generator.DanmuUnresolvable as e:
+            logger.warning(f"跳过无法判定的文件: {e}")
+            return "skipped"
         except Exception as e:
             logger.error(f"刮削文件失败: {file_path}: {e}")
-            ok = False
+            return "failed"
+
+    def _scrape_one(self, file_path: str):
+        outcome = self._scrape_file(file_path)
         with self._scrape_lock:
             self._scrape_progress["processed"] += 1
-            if ok:
+            if outcome == "ok":
                 self._scrape_progress["success"] += 1
+            elif outcome == "deferred":
+                self._scrape_progress["deferred"] += 1
+            elif outcome == "skipped":
+                self._scrape_progress["skipped"] += 1
             else:
                 self._scrape_progress["failed"] += 1
 
@@ -889,8 +967,23 @@ class Danmu(_PluginBase):
             self._retry_save_deferred = True
             self._retry_save_pending = False
         threading_list = []
+        stopped = False
         try:
             for file_path in files:
+                if self._stop_event.is_set():
+                    stopped = True
+                    logger.info(f"收到停止信号，中止批量刮削（{label}）")
+                    break
+                # 闸门长时间关闭说明服务端配额已耗尽，继续排队没有意义，
+                # 留给下次调度即可；短暂限流由请求层就地等待处理
+                blocked = generator.DanmuAPI.blocked_seconds()
+                if blocked > generator.DanmuAPI.GATE_WAIT_MAX:
+                    stopped = True
+                    logger.warning(
+                        f"弹弹API限流中（约 {blocked / 60:.0f} 分钟），"
+                        f"中止批量刮削（{label}），剩余文件留待下次执行"
+                    )
+                    break
                 with self._scrape_lock:
                     self._scrape_progress["current_file"] = os.path.basename(file_path)
                 if len(threading_list) >= self._max_threads:
@@ -898,7 +991,8 @@ class Danmu(_PluginBase):
                     threading_list.pop(0)
                 thread = threading.Thread(
                     target=self._scrape_one,
-                    args=(file_path,)
+                    args=(file_path,),
+                    daemon=True
                 )
                 thread.start()
                 threading_list.append(thread)
@@ -919,8 +1013,9 @@ class Danmu(_PluginBase):
             if retry_save_pending:
                 self._save_retry_tasks()
         logger.info(
-            f"批量刮削完成（{label}）：成功 {summary['success']}，"
-            f"失败 {summary['failed']}，共 {summary['total']}"
+            f"批量刮削{'中止' if stopped else '完成'}（{label}）：成功 {summary['success']}，"
+            f"失败 {summary['failed']}，限流跳过 {summary['deferred']}，"
+            f"无法判定 {summary['skipped']}，共 {summary['total']}"
         )
 
     def scrape_directory(self, directory_path: str = None) -> schemas.Response:
@@ -929,6 +1024,9 @@ class Danmu(_PluginBase):
         """
         if not directory_path:
             return schemas.Response(success=False, message="缺少目录路径")
+        directory_path = self._resolve_in_roots(directory_path)
+        if not directory_path:
+            return schemas.Response(success=False, message="路径不在配置的刮削范围内")
         if not os.path.isdir(directory_path):
             return schemas.Response(success=False, message="目录不存在")
         files = self._collect_media_files(directory_path)
@@ -951,7 +1049,7 @@ class Danmu(_PluginBase):
             return schemas.Response(success=False, message="没有设定路径")
 
         logger.info("开始弹幕刮削")
-        paths = [path.strip() for path in self._path.split('\n') if path.strip()]
+        paths = self._configured_roots()
 
         files = []
         for path in paths:
@@ -1008,9 +1106,12 @@ class Danmu(_PluginBase):
                 return
 
             logger.info(f"开始生成弹幕文件：{target_file}")
+            # 用 _scrape_file 而非 generate_danmu：限流会抛异常，
+            # 裸线程里会变成一条无人处理的堆栈
             thread = threading.Thread(
-                target=self.generate_danmu,
-                args=(target_file,)
+                target=self._scrape_file,
+                args=(target_file,),
+                daemon=True
             )
             thread.start()
         except Exception as e:
@@ -1018,9 +1119,16 @@ class Danmu(_PluginBase):
 
     def stop_service(self):
         """
-        退出插件
+        退出插件：通知批量刮削与重试任务停止，并等待当前批次收尾
         """
-        pass
+        self._stop_event.set()
+        thread = self._scrape_thread
+        if thread and thread.is_alive():
+            logger.info("等待批量刮削任务退出...")
+            thread.join(timeout=self._stop_wait_seconds)
+            if thread.is_alive():
+                logger.warning(f"批量刮削任务未在{self._stop_wait_seconds}秒内退出，插件继续停止")
+        self._scrape_thread = None
 
     def _count_danmu_lines_cached(self, ass_file: str, stat_result: Optional[os.stat_result] = None) -> int:
         """
@@ -1080,10 +1188,17 @@ class Danmu(_PluginBase):
             logger.debug("未设置扫描路径，返回错误")
             return schemas.Response(success=False, message="未配置刮削路径")
         
-        # 处理多路径情况
-        paths = [p.strip() for p in path.split('\n') if p.strip()]
+        # 处理多路径情况；传入的路径同样限制在配置的根路径内
+        paths = []
+        for raw in path.split('\n'):
+            if not raw.strip():
+                continue
+            resolved = self._resolve_in_roots(raw.strip())
+            if not resolved:
+                return schemas.Response(success=False, message="路径不在配置的刮削范围内")
+            paths.append(resolved)
         logger.debug(f"解析到 {len(paths)} 个有效路径")
-        
+
         if len(paths) > 1:
             # 多路径情况，返回多个根目录
             logger.debug("处理多路径情况")
@@ -1256,9 +1371,16 @@ class Danmu(_PluginBase):
         :param file_path: 媒体文件路径
         :return: 生成结果
         """
-        if not file_path or not os.path.exists(file_path):
+        if not file_path:
+            return schemas.Response(success=False, message="缺少文件路径")
+
+        file_path = self._resolve_in_roots(file_path)
+        if not file_path:
+            return schemas.Response(success=False, message="路径不在配置的刮削范围内")
+
+        if not os.path.exists(file_path):
             return schemas.Response(success=False, message="文件不存在")
-            
+
         if not self._is_supported_file(file_path):
             if file_path.endswith('.strm') and not self._enable_strm:
                 return schemas.Response(success=False, message=".strm文件刮削功能未启用")
@@ -1286,6 +1408,12 @@ class Danmu(_PluginBase):
                     "file_path": file_path
                 }
             )
+        except generator.DanmuThrottled as e:
+            logger.warning(f"生成弹幕被限流: {file_path}: {e}")
+            return schemas.Response(success=False, message=str(e))
+        except generator.DanmuUnresolvable as e:
+            logger.warning(f"无法判定弹幕归属: {e}")
+            return schemas.Response(success=False, message=e.reason)
         except Exception as e:
             logger.error(f"生成弹幕失败: {e}")
             return schemas.Response(success=False, message=f"生成弹幕失败: {str(e)}")
@@ -1298,28 +1426,20 @@ class Danmu(_PluginBase):
         if not keyword:
             return schemas.Response(success=False, message="搜索关键字不能为空")
 
-        params = {"keyword": keyword}
-        if type and type != "all":
-            params["type"] = type
-
         try:
-            response = requests.get(
-                f"{generator.DanmuAPI.BASE_URL}/search/anime",
-                params=params,
-                headers=generator.DanmuAPI.HEADERS,
-                timeout=15
+            # UI请求不能挂在限速队列里等，取不到令牌就直接告诉用户稍后再试
+            data = generator.DanmuAPI.search_anime(
+                keyword, type, acquire_timeout=self._ui_acquire_timeout
             )
-            if response.status_code != 200:
-                logger.error(f"搜索弹弹失败，HTTP {response.status_code}: {response.text}")
-                return schemas.Response(success=False, message=f"搜索失败: HTTP {response.status_code}")
-
-            data = response.json()
             if not data.get("success", False):
                 message = data.get("errorMessage") or "搜索失败"
                 logger.warning(f"弹弹搜索返回失败: {message}")
                 return schemas.Response(success=False, message=message, data=data)
 
             return schemas.Response(success=True, data=data)
+        except generator.DanmuThrottled as e:
+            logger.warning(f"搜索弹弹被限流: {e}")
+            return schemas.Response(success=False, message=str(e))
         except Exception as e:
             logger.error(f"搜索弹弹动漫失败: {e}")
             return schemas.Response(success=False, message=f"搜索失败: {str(e)}")
@@ -1342,10 +1462,17 @@ class Danmu(_PluginBase):
         if scope == "file":
             if not file_path:
                 return schemas.Response(success=False, message="缺少文件路径")
+            file_path = self._resolve_in_roots(file_path)
+            if not file_path:
+                return schemas.Response(success=False, message="路径不在配置的刮削范围内")
         manual_dir = self._resolve_manual_directory(file_path=file_path, directory_path=directory_path)
         if scope == "directory":
             if not manual_dir:
                 return schemas.Response(success=False, message="无法确定手动匹配目录")
+            # 目录匹配会向该目录写入 .dandan.anime.json，必须限制在配置范围内
+            manual_dir = self._resolve_in_roots(manual_dir)
+            if not manual_dir:
+                return schemas.Response(success=False, message="路径不在配置的刮削范围内")
             if not os.path.isdir(manual_dir):
                 return schemas.Response(success=False, message="匹配目录不存在，请刷新后重试")
 
@@ -1426,6 +1553,11 @@ class Danmu(_PluginBase):
         if not manual_dir:
             return schemas.Response(success=False, message="未提供有效目录")
 
+        # 该接口会删除目录下的 .dandan.anime.json，必须限制在配置范围内
+        manual_dir = self._resolve_in_roots(manual_dir)
+        if not manual_dir:
+            return schemas.Response(success=False, message="路径不在配置的刮削范围内")
+
         json_path = self._manual_json_path(manual_dir)
         try:
             if os.path.exists(json_path):
@@ -1448,22 +1580,23 @@ class Danmu(_PluginBase):
         if not subfolder_path:
             logger.warning("未提供子文件夹路径")
             return schemas.Response(success=False, message="未提供子文件夹路径")
-        
+
+        subfolder_path = self._resolve_in_roots(subfolder_path)
+        if not subfolder_path:
+            return schemas.Response(success=False, message="路径不在配置的刮削范围内")
+
         if not os.path.exists(subfolder_path):
             logger.warning(f"子文件夹不存在: {subfolder_path}")
             return schemas.Response(success=False, message="文件夹不存在")
-        
+
         if not os.path.isdir(subfolder_path):
             logger.warning(f"指定路径不是文件夹: {subfolder_path}")
             return schemas.Response(success=False, message="指定路径不是文件夹")
-        
+
         try:
             # 检查当前路径是否为用户配置的根路径之一
-            is_root = False
-            if self._path:
-                root_paths = [p.strip() for p in self._path.split('\n') if p.strip()]
-                is_root = subfolder_path in root_paths
-            
+            is_root = subfolder_path in self._configured_roots()
+
             # 直接扫描这个子文件夹的内容
             result = self._scan_current_directory(subfolder_path, is_root=is_root)
             logger.debug("子文件夹扫描完成")
@@ -1517,7 +1650,20 @@ class Danmu(_PluginBase):
         with self._retry_lock:
             tasks_to_process = list(self._retry_tasks.items())
 
+        deferred_count = 0
         for file_path, task_info in tasks_to_process:
+            if self._stop_event.is_set():
+                logger.info("收到停止信号，中止重试任务处理")
+                break
+
+            # 闸门长时间关闭时停止本轮，剩余任务留到下次定时执行
+            blocked = generator.DanmuAPI.blocked_seconds()
+            if blocked > generator.DanmuAPI.GATE_WAIT_MAX:
+                logger.warning(
+                    f"弹弹API限流中（约 {blocked / 60:.0f} 分钟），中止本轮重试任务"
+                )
+                break
+
             # 检查文件是否仍然存在
             if not os.path.exists(file_path):
                 logger.warning(f"重试任务文件不存在，移除: {file_path}")
@@ -1559,7 +1705,17 @@ class Danmu(_PluginBase):
                 else:
                     failed_count += 1
                     logger.warning(f"重试失败: {file_path}，{result}")
-                    
+
+            except generator.DanmuThrottled as e:
+                # 不计入失败，重试次数也没有增加，下轮原样再来
+                deferred_count += 1
+                logger.warning(f"重试被限流，本轮跳过: {file_path}: {e}")
+            except generator.DanmuUnresolvable as e:
+                # 条件不变结果就不变，留在列表里只会每轮空转，直接移除
+                with self._retry_lock:
+                    self._retry_tasks.pop(file_path, None)
+                removed_count += 1
+                logger.info(f"重试无法改变结果，从重试列表移除: {e}")
             except Exception as e:
                 logger.error(f"处理重试任务失败: {file_path}，错误: {e}")
                 failed_count += 1
@@ -1567,9 +1723,13 @@ class Danmu(_PluginBase):
         # 保存更新后的重试任务列表
         self._save_retry_tasks()
         
-        result_message = f"重试任务处理完成。处理: {processed_count}, 成功: {success_count}, 失败: {failed_count}, 移除: {removed_count}, 剩余: {len(self._retry_tasks)}"
+        result_message = (
+            f"重试任务处理完成。处理: {processed_count}, 成功: {success_count}, "
+            f"失败: {failed_count}, 限流跳过: {deferred_count}, 移除: {removed_count}, "
+            f"剩余: {len(self._retry_tasks)}"
+        )
         logger.info(result_message)
-        
+
         return schemas.Response(
             success=True,
             message=result_message,
@@ -1577,6 +1737,7 @@ class Danmu(_PluginBase):
                 "processed": processed_count,
                 "success": success_count,
                 "failed": failed_count,
+                "deferred": deferred_count,
                 "removed": removed_count,
                 "remaining": len(self._retry_tasks)
             }

@@ -48,8 +48,8 @@
                     <div class="setting-content flex-grow-1">
                       <div class="d-flex justify-space-between align-center">
                         <div>
-                          <div class="text-subtitle-2">仅从B站获取</div>
-                          <div class="text-caption text-grey">是否仅从B站获取弹幕</div>
+                          <div class="text-subtitle-2">优先使用B站弹幕</div>
+                          <div class="text-caption text-grey">B站弹幕不足时自动回退全部来源</div>
                         </div>
                         <v-switch
                           v-model="editableConfig.onlyFromBili"
@@ -259,6 +259,23 @@
                     class="text-caption"
                   ></v-text-field>
                 </v-col>
+                <v-col cols="12" md="6">
+                  <v-text-field
+                    v-model.number="editableConfig.max_threads"
+                    label="刮削并发数"
+                    type="number"
+                    variant="outlined"
+                    :min="1"
+                    :max="32"
+                    :rules="[v => (v >= 1 && v <= 32) || '并发数必须在1-32之间']"
+                    hint="同时处理的文件数(1-32)，只影响本机开销，对弹弹play的请求另有限速"
+                    persistent-hint
+                    prepend-inner-icon="mdi-animation-outline"
+                    :disabled="saving"
+                    density="compact"
+                    class="text-caption"
+                  ></v-text-field>
+                </v-col>
               </v-row>
             </v-card-text>
           </v-card>
@@ -345,6 +362,7 @@ const editableConfig = reactive({
   alpha: 0.8,
   duration: 15,
   path: '',
+  max_threads: 10,
   onlyFromBili: false,
   useTmdbID: true,
   auto_scrape: true,
@@ -382,6 +400,7 @@ async function loadInitialData() {
         alpha: data.alpha,
         duration: data.duration,
         path: data.path,
+        max_threads: data.max_threads,
         onlyFromBili: data.onlyFromBili,
         useTmdbID: data.useTmdbID,
         auto_scrape: data.auto_scrape,
@@ -408,6 +427,7 @@ async function loadInitialData() {
         alpha: props.initialConfig.alpha,
         duration: props.initialConfig.duration,
         path: props.initialConfig.path,
+        max_threads: props.initialConfig.max_threads,
         onlyFromBili: props.initialConfig.onlyFromBili,
         useTmdbID: props.initialConfig.useTmdbID,
         auto_scrape: props.initialConfig.auto_scrape,
@@ -451,6 +471,7 @@ async function saveFullConfig() {
       alpha: editableConfig.alpha,
       duration: editableConfig.duration,
       path: editableConfig.path,
+      max_threads: editableConfig.max_threads,
       onlyFromBili: editableConfig.onlyFromBili,
       useTmdbID: editableConfig.useTmdbID,
       auto_scrape: editableConfig.auto_scrape,
@@ -494,6 +515,7 @@ function resetConfigToFetched() {
       alpha: serverFetchedConfig.alpha,
       duration: serverFetchedConfig.duration,
       path: serverFetchedConfig.path,
+      max_threads: serverFetchedConfig.max_threads,
       onlyFromBili: serverFetchedConfig.onlyFromBili,
       useTmdbID: serverFetchedConfig.useTmdbID,
       auto_scrape: serverFetchedConfig.auto_scrape,
@@ -522,6 +544,7 @@ onMounted(() => {
       alpha: props.initialConfig.alpha,
       duration: props.initialConfig.duration,
       path: props.initialConfig.path,
+      max_threads: props.initialConfig.max_threads,
       onlyFromBili: props.initialConfig.onlyFromBili,
       useTmdbID: props.initialConfig.useTmdbID,
       auto_scrape: props.initialConfig.auto_scrape,

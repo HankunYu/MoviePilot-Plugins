@@ -56,7 +56,7 @@
                     <div class="text-subtitle-2">处理进度</div>
                     <div class="text-caption text-grey">
                       {{ scrapingStatus.processed }}/{{ scrapingStatus.total }} 个文件
-                      ({{ scrapingStatus.success }} 成功, {{ scrapingStatus.failed }} 失败)
+                      ({{ scrapingStatus.success }} 成功, {{ scrapingStatus.failed }} 失败<template v-if="scrapingStatus.deferred">, {{ scrapingStatus.deferred }} 限流跳过</template><template v-if="scrapingStatus.skipped">, {{ scrapingStatus.skipped }} 无法判定</template>)
                     </div>
                   </div>
                 </div>
@@ -443,6 +443,8 @@ const scrapingStatus = reactive({
   processed: 0,
   success: 0,
   failed: 0,
+  deferred: 0,
+  skipped: 0,
   current_file: "",
   duration: 0
 });
@@ -512,29 +514,41 @@ function formatDuration(seconds) {
 }
 
 // 获取状态
-async function getStatus() {
+// 轮询期间允许偶发失败，连续多次才提示并停止轮询，避免每 3 秒弹一次错误
+const MAX_STATUS_FAILURES = 5;
+let statusFailures = 0;
+
+async function getStatus(isPolling = false) {
   try {
     const data = await props.api.get('plugin/Danmu/status');
     if (data) {
       Object.assign(status, {
         enabled: data.enabled
       });
-      
+
       Object.assign(scrapingStatus, {
         running: data.running,
         total: data.total,
         processed: data.processed,
         success: data.success,
         failed: data.failed,
+        deferred: data.deferred || 0,
+        skipped: data.skipped || 0,
         current_file: data.current_file,
         duration: data.duration
       });
-      
+
       running.value = data.running;
     }
+    statusFailures = 0;
+    return true;
   } catch (err) {
     console.error('获取状态失败:', err);
-    error.value = '获取状态失败，请检查网络或API';
+    statusFailures += 1;
+    if (!isPolling || statusFailures >= MAX_STATUS_FAILURES) {
+      error.value = '获取状态失败，请检查网络或API';
+    }
+    return false;
   }
 }
 
@@ -792,11 +806,22 @@ function scrapeCurrentDirectory() {
 
 function startStatusPolling() {
   if (statusTimer) return;
+  statusFailures = 0;
   statusTimer = setInterval(async () => {
-    await getStatus();
+    const ok = await getStatus(true);
+    if (!ok) {
+      // 连续失败说明后端不可达，继续轮询只会不断刷错
+      if (statusFailures >= MAX_STATUS_FAILURES) {
+        stopStatusPolling();
+      }
+      return;
+    }
     if (!scrapingStatus.running) {
       stopStatusPolling();
-      successMessage.value = `批量刮削完成：成功 ${scrapingStatus.success}，失败 ${scrapingStatus.failed}，共 ${scrapingStatus.total}`;
+      successMessage.value = `批量刮削完成：成功 ${scrapingStatus.success}，失败 ${scrapingStatus.failed}`
+        + (scrapingStatus.deferred ? `，限流跳过 ${scrapingStatus.deferred}` : '')
+        + (scrapingStatus.skipped ? `，无法判定 ${scrapingStatus.skipped}` : '')
+        + `，共 ${scrapingStatus.total}`;
       await navigateToPath(currentPath.value);
     }
   }, 3000);
