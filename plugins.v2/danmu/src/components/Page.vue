@@ -170,9 +170,24 @@
                           <span class="text-subtitle-2">{{ item.name }}</span>
                           <v-chip size="small" color="info" class="ml-2" v-if="item.danmu_count > 0">
                             弹幕: {{ item.danmu_count }}
+                            <v-tooltip v-if="countTooltip(item)" activator="parent" location="top">
+                              {{ countTooltip(item) }}
+                            </v-tooltip>
                           </v-chip>
                           <v-chip size="small" color="grey" class="ml-2" v-else>
                             无弹幕
+                          </v-chip>
+                          <v-chip
+                            v-if="stateChip(item)"
+                            size="small"
+                            variant="tonal"
+                            :color="stateChip(item).color"
+                            class="ml-2"
+                          >
+                            {{ stateChip(item).text }}
+                            <v-tooltip activator="parent" location="top">
+                              <div v-for="line in stateChip(item).lines" :key="line">{{ line }}</div>
+                            </v-tooltip>
                           </v-chip>
                           <v-chip
                             v-if="item.manual_match"
@@ -655,6 +670,62 @@ function manualChipText(item) {
   const offset = Number(item.manual_match.episodeOffset) || 0;
   const offsetText = offset ? `（偏移${formatOffset(offset)}）` : '';
   return `${scopeText}${title}${offsetText}`;
+}
+
+function formatTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+  });
+}
+
+// Danmu chip tooltip: when the server data was fetched, and whether the server now has a different count
+function countTooltip(item) {
+  const state = item?.scrape_state;
+  if (!state) return '';
+  const parts = [];
+  if (state.data_as_of) {
+    parts.push(`弹幕数据时间：${formatTime(state.data_as_of)}`);
+  }
+  if (state.server_count != null && state.server_count !== item.danmu_count) {
+    parts.push(`服务端最近一次：${state.server_count} 条`);
+  }
+  return parts.join('，');
+}
+
+const RETRY_LABELS = {
+  failed: { text: '待重试', color: 'error', desc: '上次刮削失败，会自动重试' },
+  empty: { text: '暂无弹幕', color: 'grey', desc: '弹弹play 已收录，但还没有弹幕' },
+  absent: { text: '未收录', color: 'grey', desc: '弹弹play 未收录该内容，会定期复查' },
+  ok: { text: '弹幕偏少', color: 'warning', desc: '弹幕较少，会定期复查是否增加' },
+};
+
+// Scrape lifecycle chip; settled files show nothing to keep the list quiet
+function stateChip(item) {
+  const state = item?.scrape_state;
+  if (!state || !state.phase || state.phase === 'settled') return null;
+  let chip;
+  if (state.phase === 'refreshing') {
+    chip = {
+      text: `刷新中 ${state.refresh_done ?? 0}/${state.refresh_total}`,
+      color: 'primary',
+      lines: ['新番弹幕还在增加，按计划定期刷新（明显变多才覆盖）'],
+    };
+  } else if (state.phase === 'pending') {
+    chip = { text: '待刮削', color: 'warning', lines: ['已登记，等待刮削完成'] };
+  } else {
+    const label = RETRY_LABELS[state.verdict] || RETRY_LABELS.failed;
+    chip = { text: label.text, color: label.color, lines: [label.desc] };
+  }
+  if (state.next_check) {
+    chip.lines.push(`下次检查：${formatTime(state.next_check)}`);
+  }
+  if (state.data_as_of) {
+    chip.lines.push(`弹幕数据时间：${formatTime(state.data_as_of)}`);
+  }
+  return chip;
 }
 
 function resolveDirectoryPath(item) {

@@ -76,10 +76,52 @@ class DanmuResult:
     # 服务端返回的弹幕数（本地过滤前），判断「有没有弹幕」只能用这个，
     # 不能用本地 .ass 行数——后者掺了 onlyFromBili 之类的本地过滤
     danmu_count: int = 0
+    # ok 时是否真的写了 .ass。刷新时服务端弹幕没有明显变多（甚至变少）就保留原文件
+    written: bool = False
+    # 这份弹幕数据从弹弹play 拉取的时间（ISO 8601，带时区），中转服务器没给时为 None
+    data_as_of: Optional[str] = None
 
     @property
     def is_ok(self) -> bool:
         return self.outcome == "ok"
+
+
+@dataclass
+class CommentsPayload:
+    """
+    中转服务器返回的弹幕数据及其新鲜度。
+    中转服务器的缓存是 stale-while-revalidate：过期时先返回旧数据、后台再刷新，
+    所以「拿到了」不等于「是新的」，需要看 updated_at 判断。
+    """
+    data: Dict[str, Any]
+    # hit / stale / miss；旧版中转服务器不带该响应头时为 None
+    cache_status: Optional[str] = None
+    # 数据从弹弹play 拉取的时间（带时区）
+    updated_at: Optional[datetime] = None
+
+
+@dataclass
+class DanmuFetch:
+    """
+    一次「定位弹幕ID + 拉取弹幕」的结果，尚未写文件。
+    拉取与写文件分开，由插件层根据状态库决定要不要覆盖已有的 .ass。
+    outcome 取值与 DanmuResult 相同（ok / absent / empty / failed）。
+    """
+    outcome: str
+    message: str = ""
+    comment_id: Optional[str] = None
+    # 按时间轴排序的全部来源弹幕（本地过滤前）
+    comments: List[Dict] = field(default_factory=list, repr=False)
+    cache_status: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+    @property
+    def is_ok(self) -> bool:
+        return self.outcome == "ok"
+
+    @property
+    def server_count(self) -> int:
+        return len(self.comments)
 
 
 class DanmuUnresolvable(Exception):
@@ -839,13 +881,27 @@ class DanmuAPI:
             raise RuntimeError(f"搜索失败: HTTP {response.status_code}")
         return response.json()
 
+    @staticmethod
+    def _parse_cache_time(value: Optional[str]) -> Optional[datetime]:
+        """解析中转服务器的 X-Cache-Updated-At；缺失或无时区时返回 None（无法可靠比较）"""
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value)
+        except (TypeError, ValueError):
+            logger.warning(f"无法解析 X-Cache-Updated-At: {value!r}")
+            return None
+        return parsed if parsed.tzinfo else None
+
     @classmethod
-    def get_comments(cls, comment_id: str, cache_ttl: Optional[int] = None) -> Optional[Dict]:
+    def get_comments(cls, comment_id: str, cache_ttl: Optional[int] = None) -> Optional[CommentsPayload]:
         """
         获取弹幕内容
         :param comment_id: 弹幕ID
-        :param cache_ttl: 缓存时间（分钟），传给中转服务器控制缓存
-        :return: 弹幕数据
+        :param cache_ttl: 缓存有效期（分钟），传给中转服务器。缓存超过这个时长时
+                          中转服务器仍返回旧数据，只是会安排后台刷新——它只能触发刷新，
+                          不能让当次请求拿到新数据
+        :return: 弹幕数据及其新鲜度；失败返回 None
         """
         try:
             url = f"{cls.BASE_URL}/{comment_id}?from_id=0&with_related=true&ch_convert=0"
@@ -855,7 +911,11 @@ class DanmuAPI:
             if response is None:
                 return None
             if response.status_code == 200:
-                return response.json()
+                return CommentsPayload(
+                    data=response.json(),
+                    cache_status=response.headers.get("X-Cache"),
+                    updated_at=cls._parse_cache_time(response.headers.get("X-Cache-Updated-At")),
+                )
             logger.error(f"获取弹幕失败: {response.text}")
             return None
         except DanmuThrottled:
@@ -1647,13 +1707,15 @@ def _prefer_bili_comments(comments: List[Dict], min_count: int) -> List[Dict]:
     return comments
 
 
-def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
-                   fontface: str = 'Arial', fontsize: float = 50,
-                   alpha: float = 0.8, duration: float = 6, onlyFromBili: bool = False,
-                   use_tmdb_id: bool = False, tmdb_id: Optional[int] = None,
-                   episode: Optional[int] = None, cache_ttl: Optional[int] = None,
-                   screen_area: str = 'full', manual_comment_id: Optional[str] = None,
-                   tmdb_id_type: int = 0, min_danmu_count: int = 100) -> DanmuResult:
+def fetch_danmu(file_path: str, use_tmdb_id: bool = False, tmdb_id: Optional[int] = None,
+                episode: Optional[int] = None, cache_ttl: Optional[int] = None,
+                manual_comment_id: Optional[str] = None, tmdb_id_type: int = 0) -> DanmuFetch:
+    """
+    定位弹幕ID并拉取弹幕，不写文件。
+    :param cache_ttl: 传给中转服务器的缓存有效期（分钟），见 DanmuAPI.get_comments
+    :raises DanmuThrottled: 被限流
+    :raises DanmuUnresolvable: 条件不变则结果不变，重试没有意义
+    """
     try:
         comment_id = manual_comment_id or DanmuAPI.get_comment_id(
             file_path, use_tmdb_id, tmdb_id, episode, tmdb_id_type
@@ -1661,65 +1723,81 @@ def danmu_generator(file_path: str, width: int = 1920, height: int = 1080,
         if not comment_id:
             # 问过了，弹弹play 没有这个内容。这不是失败，重试也不会变
             logger.info(f"弹弹play未收录该内容 - {file_path}")
-            return DanmuResult("absent", message="弹弹play未收录该内容")
+            return DanmuFetch("absent", message="弹弹play未收录该内容")
 
-        comments_data = DanmuAPI.get_comments(comment_id, cache_ttl=cache_ttl)
-        if not comments_data:
-            return DanmuResult("failed", message="未获取到弹幕数据", comment_id=comment_id)
+        payload = DanmuAPI.get_comments(comment_id, cache_ttl=cache_ttl)
+        if not payload or not payload.data:
+            return DanmuFetch("failed", message="未获取到弹幕数据", comment_id=comment_id)
 
-        raw_comments = comments_data.get("comments")
+        raw_comments = payload.data.get("comments")
         if not isinstance(raw_comments, list):
             logger.warning(f"弹幕数据格式异常，缺少comments列表 - {file_path}")
-            return DanmuResult("failed", message="弹幕数据格式异常", comment_id=comment_id)
+            return DanmuFetch("failed", message="弹幕数据格式异常", comment_id=comment_id)
 
-        comments = sorted(raw_comments, key=_comment_timeline)
-        server_count = len(comments)
-
-        if server_count == 0:
+        if not raw_comments:
             # 条目是有的，只是还没有人发弹幕——新番常见，之后可能会有
             logger.info(f"该内容已收录但暂时没有弹幕 - {file_path}")
-            return DanmuResult("empty", message="已收录，但暂时没有弹幕",
-                               comment_id=comment_id)
+            return DanmuFetch("empty", message="已收录，但暂时没有弹幕", comment_id=comment_id,
+                              cache_status=payload.cache_status, updated_at=payload.updated_at)
 
-        # 优先B站弹幕（不足则回退全部来源）
-        if onlyFromBili:
-            comments = _prefer_bili_comments(comments, min_danmu_count)
-
-        output_file = os.path.splitext(file_path)[0] + '.danmu.ass'
-        
-        DanmuConverter.convert_comments_to_ass(
-            comments, output_file, 
-            width=int(width), 
-            height=int(height), 
-            fontface=fontface, 
-            fontsize=float(fontsize), 
-            alpha=float(alpha), 
-            duration=float(duration),
-            screen_area=screen_area
+        return DanmuFetch(
+            "ok",
+            comment_id=comment_id,
+            comments=sorted(raw_comments, key=_comment_timeline),
+            cache_status=payload.cache_status,
+            updated_at=payload.updated_at,
         )
-
-        # 处理字幕合并
-        sub2 = SubtitleProcessor.find_subtitle_file(file_path)
-        
-        # 只有非.strm文件才尝试提取内嵌字幕
-        if not sub2 and SubtitleProcessor.can_extract_subtitles(file_path):
-            SubtitleProcessor.try_extract_sub(file_path)
-            sub2 = SubtitleProcessor.find_subtitle_file(file_path)
-
-        if sub2:
-            SubtitleProcessor.combine_sub_ass(output_file, sub2, file_path)
-        else:
-            if StrmProcessor.is_strm_file(file_path):
-                logger.info(f'.strm文件未找到外部字幕，仅生成弹幕文件 - {file_path}')
-            else:
-                logger.error(f'未找到原生字幕，跳过合并 - {file_path}')
-
-        return DanmuResult("ok", output_file=output_file,
-                           comment_id=comment_id, danmu_count=server_count)
 
     except (DanmuThrottled, DanmuUnresolvable):
         # 交由插件层处理：既不算失败，也不进重试列表
         raise
     except Exception as e:
-        logger.error(f"生成弹幕失败: {e}")
-        return DanmuResult("failed", message=f"生成弹幕失败: {str(e)}")
+        logger.error(f"拉取弹幕失败: {e}")
+        return DanmuFetch("failed", message=f"拉取弹幕失败: {str(e)}")
+
+
+def write_danmu(file_path: str, comments: List[Dict], width: int = 1920, height: int = 1080,
+                fontface: str = 'Arial', fontsize: float = 50, alpha: float = 0.8,
+                duration: float = 6, onlyFromBili: bool = False, screen_area: str = 'full',
+                min_danmu_count: int = 100) -> str:
+    """
+    把弹幕渲染成 .danmu.ass，并与字幕合并成 .withDanmu.ass。
+    :param comments: fetch_danmu 拉到的全部来源弹幕
+    :param min_danmu_count: 仅B站模式下，B站弹幕少于此数则回退全部来源
+    :return: 弹幕文件路径
+    :raises Exception: 写文件失败，由调用方记为失败
+    """
+    # 优先B站弹幕（不足则回退全部来源）
+    if onlyFromBili:
+        comments = _prefer_bili_comments(comments, min_danmu_count)
+
+    output_file = os.path.splitext(file_path)[0] + '.danmu.ass'
+
+    DanmuConverter.convert_comments_to_ass(
+        comments, output_file,
+        width=int(width),
+        height=int(height),
+        fontface=fontface,
+        fontsize=float(fontsize),
+        alpha=float(alpha),
+        duration=float(duration),
+        screen_area=screen_area
+    )
+
+    # 处理字幕合并
+    sub2 = SubtitleProcessor.find_subtitle_file(file_path)
+
+    # 只有非.strm文件才尝试提取内嵌字幕
+    if not sub2 and SubtitleProcessor.can_extract_subtitles(file_path):
+        SubtitleProcessor.try_extract_sub(file_path)
+        sub2 = SubtitleProcessor.find_subtitle_file(file_path)
+
+    if sub2:
+        SubtitleProcessor.combine_sub_ass(output_file, sub2, file_path)
+    else:
+        if StrmProcessor.is_strm_file(file_path):
+            logger.info(f'.strm文件未找到外部字幕，仅生成弹幕文件 - {file_path}')
+        else:
+            logger.error(f'未找到原生字幕，跳过合并 - {file_path}')
+
+    return output_file

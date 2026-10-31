@@ -309,6 +309,62 @@ function manualChipText(item) {
   return `${scopeText}${title}${offsetText}`;
 }
 
+function formatTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+  });
+}
+
+// Danmu chip tooltip: when the server data was fetched, and whether the server now has a different count
+function countTooltip(item) {
+  const state = item?.scrape_state;
+  if (!state) return '';
+  const parts = [];
+  if (state.data_as_of) {
+    parts.push(`弹幕数据时间：${formatTime(state.data_as_of)}`);
+  }
+  if (state.server_count != null && state.server_count !== item.danmu_count) {
+    parts.push(`服务端最近一次：${state.server_count} 条`);
+  }
+  return parts.join('，');
+}
+
+const RETRY_LABELS = {
+  failed: { text: '待重试', color: 'error', desc: '上次刮削失败，会自动重试' },
+  empty: { text: '暂无弹幕', color: 'grey', desc: '弹弹play 已收录，但还没有弹幕' },
+  absent: { text: '未收录', color: 'grey', desc: '弹弹play 未收录该内容，会定期复查' },
+  ok: { text: '弹幕偏少', color: 'warning', desc: '弹幕较少，会定期复查是否增加' },
+};
+
+// Scrape lifecycle chip; settled files show nothing to keep the list quiet
+function stateChip(item) {
+  const state = item?.scrape_state;
+  if (!state || !state.phase || state.phase === 'settled') return null;
+  let chip;
+  if (state.phase === 'refreshing') {
+    chip = {
+      text: `刷新中 ${state.refresh_done ?? 0}/${state.refresh_total}`,
+      color: 'primary',
+      lines: ['新番弹幕还在增加，按计划定期刷新（明显变多才覆盖）'],
+    };
+  } else if (state.phase === 'pending') {
+    chip = { text: '待刮削', color: 'warning', lines: ['已登记，等待刮削完成'] };
+  } else {
+    const label = RETRY_LABELS[state.verdict] || RETRY_LABELS.failed;
+    chip = { text: label.text, color: label.color, lines: [label.desc] };
+  }
+  if (state.next_check) {
+    chip.lines.push(`下次检查：${formatTime(state.next_check)}`);
+  }
+  if (state.data_as_of) {
+    chip.lines.push(`弹幕数据时间：${formatTime(state.data_as_of)}`);
+  }
+  return chip;
+}
+
 function resolveDirectoryPath(item) {
   if (!item) return null;
   if (item.type === 'directory') {
@@ -607,6 +663,7 @@ return (_ctx, _cache) => {
   const _component_v_btn = _resolveComponent("v-btn");
   const _component_v_progress_linear = _resolveComponent("v-progress-linear");
   const _component_v_chip = _resolveComponent("v-chip");
+  const _component_v_tooltip = _resolveComponent("v-tooltip");
   const _component_v_divider = _resolveComponent("v-divider");
   const _component_v_card_actions = _resolveComponent("v-card-actions");
   const _component_v_select = _resolveComponent("v-select");
@@ -989,7 +1046,19 @@ return (_ctx, _cache) => {
                                                         class: "ml-2"
                                                       }, {
                                                         default: _withCtx(() => [
-                                                          _createTextVNode(" 弹幕: " + _toDisplayString(item.danmu_count), 1)
+                                                          _createTextVNode(" 弹幕: " + _toDisplayString(item.danmu_count) + " ", 1),
+                                                          (countTooltip(item))
+                                                            ? (_openBlock(), _createBlock(_component_v_tooltip, {
+                                                                key: 0,
+                                                                activator: "parent",
+                                                                location: "top"
+                                                              }, {
+                                                                default: _withCtx(() => [
+                                                                  _createTextVNode(_toDisplayString(countTooltip(item)), 1)
+                                                                ]),
+                                                                _: 2
+                                                              }, 1024))
+                                                            : _createCommentVNode("", true)
                                                         ]),
                                                         _: 2
                                                       }, 1024))
@@ -1004,9 +1073,34 @@ return (_ctx, _cache) => {
                                                         ])),
                                                         _: 1
                                                       })),
-                                                  (item.manual_match)
+                                                  (stateChip(item))
                                                     ? (_openBlock(), _createBlock(_component_v_chip, {
                                                         key: 2,
+                                                        size: "small",
+                                                        variant: "tonal",
+                                                        color: stateChip(item).color,
+                                                        class: "ml-2"
+                                                      }, {
+                                                        default: _withCtx(() => [
+                                                          _createTextVNode(_toDisplayString(stateChip(item).text) + " ", 1),
+                                                          _createVNode(_component_v_tooltip, {
+                                                            activator: "parent",
+                                                            location: "top"
+                                                          }, {
+                                                            default: _withCtx(() => [
+                                                              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(stateChip(item).lines, (line) => {
+                                                                return (_openBlock(), _createElementBlock("div", { key: line }, _toDisplayString(line), 1))
+                                                              }), 128))
+                                                            ]),
+                                                            _: 2
+                                                          }, 1024)
+                                                        ]),
+                                                        _: 2
+                                                      }, 1032, ["color"]))
+                                                    : _createCommentVNode("", true),
+                                                  (item.manual_match)
+                                                    ? (_openBlock(), _createBlock(_component_v_chip, {
+                                                        key: 3,
                                                         size: "small",
                                                         color: "secondary",
                                                         class: "ml-2",
@@ -1466,6 +1560,6 @@ return (_ctx, _cache) => {
 }
 
 };
-const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-7fcf3d40"]]);
+const Page = /*#__PURE__*/_export_sfc(_sfc_main, [['__scopeId',"data-v-2861d87c"]]);
 
 export { Page as default };
